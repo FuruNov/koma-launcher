@@ -5,11 +5,15 @@ import dev.furunov.komalauncher.feature.widgets.WidgetHostController
 import dev.furunov.komalauncher.model.apps.AppCatalog
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.ports.ActionPerformer
+import dev.furunov.komalauncher.model.ports.BackupService
+import dev.furunov.komalauncher.model.ports.LayoutImporter
 import dev.furunov.komalauncher.model.ports.LayoutSource
 import dev.furunov.komalauncher.model.settings.SettingsStore
 import dev.furunov.komalauncher.model.widgets.WidgetStore
 import dev.furunov.komalauncher.platform.apps.LauncherAppsCatalog
 import dev.furunov.komalauncher.platform.apps.LauncherIconLoader
+import dev.furunov.komalauncher.platform.files.SafBackupService
+import dev.furunov.komalauncher.platform.files.SafLayoutImporter
 import dev.furunov.komalauncher.platform.layout.FileLayoutSource
 import dev.furunov.komalauncher.platform.store.FileFolderStore
 import dev.furunov.komalauncher.platform.store.FileSettingsStore
@@ -32,7 +36,8 @@ class AppContainer(
     /** アプリの寿命の処理（保存、アプリ一覧の更新）に使う。 */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    val layoutSource: LayoutSource = FileLayoutSource(context, scope)
+    private val fileLayout = FileLayoutSource(context, scope)
+    val layoutSource: LayoutSource = fileLayout
     val folderStore: FolderStore = FileFolderStore(context, scope)
     val settingsStore: SettingsStore = FileSettingsStore(context, scope)
     val appCatalog: AppCatalog = LauncherAppsCatalog(context, scope)
@@ -43,4 +48,6 @@ class AppContainer(
 
     /** Activity が作り直されてもウィジェットのビューを持ち続けるよう、アプリの寿命で持つ。 */
     val widgets = WidgetHostController(context.applicationContext, widgetStore)
+    val importer: LayoutImporter = SafLayoutImporter(context, fileLayout.directory)
+    val backup: BackupService = SafBackupService(context, fileLayout.directory, folderStore, settingsStore, widgetStore)
 }

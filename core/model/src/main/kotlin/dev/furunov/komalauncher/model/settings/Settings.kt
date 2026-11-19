@@ -125,3 +125,27 @@ interface SettingsStore {
 
     fun update(transform: (Settings) -> Settings)
 }
+
+/**
+ * アニメーションの案の名前。実装は :feature:home にあり、ここの id で引く。
+ * 設定画面がホームのモジュールに依存せずに選択肢を並べられるよう、名前だけをここに置く。
+ * 案を増やすときは、ここに 1 行と、:feature:home の PanelAnimations に実装を 1 つ加える。
+ */
+object AnimationCatalog {
+    data class Entry(
+        val id: String,
+        val label: String,
+    )
+
+    val enter =
+        listOf(
+            Entry("slide-overshoot", "にゅっと滑り込む"),
+            Entry("pop-in", "ぽんと現れる"),
+            Entry("drop", "上から落ちてくる"),
+        )
+    val press =
+        listOf(
+            Entry("squash", "沈んで弾む"),
+            Entry("lift", "持ち上がる"),
+        )
+}
