@@ -1,0 +1,28 @@
+# release-first (2026-11-19T23:22:37+09:00)
+device: SM-S918B / Android 13 / Physical size: 1080x1920
+apk:     versionName=0.1.0 flags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+
+## 起動（コールドスタート、5 回）
+TotalTime: 241
+TotalTime: 258
+TotalTime: 241
+TotalTime: 245
+TotalTime: 220
+
+## 待機中のメモリ（ホームを表示して 5 秒後）
+Native Heap        0        0        0        0        0    35520    27829     2646
+Java Heap:        0                              0
+Native Heap:        0                              0
+Code:    13688                         167536
+Graphics:        0                              0
+TOTAL PSS:    65298            TOTAL RSS:   223860       TOTAL SWAP PSS:      481
+
+## フォルダの開閉を 20 回
+Total frames rendered: 62
+Janky frames: 0 (0.00%)
+Janky frames (legacy): 0 (0.00%)
+50th percentile: 5ms
+90th percentile: 8ms
+
+## フォルダの開閉の後のメモリ
+TOTAL PSS:    58487            TOTAL RSS:   197916       TOTAL SWAP PSS:      287
