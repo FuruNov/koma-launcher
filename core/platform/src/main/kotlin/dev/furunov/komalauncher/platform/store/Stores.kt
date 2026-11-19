@@ -19,6 +19,10 @@ class FileFolderStore(
     override val folders: StateFlow<Folders> = store.value
 
     override fun update(transform: (Folders) -> Folders) = store.update(transform)
+
+    fun flush() = store.flush()
+
+    val brokenFile: File? get() = store.brokenFile
 }
 
 class FileSettingsStore(
@@ -29,6 +33,10 @@ class FileSettingsStore(
     override val settings: StateFlow<Settings> = store.value
 
     override fun update(transform: (Settings) -> Settings) = store.update(transform)
+
+    fun flush() = store.flush()
+
+    val brokenFile: File? get() = store.brokenFile
 }
 
 class FileWidgetStore(
@@ -39,4 +47,8 @@ class FileWidgetStore(
     override val assignments: StateFlow<WidgetAssignments> = store.value
 
     override fun update(transform: (WidgetAssignments) -> WidgetAssignments) = store.update(transform)
+
+    fun flush() = store.flush()
+
+    val brokenFile: File? get() = store.brokenFile
 }

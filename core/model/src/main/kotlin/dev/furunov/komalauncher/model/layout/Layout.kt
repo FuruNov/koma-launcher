@@ -9,8 +9,8 @@ value class PanelId(
 )
 
 /**
- * コマに何が入るか。種類を増やすときは、ここに 1 つ加え、
- * UI 側の PanelKindHandler を 1 つ登録する。既存の種類のコードは触らない。
+ * コマに何が入るか。種類を増やすときは、ここに 1 つ加え、LayoutParser の Kind と、
+ * ホームでの扱い（HomeViewModel の TapPanel、HomeScreen の描画）を加える（README の「増やし方」）。
  */
 sealed interface PanelContent {
     /** タップでアプリの一覧を開くコマ。[initialApps] は最初の起動で 1 度だけ使う初期値。 */

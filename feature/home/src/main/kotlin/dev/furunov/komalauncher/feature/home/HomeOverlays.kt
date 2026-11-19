@@ -65,11 +65,13 @@ internal val REMOVE_ZONE_HEIGHT = 64.dp
 /** 外した・移した直後に数秒だけ出す「元に戻す」。 */
 @Composable
 internal fun UndoBar(
+    /** 戻す先の状態。変わるたびに 5 秒を数え直す（続けて外したとき、2 回目の猶予が短くならないように）。 */
+    undoKey: Any,
     onUndo: () -> Unit,
     onTimeout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LaunchedEffect(Unit) {
+    LaunchedEffect(undoKey) {
         delay(5000)
         onTimeout()
     }
@@ -132,14 +134,16 @@ internal fun AppMenuSheet(
 @Composable
 private fun MenuRow(
     text: String,
+    modifier: Modifier = Modifier,
     color: Color = Color.White,
-    modifier: Modifier = Modifier.fillMaxWidth(),
     onClick: () -> Unit,
 ) {
+    // 幅を指定されなければ、行全体を押せるように横いっぱいに広げる
+    val base = if (modifier == Modifier) Modifier.fillMaxWidth() else modifier
     BasicText(
         text,
         style = TextStyle(color = color, fontSize = 15.sp),
-        modifier = modifier.clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
+        modifier = base.clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
     )
 }
 

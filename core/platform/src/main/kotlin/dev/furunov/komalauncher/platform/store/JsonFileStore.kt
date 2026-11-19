@@ -23,6 +23,8 @@ import java.io.File
  *   全体をメモリに持って丸ごと書き直せば足りる。
  * - AtomicFile で書くので、書き込みの途中で強制終了しても前の版が残る。
  * - ドラッグで並べ替えると短い間に何度も変わるので、[debounceMs] の間まとめてから書く。
+ *   まとめている間にプロセスが止まると失われるので、ホームが裏に回ったら [flush] ですぐ書く。
+ * - 読めないファイルは .broken に退避し、既定値で始めたことを [brokenFile] で知らせる。
  */
 @OptIn(FlowPreview::class)
 class JsonFileStore<T>(
@@ -38,8 +40,16 @@ class JsonFileStore<T>(
             ignoreUnknownKeys = true
             encodeDefaults = true
         }
+
+    /** 読めずに既定値で始めたとき、退避したファイル。画面で知らせるために使う。 */
+    var brokenFile: File? = null
+        private set
     private val state = MutableStateFlow(read() ?: default())
     val value: StateFlow<T> = state
+
+    // 最後に書いた値。flush で書く必要があるかを見分ける。書き込みは IO のコルーチンと flush の両方から来るので、lock で順番にする
+    private val lock = Any()
+    private var written: T = state.value
 
     init {
         state
@@ -51,6 +61,9 @@ class JsonFileStore<T>(
 
     fun update(transform: (T) -> T) = state.update(transform)
 
+    /** まとめている途中の変更を、いま書く。呼び出し元のスレッドで書く（数 KB なので短い）。 */
+    fun flush() = write(state.value)
+
     private fun read(): T? = try {
         if (!atomic.baseFile.exists()) {
             null
@@ -60,18 +73,24 @@ class JsonFileStore<T>(
     } catch (e: Exception) {
         // 読めないファイルは消さずに退避する。次の書き込みで上書きされて手掛かりが消えないように
         Log.w(TAG, "${atomic.baseFile} を読めないので既定値で始める", e)
-        atomic.baseFile.copyTo(File(atomic.baseFile.path + ".broken"), overwrite = true)
+        val broken = File(atomic.baseFile.path + ".broken")
+        atomic.baseFile.copyTo(broken, overwrite = true)
+        brokenFile = broken
         null
     }
 
     private fun write(value: T) {
-        val out = atomic.startWrite()
-        try {
-            out.write(json.encodeToString(serializer, value).encodeToByteArray())
-            atomic.finishWrite(out)
-        } catch (e: Exception) {
-            atomic.failWrite(out)
-            Log.e(TAG, "${atomic.baseFile} に書けない", e)
+        synchronized(lock) {
+            if (value === written) return
+            val out = atomic.startWrite()
+            try {
+                out.write(json.encodeToString(serializer, value).encodeToByteArray())
+                atomic.finishWrite(out)
+                written = value
+            } catch (e: Exception) {
+                atomic.failWrite(out)
+                Log.e(TAG, "${atomic.baseFile} に書けない", e)
+            }
         }
     }
 

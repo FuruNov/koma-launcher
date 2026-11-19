@@ -75,6 +75,8 @@ fun HomeScreen(
     onUnlockPlayed: () -> Unit,
     slots: HomeSlots,
     modifier: Modifier = Modifier,
+    /** layout.json 以外の知らせ（保存ファイルを読めなかったなど）。 */
+    notice: String? = null,
 ) {
     val gutter = Color(state.settings.appearance.gutterColor)
     BoxWithConstraints(modifier.fillMaxSize().background(gutter)) {
@@ -201,7 +203,7 @@ fun HomeScreen(
                 }
             }
 
-            state.layoutError?.let {
+            listOfNotNull(state.layoutError, notice).joinToString("\n").takeIf { it.isNotEmpty() }?.let {
                 BasicText(
                     it,
                     style = TextStyle(color = Color.White, fontSize = 12.sp),
@@ -246,6 +248,7 @@ fun HomeScreen(
             }
             if (state.undo != null) {
                 UndoBar(
+                    undoKey = state.undo,
                     onUndo = { onEvent(HomeEvent.Undo) },
                     onTimeout = { onEvent(HomeEvent.ClearUndo) },
                     modifier = Modifier.align(Alignment.BottomCenter),

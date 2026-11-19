@@ -106,6 +106,7 @@ class MainActivity : ComponentActivity() {
                     state = state,
                     onEvent = home::onEvent,
                     unlockPending = container.screenEvents.unlockPending,
+                    notice = container.storeNotice,
                     onUnlockPlayed = container.screenEvents::consumeUnlock,
                     slots = slots,
                 )
@@ -124,6 +125,8 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         container.widgets.stopListening()
+        // 裏に回ったホームは、メモリが足りなくなると止められることがある。まとめて書く途中の変更をここで書く
+        container.flushStores()
     }
 
     @Deprecated("AppWidgetHost.startAppWidgetConfigureActivityForResult が Activity の結果で返すため")

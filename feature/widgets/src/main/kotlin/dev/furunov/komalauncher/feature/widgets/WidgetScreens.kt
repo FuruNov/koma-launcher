@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,15 +52,18 @@ fun WidgetPanel(
         return
     }
     LaunchedEffect(ref.appWidgetId, widthDp, heightDp) { controller.updateSize(ref.appWidgetId, widthDp, heightDp) }
-    AndroidView(
-        factory = { ctx ->
-            val view = controller.view(ref.appWidgetId)
-            // 同じビューを作り直した入れ物へ付け替えることがあるので、前の親から外してから返す
-            (view?.parent as? ViewGroup)?.removeView(view)
-            view ?: FrameLayout(ctx)
-        },
-        modifier = Modifier.fillMaxSize(),
-    )
+    // AndroidView の factory は 1 回しか呼ばれないので、ウィジェットを入れ替えたら作り直させる
+    key(ref.appWidgetId) {
+        AndroidView(
+            factory = { ctx ->
+                val view = controller.view(ref.appWidgetId)
+                // 同じビューを作り直した入れ物へ付け替えることがあるので、前の親から外してから返す
+                (view?.parent as? ViewGroup)?.removeView(view)
+                view ?: FrameLayout(ctx)
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
 }
 
 /** ウィジェットの選択画面。アプリごとに並べる。 */

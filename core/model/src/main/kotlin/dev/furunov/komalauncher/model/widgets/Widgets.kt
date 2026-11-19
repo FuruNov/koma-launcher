@@ -1,5 +1,7 @@
 package dev.furunov.komalauncher.model.widgets
 
+import dev.furunov.komalauncher.model.layout.Layout
+import dev.furunov.komalauncher.model.layout.PanelContent
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.Serializable
 
@@ -24,4 +26,19 @@ interface WidgetStore {
     val assignments: StateFlow<WidgetAssignments>
 
     fun update(transform: (WidgetAssignments) -> WidgetAssignments)
+}
+
+object WidgetEdits {
+    /**
+     * layout.json のウィジェットのコマに無い割り当て（コマの id）。
+     * 利用者の layout.json を正しく読めたときだけ使うこと。見本に戻っているとき（JSON の誤り）に使うと、
+     * 書き損じ 1 つで全部のウィジェットを外してしまうため。
+     */
+    fun orphans(
+        assignments: WidgetAssignments,
+        layout: Layout,
+    ): Set<String> {
+        val live = layout.panels.filter { it.content is PanelContent.Widget }.map { it.id.value }.toSet()
+        return assignments.byPanel.keys - live
+    }
 }

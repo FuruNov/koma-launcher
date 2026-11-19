@@ -38,7 +38,6 @@
         <activity
             android:name=".SettingsActivity"
             android:exported="false"
-            android:label="@string/app_name"
             android:taskAffinity="dev.furunov.komalauncher.settings" />
     </application>
 </manifest>

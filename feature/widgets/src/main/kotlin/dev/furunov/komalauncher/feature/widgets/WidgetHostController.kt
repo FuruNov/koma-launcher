@@ -10,6 +10,8 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.SizeF
 import androidx.compose.runtime.mutableStateOf
+import dev.furunov.komalauncher.model.layout.Layout
+import dev.furunov.komalauncher.model.widgets.WidgetEdits
 import dev.furunov.komalauncher.model.widgets.WidgetRef
 import dev.furunov.komalauncher.model.widgets.WidgetStore
 
@@ -121,6 +123,14 @@ class WidgetHostController(
         host.deleteAppWidgetId(ref.appWidgetId)
         views.remove(ref.appWidgetId)
         store.update { it.copy(byPanel = it.byPanel - panelId) }
+    }
+
+    /**
+     * layout.json から消えたコマのウィジェットを外す。外さないと、見えないウィジェットが更新を受け続け、
+     * 外すための長押しのメニューも出せない（コマが無いため）。呼ぶのは layout.json を正しく読めたときだけ。
+     */
+    fun removeOrphans(layout: Layout) {
+        WidgetEdits.orphans(store.assignments.value, layout).forEach(::remove)
     }
 
     private fun configureOrFinish(
