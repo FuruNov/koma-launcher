@@ -36,7 +36,7 @@ class FolderEditsTest {
     fun removeMissingIsNoop() {
         assertSame(base, FolderEdits.remove(base, "p1", c))
         assertSame(base, FolderEdits.remove(base, "nope", a))
-        assertSame(Folders(), FolderEdits.remove(Folders(), "p1", a))
+        assertEquals(Folders(), FolderEdits.remove(Folders(), "p1", a))
     }
 
     @Test
@@ -71,16 +71,15 @@ class FolderEditsTest {
     @Test
     fun renameBlankClears() = assertEquals(null, FolderEdits.rename(FolderEdits.rename(base, "p1", "x"), "p1", " ").byPanel["p1"]?.name)
 
-    private fun layout(vararg panels: Pair<String, List<String>>) =
-        Layout(
-            version = 1,
-            image = null,
-            aspect = 1f,
-            panels =
-                panels.map { (id, apps) ->
-                    Panel(PanelId(id), Polygon(listOf(Point(0f, 0f), Point(1f, 0f), Point(1f, 1f))), PanelContent.Folder(apps))
-                },
-        )
+    private fun layout(vararg panels: Pair<String, List<String>>) = Layout(
+        version = 1,
+        image = null,
+        aspect = 1f,
+        panels =
+        panels.map { (id, apps) ->
+            Panel(PanelId(id), Polygon(listOf(Point(0f, 0f), Point(1f, 0f), Point(1f, 1f))), PanelContent.Folder(apps))
+        },
+    )
 
     private val resolve: (String) -> AppKey? = { pkg -> listOf(a, b, c).firstOrNull { it.packageName == pkg } }
 
