@@ -103,7 +103,7 @@ object FolderEdits {
 
     /**
      * layout.json に合わせて整える。
-     * - 初めて見るフォルダのコマには、layout.json の初期値を 1 度だけ入れる
+     * - 初めて見るフォルダのコマには、layout.json の初期値を 1 度だけ入れる（[seedOnly]）
      * - layout.json から消えたコマの中身は unassigned へ移す（消さない）
      * 見本のレイアウトに戻っているとき（JSON の誤り）は呼ばないこと。書き損じ 1 つで割り当てを失うため。
      */
@@ -112,26 +112,38 @@ object FolderEdits {
         layout: Layout,
         resolve: (String) -> AppKey?,
     ): Folders {
-        val folderPanels = layout.panels.filter { it.content is PanelContent.Folder }
-        val liveIds = folderPanels.map { it.id.value }.toSet()
+        val result = seedOnly(f, layout, resolve)
+        val liveIds = layout.panels.filter { it.content is PanelContent.Folder }.map { it.id.value }.toSet()
+        val orphans = result.byPanel.filterKeys { it !in liveIds }
+        if (orphans.isEmpty()) return result
+        // 見本のコマの中身は利用者が選んだものではないので、unassigned に混ぜずに捨てる
+        val moved = orphans.filterKeys { !it.startsWith(SAMPLE_PREFIX) }.values.flatMap { it.apps }
+        return result.copy(
+            byPanel = result.byPanel - orphans.keys,
+            unassigned = (result.unassigned + moved).distinct(),
+            seeded = result.seeded.filterNot { it.startsWith(SAMPLE_PREFIX) }.toSet(),
+        )
+    }
+
+    /** 初めて見るフォルダのコマに、layout.json の初期値を 1 度だけ入れる。消えたコマの整理はしない。 */
+    fun seedOnly(
+        f: Folders,
+        layout: Layout,
+        resolve: (String) -> AppKey?,
+    ): Folders {
         var result = f
-        for (panel in folderPanels) {
+        for (panel in layout.panels) {
+            val content = panel.content as? PanelContent.Folder ?: continue
             val id = panel.id.value
             if (id in result.seeded) continue
-            val initial = (panel.content as PanelContent.Folder).initialApps.mapNotNull(resolve).distinct()
+            val initial = content.initialApps.mapNotNull(resolve).distinct()
             val existing = result.appsOf(id)
             val folder = (result.byPanel[id] ?: Folder()).copy(apps = existing + initial.filterNot { it in existing })
             result = result.copy(byPanel = result.byPanel + (id to folder), seeded = result.seeded + id)
         }
-        val orphans = result.byPanel.filterKeys { it !in liveIds }
-        if (orphans.isNotEmpty()) {
-            val moved = orphans.values.flatMap { it.apps }
-            result =
-                result.copy(
-                    byPanel = result.byPanel - orphans.keys,
-                    unassigned = (result.unassigned + moved).distinct(),
-                )
-        }
         return result
     }
+
+    /** 見本のレイアウトのコマの id の接頭辞。利用者の layout.json の id と重ならないようにする。 */
+    const val SAMPLE_PREFIX = "sample-"
 }

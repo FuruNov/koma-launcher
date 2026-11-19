@@ -100,3 +100,26 @@ class FolderEditsTest {
         assertEquals(null, f.byPanel["p2"])
     }
 }
+
+class SampleFolderTest {
+    private val a = AppKey("a", "A")
+    private val tri = Polygon(listOf(Point(0f, 0f), Point(1f, 0f), Point(1f, 1f)))
+
+    private fun layoutOf(id: String) = Layout(1, null, 1f, listOf(Panel(PanelId(id), tri, PanelContent.Folder(listOf("a")))))
+
+    @Test
+    fun sampleContentsAreDroppedNotUnassigned() {
+        val seeded = FolderEdits.seedOnly(Folders(), layoutOf("sample-1"), { if (it == "a") a else null })
+        assertEquals(listOf(a), seeded.appsOf("sample-1"))
+        val user = FolderEdits.reconcile(seeded, layoutOf("p1"), { if (it == "a") a else null })
+        assertEquals(emptyList(), user.unassigned)
+        assertEquals(listOf(a), user.appsOf("p1"))
+        assertEquals(setOf("p1"), user.seeded)
+    }
+
+    @Test
+    fun seedOnlyKeepsOrphans() {
+        val f = Folders(byPanel = mapOf("gone" to Folder(listOf(a))))
+        assertEquals(listOf(a), FolderEdits.seedOnly(f, layoutOf("p1"), { null }).appsOf("gone"))
+    }
+}

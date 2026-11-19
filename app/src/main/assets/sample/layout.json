@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "aspect": 0.4499,
+  "panels": [
+    { "id": "sample-1", "kind": "folder", "label": "よく使う",
+      "polygon": [[0.02,0.02],[0.98,0.02],[0.98,0.20],[0.02,0.24]],
+      "apps": ["com.android.settings", "com.android.vending", "com.android.documentsui", "com.android.camera2"] },
+    { "id": "sample-2", "kind": "widget",
+      "polygon": [[0.02,0.255],[0.58,0.232],[0.50,0.46],[0.02,0.46]] },
+    { "id": "sample-3", "kind": "folder", "label": "連絡",
+      "polygon": [[0.60,0.231],[0.98,0.215],[0.98,0.46],[0.52,0.46]],
+      "apps": ["com.android.messaging", "com.android.contacts", "com.google.android.apps.messaging", "com.google.android.contacts"] },
+    { "id": "sample-4", "kind": "folder", "label": "道具",
+      "polygon": [[0.02,0.475],[0.40,0.475],[0.40,0.72],[0.02,0.72]],
+      "apps": ["com.android.calculator2", "com.android.deskclock", "com.android.calendar", "com.google.android.calculator", "com.google.android.deskclock"] },
+    { "id": "sample-5", "kind": "folder", "label": "メディア",
+      "polygon": [[0.42,0.475],[0.98,0.475],[0.98,0.76],[0.42,0.70]],
+      "apps": ["com.android.gallery3d", "com.android.music", "com.google.android.youtube"] },
+    { "id": "sample-6", "kind": "folder", "label": "その他",
+      "polygon": [[0.02,0.735],[0.40,0.735],[0.42,0.715],[0.98,0.775],[0.98,0.98],[0.02,0.98]],
+      "apps": ["com.android.chrome", "org.lineageos.jelly", "com.android.browser"] }
+  ]
+}

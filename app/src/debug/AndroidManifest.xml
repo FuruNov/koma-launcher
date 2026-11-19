@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- debug ビルドだけの確認用の口。DUMP 権限を持つ送り手（adb の shell）以外からは呼べない -->
+        <receiver
+            android:name=".DebugReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="dev.furunov.komalauncher.DEBUG_PLAY_UNLOCK" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
