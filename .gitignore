@@ -1,0 +1,10 @@
+.gradle/
+build/
+local.properties
+*.keystore
+*.jks
+.kotlin/
+# 版権のある画像は手元にだけ置き、履歴に残さない
+art/
+*.private.png
+*.private.webp

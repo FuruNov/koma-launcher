@@ -1,0 +1,7 @@
+<resources>
+    <!-- Material の依存を増やさないため、フレームワークのテーマを土台にする -->
+    <style name="Theme.Koma" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowShowWallpaper">false</item>
+    </style>
+</resources>
