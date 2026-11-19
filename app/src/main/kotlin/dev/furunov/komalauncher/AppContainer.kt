@@ -1,16 +1,19 @@
 package dev.furunov.komalauncher
 
 import android.content.Context
+import dev.furunov.komalauncher.feature.widgets.WidgetHostController
 import dev.furunov.komalauncher.model.apps.AppCatalog
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.ports.ActionPerformer
 import dev.furunov.komalauncher.model.ports.LayoutSource
 import dev.furunov.komalauncher.model.settings.SettingsStore
+import dev.furunov.komalauncher.model.widgets.WidgetStore
 import dev.furunov.komalauncher.platform.apps.LauncherAppsCatalog
 import dev.furunov.komalauncher.platform.apps.LauncherIconLoader
 import dev.furunov.komalauncher.platform.layout.FileLayoutSource
 import dev.furunov.komalauncher.platform.store.FileFolderStore
 import dev.furunov.komalauncher.platform.store.FileSettingsStore
+import dev.furunov.komalauncher.platform.store.FileWidgetStore
 import dev.furunov.komalauncher.platform.system.BroadcastScreenEvents
 import dev.furunov.komalauncher.platform.system.ReflectionSystemShade
 import dev.furunov.komalauncher.ui.icons.IconLoader
@@ -36,4 +39,8 @@ class AppContainer(
     val iconLoader: IconLoader = LauncherIconLoader(context)
     val screenEvents = BroadcastScreenEvents(context)
     val actions: ActionPerformer = DefaultActionPerformer(context, ReflectionSystemShade(context), appCatalog)
+    val widgetStore: WidgetStore = FileWidgetStore(context, scope)
+
+    /** Activity が作り直されてもウィジェットのビューを持ち続けるよう、アプリの寿命で持つ。 */
+    val widgets = WidgetHostController(context.applicationContext, widgetStore)
 }

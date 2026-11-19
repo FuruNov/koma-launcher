@@ -58,8 +58,13 @@ class HomeSlots(
     val widget: @Composable (PanelGeometry) -> Unit = {},
     /** フォルダ以外の重ねる画面（全アプリ一覧、ホームのメニュー）。 */
     val overlay: @Composable (Overlay) -> Unit = {},
-    /** コマの長押し。フォルダの名前の変更やウィジェットの選択を出す。 */
-    val onPanelLongPress: (PanelGeometry) -> Unit = {},
+    /** コマの長押しのメニューに、外から加える項目（ウィジェットの選択など）。 */
+    val panelMenuItems: (PanelGeometry) -> List<PanelMenuItem> = { emptyList() },
+)
+
+class PanelMenuItem(
+    val label: String,
+    val onClick: () -> Unit,
 )
 
 @Composable
@@ -144,7 +149,7 @@ fun HomeScreen(
                         }
                     }
 
-                    override fun onPanelLongPress(panel: PanelGeometry, position: Offset) = slots.onPanelLongPress(panel)
+                    override fun onPanelLongPress(panel: PanelGeometry, position: Offset) = onEvent(HomeEvent.OpenOverlay(Overlay.PanelMenu(panel.panel.id)))
 
                     override fun onGesture(kind: GestureKind, position: Offset) = onEvent(HomeEvent.Gesture(kind))
                 }
@@ -224,6 +229,12 @@ fun HomeScreen(
                 }
 
                 is Overlay.AppMenu -> AppMenuSheet(o, state.labelOf(o.app), onEvent)
+
+                is Overlay.PanelMenu -> geometry.panels.firstOrNull { it.panel.id == o.panelId }?.let { g ->
+                    PanelMenuSheet(g, state.folders.byPanel[g.panel.id.value]?.name ?: g.panel.label, slots.panelMenuItems(g), onEvent)
+                }
+
+                is Overlay.Rename -> RenameSheet(o.panelId, state.folders.byPanel[o.panelId.value]?.name ?: state.layout.panel(o.panelId)?.label, onEvent)
 
                 Overlay.None -> Unit
 

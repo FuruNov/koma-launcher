@@ -41,6 +41,14 @@ sealed interface Overlay {
     data object HomeMenu : Overlay
 
     /** アイコンの長押しのメニュー。[fromPanel] はフォルダから開いたときのコマ（一覧からなら null）。 */
+    data class PanelMenu(
+        val panelId: PanelId,
+    ) : Overlay
+
+    data class Rename(
+        val panelId: PanelId,
+    ) : Overlay
+
     data class AppMenu(
         val app: AppKey,
         val fromPanel: String?,
@@ -128,6 +136,16 @@ sealed interface HomeEvent {
 
     data class Uninstall(
         val app: AppKey,
+    ) : HomeEvent
+
+    /** 設定画面を開くなど、ジェスチャー以外から操作を実行する。 */
+    data class Perform(
+        val action: LauncherAction,
+    ) : HomeEvent
+
+    data class Rename(
+        val panelId: PanelId,
+        val name: String?,
     ) : HomeEvent
 
     data class OpenOverlay(
@@ -220,6 +238,16 @@ class HomeViewModel(
             is HomeEvent.OpenOverlay -> overlay.value = event.overlay
 
             is HomeEvent.Drop -> drop(event)
+
+            is HomeEvent.Perform -> {
+                overlay.value = Overlay.None
+                perform(event.action)
+            }
+
+            is HomeEvent.Rename -> {
+                folderStore.update { FolderEdits.rename(it, event.panelId.value, event.name) }
+                overlay.value = Overlay.None
+            }
 
             is HomeEvent.ShowAppMenu -> overlay.value = Overlay.AppMenu(event.app, event.fromPanel, apps.shortcuts(event.app))
 
