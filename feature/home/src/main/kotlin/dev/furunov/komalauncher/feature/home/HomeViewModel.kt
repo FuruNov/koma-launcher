@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.furunov.komalauncher.model.apps.AppCatalog
 import dev.furunov.komalauncher.model.apps.AppKey
+import dev.furunov.komalauncher.model.apps.AppShortcut
 import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.folders.Folders
@@ -38,6 +39,27 @@ sealed interface Overlay {
     data object Drawer : Overlay
 
     data object HomeMenu : Overlay
+
+    /** アイコンの長押しのメニュー。[fromPanel] はフォルダから開いたときのコマ（一覧からなら null）。 */
+    data class AppMenu(
+        val app: AppKey,
+        val fromPanel: String?,
+        val shortcuts: List<AppShortcut>,
+    ) : Overlay
+}
+
+/** アイコンを落とした先。座標からの判断は画面（HomeScreen）が行い、ここには結果だけが来る。 */
+sealed interface DropTarget {
+    /** フォルダのコマ。[index] はフォルダを開いた中で落としたときの位置。 */
+    data class Panel(
+        val panelId: String,
+        val index: Int? = null,
+    ) : DropTarget
+
+    /** 「フォルダから外す」の場所。 */
+    data object Remove : DropTarget
+
+    data object Nowhere : DropTarget
 }
 
 @Immutable
@@ -83,6 +105,30 @@ sealed interface HomeEvent {
     data object Undo : HomeEvent
 
     data object ClearUndo : HomeEvent
+
+    /** [fromPanel] が null なら全アプリ一覧から運んだ。 */
+    data class Drop(
+        val app: AppKey,
+        val fromPanel: String?,
+        val target: DropTarget,
+    ) : HomeEvent
+
+    data class ShowAppMenu(
+        val app: AppKey,
+        val fromPanel: String?,
+    ) : HomeEvent
+
+    data class LaunchShortcut(
+        val shortcut: AppShortcut,
+    ) : HomeEvent
+
+    data class AppInfo(
+        val app: AppKey,
+    ) : HomeEvent
+
+    data class Uninstall(
+        val app: AppKey,
+    ) : HomeEvent
 
     data class OpenOverlay(
         val overlay: Overlay,
@@ -172,7 +218,47 @@ class HomeViewModel(
             HomeEvent.ClearUndo -> undo.value = null
 
             is HomeEvent.OpenOverlay -> overlay.value = event.overlay
+
+            is HomeEvent.Drop -> drop(event)
+
+            is HomeEvent.ShowAppMenu -> overlay.value = Overlay.AppMenu(event.app, event.fromPanel, apps.shortcuts(event.app))
+
+            is HomeEvent.LaunchShortcut -> {
+                apps.launchShortcut(event.shortcut)
+                overlay.value = Overlay.None
+            }
+
+            is HomeEvent.AppInfo -> {
+                apps.openAppInfo(event.app)
+                overlay.value = Overlay.None
+            }
+
+            is HomeEvent.Uninstall -> {
+                apps.requestUninstall(event.app)
+                overlay.value = Overlay.None
+            }
         }
+    }
+
+    private fun drop(e: HomeEvent.Drop) {
+        val target = e.target
+        val before = folderStore.folders.value
+        val after =
+            when {
+                target is DropTarget.Remove && e.fromPanel != null -> FolderEdits.remove(before, e.fromPanel, e.app)
+                target is DropTarget.Panel && e.fromPanel == null -> FolderEdits.add(before, target.panelId, e.app, target.index)
+                target is DropTarget.Panel && e.fromPanel != null -> FolderEdits.move(before, e.fromPanel, e.app, target.panelId, target.index)
+                else -> before
+            }
+        if (after != before) {
+            // 外したときと別のコマへ移したときは、すぐ戻せるようにする。並べ替えは戻す必要が薄いので記録しない
+            val reorderOnly = target is DropTarget.Panel && target.panelId == e.fromPanel
+            if (!reorderOnly) undo.value = before
+            folderStore.update { after }
+        }
+        // 同じフォルダの中での並べ替えなら開いたままにし、それ以外は閉じてホームを見せる
+        val stayOpen = target is DropTarget.Panel && target.panelId == e.fromPanel
+        if (!stayOpen) overlay.value = Overlay.None
     }
 
     /** ホームの中で完結する操作はここで処理し、それ以外は ActionPerformer に渡す。 */

@@ -75,6 +75,10 @@ class HomeViewModelTest {
         override fun openAppInfo(key: AppKey) = Unit
 
         override fun requestUninstall(key: AppKey) = Unit
+
+        override fun shortcuts(key: AppKey) = emptyList<dev.furunov.komalauncher.model.apps.AppShortcut>()
+
+        override fun launchShortcut(shortcut: dev.furunov.komalauncher.model.apps.AppShortcut) = Unit
     }
 
     private class FakeActions : ActionPerformer {
@@ -156,5 +160,48 @@ class HomeViewModelTest {
         assertEquals(emptyList(), vm.state.value.folders.appsOf("p1"))
         vm.onEvent(HomeEvent.Undo)
         assertEquals(listOf(chrome), vm.state.value.folders.appsOf("p1"))
+    }
+
+    private val other = AppKey("org.example", "Main")
+
+    @Test
+    fun dropFromDrawerAddsToPanel() {
+        vm.onEvent(HomeEvent.OpenOverlay(Overlay.Drawer))
+        vm.onEvent(HomeEvent.Drop(other, fromPanel = null, target = DropTarget.Panel("p1")))
+        assertEquals(listOf(chrome, other), vm.state.value.folders.appsOf("p1"))
+        assertEquals(Overlay.None, vm.state.value.overlay)
+        // 追加は「元に戻す」で取り消せる
+        vm.onEvent(HomeEvent.Undo)
+        assertEquals(listOf(chrome), vm.state.value.folders.appsOf("p1"))
+    }
+
+    @Test
+    fun dropOnRemoveZoneRemovesWithUndo() {
+        vm.onEvent(HomeEvent.Drop(chrome, fromPanel = "p1", target = DropTarget.Remove))
+        assertEquals(emptyList(), vm.state.value.folders.appsOf("p1"))
+        vm.onEvent(HomeEvent.Undo)
+        assertEquals(listOf(chrome), vm.state.value.folders.appsOf("p1"))
+    }
+
+    @Test
+    fun dropFromDrawerOnRemoveZoneDoesNothing() {
+        vm.onEvent(HomeEvent.Drop(other, fromPanel = null, target = DropTarget.Remove))
+        assertEquals(listOf(chrome), vm.state.value.folders.appsOf("p1"))
+        assertEquals(null, vm.state.value.undo)
+    }
+
+    @Test
+    fun dropNowhereKeepsFolders() {
+        vm.onEvent(HomeEvent.Drop(chrome, fromPanel = "p1", target = DropTarget.Nowhere))
+        assertEquals(listOf(chrome), vm.state.value.folders.appsOf("p1"))
+    }
+
+    @Test
+    fun reorderInsideFolderKeepsItOpen() {
+        vm.onEvent(HomeEvent.Drop(other, fromPanel = null, target = DropTarget.Panel("p1")))
+        vm.onEvent(HomeEvent.TapPanel(PanelId("p1")))
+        vm.onEvent(HomeEvent.Drop(other, fromPanel = "p1", target = DropTarget.Panel("p1", index = 0)))
+        assertEquals(listOf(other, chrome), vm.state.value.folders.appsOf("p1"))
+        assertEquals(Overlay.Folder(PanelId("p1")), vm.state.value.overlay)
     }
 }

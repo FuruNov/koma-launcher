@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -41,6 +44,10 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.furunov.komalauncher.model.apps.AppKey
+import dev.furunov.komalauncher.ui.dnd.DragItem
+import dev.furunov.komalauncher.ui.dnd.DragSource
+import dev.furunov.komalauncher.ui.dnd.LocalDragDrop
+import dev.furunov.komalauncher.ui.dnd.draggableApp
 import dev.furunov.komalauncher.ui.icons.AppIcon
 import kotlin.math.roundToInt
 
@@ -56,7 +63,10 @@ internal fun FolderPopup(
     screenHeight: Float,
     onEvent: (HomeEvent) -> Unit,
     labelOf: (AppKey) -> String,
+    dropInfo: FolderDropInfo,
 ) {
+    val dnd = LocalDragDrop.current
+    DisposableEffect(panel.panel.id) { onDispose { dropInfo.clear() } }
     val appearance = state.settings.appearance
     val apps = state.folders.appsOf(panel.panel.id.value)
     val name = state.folders.byPanel[panel.panel.id.value]?.name ?: panel.panel.label
@@ -81,9 +91,13 @@ internal fun FolderPopup(
             ((center.y - y) / size.height.coerceAtLeast(1)).coerceIn(0f, 1f),
         )
 
+    // フォルダから引き出したら、フォルダを透明にしてホームのコマを見せる。
+    // 取り除くと指の追跡が途切れるので、合成したまま見えなくする
+    val draggedOut = dnd.isDragging && dropInfo.popupRect?.contains(dnd.position) == false
     Box(
         Modifier
             .fillMaxSize()
+            .graphicsLayer { alpha = if (draggedOut) 0f else 1f }
             .background(Color.Black.copy(alpha = 0.35f * appear.value))
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onEvent(HomeEvent.Dismiss) },
     ) {
@@ -91,6 +105,7 @@ internal fun FolderPopup(
             Modifier
                 .offset { IntOffset(x.roundToInt(), y.roundToInt()) }
                 .onSizeChanged { size = it }
+                .onGloballyPositioned { dropInfo.popupRect = it.boundsInRoot() }
                 .graphicsLayer {
                     scaleX = 0.6f + 0.4f * appear.value
                     scaleY = 0.6f + 0.4f * appear.value
@@ -112,15 +127,42 @@ internal fun FolderPopup(
                     modifier = Modifier.width(220.dp),
                 )
             }
-            apps.chunked(appearance.folderColumns).forEach { row ->
+            apps.chunked(appearance.folderColumns).forEachIndexed { r, row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { app ->
-                        FolderItem(app, labelOf(app), appearance.iconSizeDp, appearance.showLabels) { onEvent(HomeEvent.Launch(app)) }
+                    row.forEachIndexed { c, app ->
+                        val index = r * appearance.folderColumns + c
+                        FolderItem(
+                            app = app,
+                            label = labelOf(app),
+                            iconDp = appearance.iconSizeDp,
+                            showLabel = appearance.showLabels,
+                            dragging = dnd.item?.app == app && dnd.isDragging,
+                            modifier =
+                            Modifier
+                                .onGloballyPositioned { dropInfo.itemCenters[index] = it.boundsInRoot().center }
+                                .draggableApp(DragItem(app, DragSource.Folder(panel.panel.id.value)), dnd) {
+                                    onEvent(HomeEvent.Launch(app))
+                                },
+                        )
                     }
                 }
                 Spacer(Modifier.height(8.dp))
             }
         }
+    }
+}
+
+/** フォルダの中で落とした位置を決めるための、画面のルートの座標での位置。描画のたびに更新する。 */
+class FolderDropInfo {
+    var popupRect: androidx.compose.ui.geometry.Rect? = null
+    val itemCenters = mutableMapOf<Int, androidx.compose.ui.geometry.Offset>()
+
+    /** [p] に最も近いアイコンの位置。並べ替えの挿入位置に使う。 */
+    fun indexAt(p: androidx.compose.ui.geometry.Offset): Int? = itemCenters.minByOrNull { (it.value - p).getDistanceSquared() }?.key
+
+    fun clear() {
+        popupRect = null
+        itemCenters.clear()
     }
 }
 
@@ -130,10 +172,14 @@ private fun FolderItem(
     label: String,
     iconDp: Int,
     showLabel: Boolean,
-    onClick: () -> Unit,
+    dragging: Boolean,
+    modifier: Modifier,
 ) {
     Column(
-        Modifier.width((iconDp + 20).dp).clickable(onClick = onClick).padding(vertical = 4.dp),
+        modifier
+            .width((iconDp + 20).dp)
+            .graphicsLayer { alpha = if (dragging) 0.3f else 1f }
+            .padding(vertical = 4.dp),
         horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
     ) {
         AppIcon(app, iconDp.dp)

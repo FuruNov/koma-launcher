@@ -37,6 +37,17 @@ waitfor() {
   done
   return 1
 }
+# ラベルの文字の位置（中心）。アイコンを叩くときは dy で上へずらす
+center_of() { # ラベル [dy]
+  texts >/dev/null
+  adb shell cat /sdcard/koma-ui.xml | grep -oE "text=\"$1\"[^>]*bounds=\"\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]\"" | head -1 |
+    grep -oE '[0-9]+' | tail -4 | tr '\n' ' ' | awk -v dy="${2:-0}" '{ printf "%d %d", ($1 + $3) / 2, ($2 + $4) / 2 - dy }'
+}
+tap_text() { # ラベル [dy]
+  local c
+  c=$(center_of "$@")
+  [ -n "$c" ] && adb shell input tap $c
+}
 focus() { adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'; }
 
 adb shell am start -n "$PKG/.MainActivity" >/dev/null
@@ -88,13 +99,80 @@ sleep 1
 
 adb shell input tap 615 600
 sleep 1
-adb shell input tap 876 590
+tap_text Contacts 40
 sleep 2
 # Contacts は初回に権限の確認画面を出すので、それも起動できた扱いにする
 waitfor "focus | grep -qiE 'contacts|permissioncontroller'"
 check "フォルダのアイコンからアプリが起動する" $?
 adb shell input keyevent BACK
 adb shell input keyevent BACK
+home
+
+# --- フォルダの中身の編集 ---
+# 長押しして動かさずに離すとメニュー
+adb shell input tap 615 600
+sleep 1
+read -r mx my <<<"$(center_of Messages 40)"
+adb shell input swipe "$mx" "$my" "$mx" "$my" 900
+sleep 1.2
+waitfor 'has アプリ情報'
+check "アイコンの長押しでメニューが開く" $?
+adb shell input keyevent BACK
+sleep 1
+
+# 長押しのまま運ぶ: 指を下ろし、長押しの時間を待ってから少しずつ動かす
+dragto() { # x1 y1 x2 y2
+  adb shell "input motionevent DOWN $1 $2; sleep 0.9; input motionevent MOVE $(( ($1 * 3 + $3) / 4 )) $(( ($2 * 3 + $4) / 4 )); sleep 0.1; input motionevent MOVE $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 )); sleep 0.1; input motionevent MOVE $3 $4; sleep 0.4; input motionevent UP $3 $4"
+  sleep 1.2
+}
+labels_in_folder() { texts | grep -vxE '連絡|よく使う|道具|メディア|その他|フォルダを変更しました|元に戻す' | tr '\n' ' '; }
+
+# 連絡のフォルダの中で、Contacts を Messages の位置へ（並べ替え）
+adb shell input tap 615 600
+sleep 1
+read -r cx cy <<<"$(center_of Contacts 40)"
+read -r mx my <<<"$(center_of Messages 40)"
+# すでに Contacts が先なら、逆に Messages を先頭へ運んで並べ替えを確かめる
+if [ "$cx" -lt "$mx" ]; then dragto "$mx" "$my" "$cx" "$cy"; first=Messages; else dragto "$cx" "$cy" "$mx" "$my"; first=Contacts; fi
+order=$(labels_in_folder)
+echo "     並べ替え後: $order"
+[[ "$order" == "$first"* ]]
+check "フォルダの中で並べ替えられる" $?
+home
+
+# 全アプリ一覧の Music を道具のコマへ
+adb shell input swipe 540 1500 540 700 200
+sleep 1.5
+dragto 753 360 230 1190
+adb shell input tap 227 1195
+sleep 1
+waitfor 'has Music'
+check "一覧からコマへ運ぶとフォルダに加わる" $?
+
+# 道具のフォルダの Music をメディアのコマへ（コマ間の移動）
+read -r mx my <<<"$(center_of Music 40)"
+dragto "$mx" "$my" 760 1200
+adb shell input tap 760 1200
+sleep 1
+waitfor 'has Music'
+check "フォルダから別のコマへ移せる" $?
+home
+
+# メディアから外し、元に戻す
+adb shell input tap 760 1200
+sleep 1
+read -r mx my <<<"$(center_of Music 40)"
+dragto "$mx" "$my" 540 60
+# 「元に戻す」は 5 秒で消えるので、見つけたらすぐ叩く
+undo_at=$(center_of 元に戻す)
+[ -n "$undo_at" ]
+check "外す場所へ運ぶと外れ、元に戻すが出る" $?
+[ -n "$undo_at" ] && adb shell input tap $undo_at
+sleep 1
+adb shell input tap 760 1200
+sleep 1
+waitfor 'has Music'
+check "元に戻すで戻る" $?
 home
 
 echo "pass=$pass fail=$fail"

@@ -5,7 +5,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,6 +39,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.furunov.komalauncher.model.apps.AppEntry
 import dev.furunov.komalauncher.model.apps.AppKey
+import dev.furunov.komalauncher.ui.dnd.DragDropState
+import dev.furunov.komalauncher.ui.dnd.DragItem
+import dev.furunov.komalauncher.ui.dnd.DragSource
+import dev.furunov.komalauncher.ui.dnd.LocalDragDrop
+import dev.furunov.komalauncher.ui.dnd.draggableApp
 import dev.furunov.komalauncher.ui.icons.AppIcon
 import kotlinx.coroutines.launch
 
@@ -47,8 +51,6 @@ import kotlinx.coroutines.launch
 class DrawerActions(
     val onLaunch: (AppKey) -> Unit,
     val onDismiss: () -> Unit,
-    /** アイコンの長押し。ホームのコマへ運ぶドラッグの開始や、メニューの表示に使う。 */
-    val onLongPress: (AppKey) -> Unit = {},
     val onOpenSettings: () -> Unit = {},
 )
 
@@ -72,6 +74,7 @@ fun DrawerScreen(
             apps.filter { it.key !in hidden && (q.isEmpty() || it.label.contains(q, ignoreCase = true)) }
         }
     val grid = rememberLazyGridState()
+    val dnd = LocalDragDrop.current
     val slide = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { slide.animateTo(0f, tween(220)) }
@@ -81,7 +84,8 @@ fun DrawerScreen(
             .fillMaxSize()
             .graphicsLayer {
                 translationY = slide.value * size.height * 0.3f
-                alpha = 1f - slide.value
+                // 運んでいる間は透明にしてホームのコマを見せる。取り除くと指の追跡が途切れるので合成したままにする
+                alpha = if (dnd.isDragging) 0f else 1f - slide.value
             }.background(Color(0xF2121216))
             .pointerInput(Unit) {
                 var total = 0f
@@ -126,7 +130,7 @@ fun DrawerScreen(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
             ) {
                 items(shown, key = { "${it.key.packageName}/${it.key.className}" }) { app ->
-                    DrawerItem(app, actions)
+                    DrawerItem(app, actions, dnd)
                 }
             }
         }
@@ -137,16 +141,12 @@ fun DrawerScreen(
 private fun DrawerItem(
     app: AppEntry,
     actions: DrawerActions,
+    dnd: DragDropState,
 ) {
     Column(
         Modifier
             .padding(vertical = 10.dp)
-            .pointerInput(app.key) {
-                detectTapGestures(
-                    onTap = { actions.onLaunch(app.key) },
-                    onLongPress = { actions.onLongPress(app.key) },
-                )
-            },
+            .draggableApp(DragItem(app.key, DragSource.Drawer), dnd) { actions.onLaunch(app.key) },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AppIcon(app.key, 52.dp)

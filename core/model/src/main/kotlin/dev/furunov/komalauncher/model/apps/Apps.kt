@@ -10,6 +10,13 @@ data class AppKey(
     val className: String,
 )
 
+/** アプリが公開しているショートカット（長押しのメニューの項目）。 */
+data class AppShortcut(
+    val packageName: String,
+    val id: String,
+    val label: String,
+)
+
 data class AppEntry(
     val key: AppKey,
     val label: String,
@@ -28,4 +35,9 @@ interface AppCatalog {
     fun openAppInfo(key: AppKey)
 
     fun requestUninstall(key: AppKey)
+
+    /** ホームアプリに設定されていないと取得できないので、そのときは空を返す。 */
+    fun shortcuts(key: AppKey): List<AppShortcut>
+
+    fun launchShortcut(shortcut: AppShortcut)
 }

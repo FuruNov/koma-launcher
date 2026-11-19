@@ -12,6 +12,7 @@ import android.os.UserHandle
 import dev.furunov.komalauncher.model.apps.AppCatalog
 import dev.furunov.komalauncher.model.apps.AppEntry
 import dev.furunov.komalauncher.model.apps.AppKey
+import dev.furunov.komalauncher.model.apps.AppShortcut
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -96,6 +97,37 @@ class LauncherAppsCatalog(
             Intent(Intent.ACTION_DELETE, Uri.fromParts("package", key.packageName, null))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
+    }
+
+    override fun shortcuts(key: AppKey): List<AppShortcut> {
+        if (!launcherApps.hasShortcutHostPermission()) return emptyList()
+        val query =
+            LauncherApps
+                .ShortcutQuery()
+                .setPackage(key.packageName)
+                .setActivity(key.component())
+                .setQueryFlags(
+                    LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST or
+                        LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED,
+                )
+        return try {
+            launcherApps
+                .getShortcuts(query, user)
+                .orEmpty()
+                .sortedBy { it.rank }
+                .map { AppShortcut(it.`package`, it.id, (it.shortLabel ?: it.longLabel ?: it.id).toString()) }
+        } catch (e: Exception) {
+            // ロック中や仕事用プロファイルの停止中は SecurityException / IllegalStateException になる
+            emptyList()
+        }
+    }
+
+    override fun launchShortcut(shortcut: AppShortcut) {
+        try {
+            launcherApps.startShortcut(shortcut.packageName, shortcut.id, null, null, user)
+        } catch (_: Exception) {
+            // ショートカットが消えていた。何もしない
+        }
     }
 
     private fun AppKey.component() = ComponentName(packageName, className)

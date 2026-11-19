@@ -3,14 +3,18 @@ package dev.furunov.komalauncher.feature.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +43,11 @@ import dev.furunov.komalauncher.feature.home.anim.PanelAnimations
 import dev.furunov.komalauncher.feature.home.anim.PanelMotion
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.settings.GestureKind
+import dev.furunov.komalauncher.ui.dnd.DragDropState
+import dev.furunov.komalauncher.ui.dnd.DragItem
+import dev.furunov.komalauncher.ui.dnd.DragShadow
+import dev.furunov.komalauncher.ui.dnd.DragSource
+import dev.furunov.komalauncher.ui.dnd.LocalDragDrop
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -75,6 +84,44 @@ fun HomeScreen(
         val anim = state.settings.animation
         val pressAnim = PanelAnimations.press(anim.press)
         val currentState = rememberUpdatedState(state)
+        val dropInfo = remember { FolderDropInfo() }
+        val removeZoneBottom = with(density) { REMOVE_ZONE_HEIGHT.toPx() } + WindowInsets.statusBars.getTop(density)
+
+        fun dropTargetAt(item: DragItem, p: Offset): DropTarget {
+            val from = (item.source as? DragSource.Folder)?.panelId
+            val overlay = currentState.value.overlay
+            return when {
+                from != null && p.y < removeZoneBottom -> DropTarget.Remove
+
+                overlay is Overlay.Folder && dropInfo.popupRect?.contains(p) == true ->
+                    DropTarget.Panel(overlay.panelId.value, dropInfo.indexAt(p))
+
+                else ->
+                    geometry.panelAt(p.x, p.y)?.takeIf { it.panel.content is PanelContent.Folder }
+                        ?.let { DropTarget.Panel(it.panel.id.value) } ?: DropTarget.Nowhere
+            }
+        }
+        val dnd =
+            remember(geometry) {
+                DragDropState(
+                    onDrop = { item, p -> onEvent(HomeEvent.Drop(item.app, (item.source as? DragSource.Folder)?.panelId, dropTargetAt(item, p))) },
+                    onLongPressRelease = { onEvent(HomeEvent.ShowAppMenu(it.app, (it.source as? DragSource.Folder)?.panelId)) },
+                )
+            }
+        // 指の下のフォルダのコマ。運んでいる間だけ光らせる
+        val hovered by remember(geometry) {
+            derivedStateOf {
+                val item = dnd.item
+                when {
+                    item == null || !dnd.isDragging -> null
+
+                    // 外す場所の上では、その下のコマを光らせない（落としても加わらないので）
+                    item.source is DragSource.Folder && dnd.position.y < removeZoneBottom -> null
+
+                    else -> geometry.panelAt(dnd.position.x, dnd.position.y)?.takeIf { it.panel.content is PanelContent.Folder }?.panel?.id
+                }
+            }
+        }
 
         fun ctx(g: PanelGeometry, order: Int = 0) = MotionContext(g.bounds, wPx, hPx, order, anim.staggerMs, anim.speed)
 
@@ -128,54 +175,72 @@ fun HomeScreen(
             }
         }
 
-        Box(Modifier.fillMaxSize().homeGestures(geometryState, gesturesEnabled, handler)) {
-            for (g in geometry.panels) {
-                PanelLayer(
-                    g = g,
-                    motion = motions.getValue(g.panel.id),
-                    art = art,
-                    imageOffset = Offset(geometry.transform.imageRect.left, geometry.transform.imageRect.top),
-                    imageSize = Size(geometry.transform.imageRect.width, geometry.transform.imageRect.height),
-                    showPlaceholderLabel = state.imagePath == null,
-                    label = state.folders.byPanel[g.panel.id.value]?.name ?: g.panel.label,
-                )
-                if (g.panel.content is PanelContent.Widget) {
-                    PanelBox(g.inscribed.left, g.inscribed.top, g.inscribed.width, g.inscribed.height, motions.getValue(g.panel.id)) {
-                        slots.widget(g)
+        CompositionLocalProvider(LocalDragDrop provides dnd) {
+            Box(Modifier.fillMaxSize().homeGestures(geometryState, gesturesEnabled, handler)) {
+                for (g in geometry.panels) {
+                    PanelLayer(
+                        g = g,
+                        motion = motions.getValue(g.panel.id),
+                        art = art,
+                        imageOffset = Offset(geometry.transform.imageRect.left, geometry.transform.imageRect.top),
+                        imageSize = Size(geometry.transform.imageRect.width, geometry.transform.imageRect.height),
+                        showPlaceholderLabel = state.imagePath == null,
+                        label = state.folders.byPanel[g.panel.id.value]?.name ?: g.panel.label,
+                        highlight = if (hovered == g.panel.id) Color(state.settings.appearance.highlightColor) else null,
+                    )
+                    if (g.panel.content is PanelContent.Widget) {
+                        PanelBox(g.inscribed.left, g.inscribed.top, g.inscribed.width, g.inscribed.height, motions.getValue(g.panel.id)) {
+                            slots.widget(g)
+                        }
                     }
                 }
             }
-        }
 
-        state.layoutError?.let {
-            BasicText(
-                it,
-                style = TextStyle(color = Color.White, fontSize = 12.sp),
-                modifier =
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(8.dp)
-                    .background(Color(0xCCB00020))
-                    .padding(8.dp),
-            )
-        }
-
-        when (val o = state.overlay) {
-            is Overlay.Folder -> geometry.panels.firstOrNull { it.panel.id == o.panelId }?.let { g ->
-                FolderPopup(
-                    panel = g,
-                    state = state,
-                    screenWidth = wPx,
-                    screenHeight = hPx,
-                    onEvent = onEvent,
-                    labelOf = state::labelOf,
+            state.layoutError?.let {
+                BasicText(
+                    it,
+                    style = TextStyle(color = Color.White, fontSize = 12.sp),
+                    modifier =
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(8.dp)
+                        .background(Color(0xCCB00020))
+                        .padding(8.dp),
                 )
             }
 
-            Overlay.None -> Unit
+            when (val o = state.overlay) {
+                is Overlay.Folder -> geometry.panels.firstOrNull { it.panel.id == o.panelId }?.let { g ->
+                    FolderPopup(
+                        panel = g,
+                        state = state,
+                        screenWidth = wPx,
+                        screenHeight = hPx,
+                        onEvent = onEvent,
+                        labelOf = state::labelOf,
+                        dropInfo = dropInfo,
+                    )
+                }
 
-            else -> slots.overlay(o)
+                is Overlay.AppMenu -> AppMenuSheet(o, state.labelOf(o.app), onEvent)
+
+                Overlay.None -> Unit
+
+                else -> slots.overlay(o)
+            }
+
+            if (dnd.isDragging && dnd.item?.source is DragSource.Folder) {
+                RemoveZone(active = dnd.position.y < removeZoneBottom, modifier = Modifier.align(Alignment.TopCenter))
+            }
+            if (state.undo != null) {
+                UndoBar(
+                    onUndo = { onEvent(HomeEvent.Undo) },
+                    onTimeout = { onEvent(HomeEvent.ClearUndo) },
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
+            }
+            DragShadow(dnd)
         }
     }
 }
@@ -217,6 +282,7 @@ private fun PanelLayer(
     imageSize: Size,
     showPlaceholderLabel: Boolean,
     label: String?,
+    highlight: Color?,
 ) {
     val density = LocalDensity.current
     val b = g.bounds
@@ -247,6 +313,7 @@ private fun PanelLayer(
                 }
                 // 押している間は少し暗くする
                 if (motion.press.value > 0f) drawRect(Color.Black.copy(alpha = 0.18f * motion.press.value))
+                if (highlight != null) drawRect(highlight.copy(alpha = 0.35f))
             },
     ) {
         if (showPlaceholderLabel && label != null) {
