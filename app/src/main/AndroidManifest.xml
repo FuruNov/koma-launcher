@@ -36,6 +36,11 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".EditorActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:taskAffinity="dev.furunov.komalauncher.editor" />
+        <activity
             android:name=".SettingsActivity"
             android:exported="false"
             android:taskAffinity="dev.furunov.komalauncher.settings" />

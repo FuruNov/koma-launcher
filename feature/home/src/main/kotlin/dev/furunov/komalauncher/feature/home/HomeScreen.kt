@@ -31,7 +31,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -43,6 +42,7 @@ import dev.furunov.komalauncher.feature.home.anim.PanelMotion
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.settings.GestureKind
+import dev.furunov.komalauncher.ui.art.rememberArts
 import dev.furunov.komalauncher.ui.dnd.DragDropState
 import dev.furunov.komalauncher.ui.dnd.DragItem
 import dev.furunov.komalauncher.ui.dnd.DragShadow
@@ -283,9 +283,6 @@ private fun PanelBox(
     ) { content() }
 }
 
-private val placeholderColors =
-    listOf(0xFFE57373, 0xFF64B5F6, 0xFF81C784, 0xFFFFB74D, 0xFFBA68C8, 0xFF4DB6AC, 0xFFF06292, 0xFF9575CD).map { Color(it) }
-
 @Composable
 private fun PanelLayer(
     g: PanelGeometry,
@@ -296,7 +293,6 @@ private fun PanelLayer(
 ) {
     val density = LocalDensity.current
     val b = g.bounds
-    val color = placeholderColors[g.index % placeholderColors.size]
     Box(
         Modifier
             .offset { IntOffset(b.left.roundToInt(), b.top.roundToInt()) }
@@ -312,17 +308,8 @@ private fun PanelLayer(
                 shape = g.shape
                 clip = true
             }.drawBehind {
-                val r = g.art
-                if (art != null && r != null) {
-                    // 絵の長方形はコマの外へはみ出す。はみ出た分は graphicsLayer の shape で切り抜く
-                    drawImage(
-                        art,
-                        dstOffset = IntOffset((r.left - b.left).roundToInt(), (r.top - b.top).roundToInt()),
-                        dstSize = IntSize(r.width.roundToInt(), r.height.roundToInt()),
-                    )
-                } else {
-                    drawRect(color)
-                }
+                // 絵の長方形はコマの外へはみ出す。はみ出た分は graphicsLayer の shape で切り抜く
+                with(g.face) { drawContent(art) }
                 // 押している間は少し暗くする
                 if (motion.press.value > 0f) drawRect(Color.Black.copy(alpha = 0.18f * motion.press.value))
                 if (highlight != null) drawRect(highlight.copy(alpha = 0.35f))

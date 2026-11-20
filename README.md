@@ -11,7 +11,7 @@ nix develop -c ./gradlew assembleDebug          # debug の APK
 nix develop -c ./gradlew assembleRelease        # R8 で縮小した APK
 nix develop -c ./gradlew :core:model:test :feature:home:testDebugUnitTest
 nix develop -c ./gradlew spotlessApply lint
-scripts/e2e-waydroid.sh                         # Waydroid で一連の操作（14 項目。確かめる間だけ既定のホームにする）
+scripts/e2e-waydroid.sh                         # Waydroid で一連の操作（17 項目。確かめる間だけ既定のホームにする）
 scripts/measure.sh [ラベル]                      # 起動時間・メモリ・フレーム → docs/measurements/
 scripts/record-animations.sh <出力先>             # アニメーションの各案を録画（debug ビルドと su が要る）
 ```
@@ -19,6 +19,10 @@ scripts/record-animations.sh <出力先>             # アニメーションの�
 - 署名の鍵は `~/.config/koma-launcher/release.keystore`（リポジトリの外）。`local.properties` の `koma.keystore` と `koma.keystorePasswordFile` で場所を渡す。debug も同じ鍵で署名する。実機に入れた後で鍵が変わると、更新にアンインストールが要り、フォルダとウィジェットの割り当てが消えるため。**鍵とパスワードのファイルはバックアップしておくこと。**
 - AGP が Maven から取る aapt2 は FHS 前提のバイナリなので、devShell が `android.aapt2FromMavenOverride` で SDK の aapt2 を使わせている。
 - minSdk は 33。実機は Android 15 以降だが、Waydroid が API 33 のため。
+
+## コマ割りを編集する
+
+ホームのメニュー（コマの間の余白を長押し）の「コマ割りを編集」で変えられる。型（大ゴマ・1 コマ）を選び、コマを押して選んでから、横・縦に割る、線の端の丸を縁に沿って動かす、線を消す、種類（フォルダ・ウィジェット・全アプリ一覧）を切り替える。画像は Android の写真の選択画面から選び、縮小図の上のドラッグと 2 本の指で位置と大きさを合わせる。コマの間の幅と色、枠、裁ち落としも変えられる。「元に戻す」は、編集画面を開いている間の操作だけを戻す。閉じると、どのコマも使っていない画像を消す。
 
 ## コマの絵を入れる
 
@@ -83,6 +87,7 @@ scripts/record-animations.sh <出力先>             # アニメーションの�
 | `:feature:drawer` | 全アプリ一覧 | `:core:ui` |
 | `:feature:widgets` | ウィジェットの確保・bind・表示・選択画面 | `:core:ui` |
 | `:feature:settings` | 設定画面 | `:core:ui` |
+| `:feature:editor` | コマ割りの編集画面（線で割る、画像の選択と位置合わせ、フチ） | `:core:ui` |
 | `:app` | `AppContainer` で実装を組み立てる。Activity と Manifest | すべて |
 
 機能のモジュールどうしは互いを知らない。ホームに全アプリ一覧やウィジェットを差し込むのは `:app` で、`HomeSlots` を通して渡す。
@@ -91,7 +96,7 @@ scripts/record-animations.sh <出力先>             # アニメーションの�
 
 | インターフェース | 実装 |
 |---|---|
-| `LayoutSource` | `FileLayoutStore`（内部の layout.json を持ち、外部ファイル領域の layout.json を FileObserver で監視して取り込む） |
+| `LayoutSource`・`LayoutStore` | `FileLayoutStore`（内部の layout.json を持ち、外部ファイル領域の layout.json を FileObserver で監視して取り込む。編集画面の書き換えと画像の追加も受ける） |
 | `FolderStore` / `SettingsStore` / `WidgetStore` | `JsonFileStore`（AtomicFile、300 ms まとめて書く） |
 | `AppCatalog` | `LauncherAppsCatalog`（LauncherApps。ショートカットも） |
 | `IconLoader` | `LauncherIconLoader`（表示する大きさで 1 回だけ Bitmap にし、LruCache に約 4 MB） |

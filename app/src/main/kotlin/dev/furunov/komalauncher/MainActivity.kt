@@ -66,6 +66,10 @@ class MainActivity : ComponentActivity() {
 
                                 Overlay.HomeMenu ->
                                     HomeMenu(
+                                        onEditLayout = {
+                                            home.onEvent(HomeEvent.Dismiss)
+                                            startActivity(Intent(this@MainActivity, EditorActivity::class.java))
+                                        },
                                         onSettings = {
                                             home.onEvent(HomeEvent.Dismiss)
                                             container.actions.perform(LauncherAction.OpenSettings)

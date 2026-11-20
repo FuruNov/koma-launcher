@@ -190,5 +190,46 @@ waitfor 'has Music'
 check "元に戻すで戻る" $?
 home
 
+# --- コマ割りの編集 ---
+# コマの間の余白を長押しするとホームのメニュー、そこから編集画面
+open_editor() {
+  adb shell input swipe 300 1454 300 1454 1000
+  sleep 1
+  tap_text コマ割りを編集
+  sleep 2
+}
+# 編集画面の縮小図（content-desc）の中の、割合 (fx, fy) の位置を叩く
+tap_preview() { # fx fy
+  texts >/dev/null
+  local b
+  b=$(adb shell cat /sdcard/koma-ui.xml | grep -oE 'content-desc="コマ割りの図"[^>]*bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | grep -oE '[0-9]+' | tail -4 | tr '\n' ' ')
+  [ -n "$b" ] && adb shell input tap $(echo "$b" | awk -v fx="$1" -v fy="$2" '{ printf "%d %d", $1 + ($3 - $1) * fx, $2 + ($4 - $2) * fy }')
+}
+open_editor
+shot editor
+waitfor 'has 大ゴマ'
+check "ホームのメニューから編集画面が開く" $?
+# 元に戻す履歴は編集画面を開いている間だけ持つので、割って戻すまでを 1 回の中で行う
+tap_preview 0.5 0.2
+sleep 1
+tap_text 横に割る
+sleep 1
+tap_text 元に戻す
+sleep 1
+tap_text 閉じる
+sleep 1.5
+! has 新しいコマ
+check "元に戻すで割る前に戻る" $?
+open_editor
+tap_preview 0.5 0.2
+sleep 1
+tap_text 横に割る
+sleep 1
+tap_text 閉じる
+sleep 1.5
+shot editor-split
+waitfor 'has 新しいコマ'
+check "コマを割ると、ホームに新しいコマが現れる" $?
+
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

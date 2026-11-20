@@ -21,12 +21,14 @@ import androidx.compose.ui.unit.sp
 /** コマの間の余白を長押ししたときのメニュー。 */
 @Composable
 fun HomeMenu(
+    onEditLayout: () -> Unit,
     onSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     BackHandler(onBack = onDismiss)
     Box(Modifier.fillMaxSize().background(Color(0x66000000)).clickable(onClick = onDismiss), contentAlignment = Alignment.Center) {
         Column(Modifier.width(240.dp).background(Color(0xFF1E1E24), RoundedCornerShape(16.dp)).padding(8.dp)) {
+            MenuItem("コマ割りを編集", onEditLayout)
             MenuItem("ランチャーの設定", onSettings)
         }
     }

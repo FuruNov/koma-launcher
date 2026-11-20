@@ -25,4 +25,5 @@ include(
     ":feature:drawer",
     ":feature:widgets",
     ":feature:settings",
+    ":feature:editor",
 )

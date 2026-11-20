@@ -67,6 +67,7 @@ dependencies {
     implementation(project(":feature:drawer"))
     implementation(project(":feature:widgets"))
     implementation(project(":feature:settings"))
+    implementation(project(":feature:editor"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.foundation)
     implementation(libs.compose.ui)

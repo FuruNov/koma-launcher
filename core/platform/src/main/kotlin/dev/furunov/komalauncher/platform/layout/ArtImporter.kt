@@ -6,6 +6,7 @@ import android.graphics.ImageDecoder
 import android.util.Log
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutShape
+import dev.furunov.komalauncher.model.layout.PanelArt
 import java.io.File
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -57,7 +58,7 @@ class ArtImporter(
                 }
 
                 found != null -> {
-                    val aspect = shrinkToWebp(found, target)
+                    val aspect = shrinkToWebp(ImageDecoder.createSource(found), target, found.toString())
                     if (aspect != null) {
                         aspects[id] = aspect
                         consumed.add(found)
@@ -86,14 +87,35 @@ class ArtImporter(
         EXTENSIONS.map { File(source, "art/$id.$it") }
     }
 
+    /**
+     * 利用者が選んだ画像を、新しい id で内部へ写す。編集画面の画像の選択に使う。IO のスレッドで呼ぶ。
+     */
+    fun add(
+        source: ImageDecoder.Source,
+        name: String,
+    ): PanelArt? {
+        directory.mkdirs()
+        // id は時刻と乱数から作る。同じ画像を 2 回選んでも別の id になり、片方を消しても他方に影響しない
+        val id = "img-" + System.currentTimeMillis().toString(36) + "-" + (0 until 4).map { ID_CHARS.random() }.joinToString("")
+        val aspect = shrinkToWebp(source, File(directory, "$id.webp"), name) ?: return null
+        return PanelArt(id, aspect)
+    }
+
+    /** [layout] が使っていない画像のファイルを消す。 */
+    fun prune(layout: Layout) {
+        val keep = layout.images.map { fileOf(layout, it).name }.toSet()
+        directory.listFiles()?.filter { it.isFile && it.name !in keep }?.forEach { it.delete() }
+    }
+
     /** [from] を長辺 [MAX_SIDE] 以下に縮めて WebP で [to] に書く。元の画像の縦横比を返す。読めなければ null。 */
     private fun shrinkToWebp(
-        from: File,
+        from: ImageDecoder.Source,
         to: File,
+        label: String,
     ): Float? = try {
         var aspect = 1f
         val bitmap =
-            ImageDecoder.decodeBitmap(ImageDecoder.createSource(from)) { decoder, info, _ ->
+            ImageDecoder.decodeBitmap(from) { decoder, info, _ ->
                 val w = info.size.width
                 val h = info.size.height
                 // 幅か高さが 0 の壊れた画像は、縦横比を求められないので取り込まない
@@ -113,7 +135,7 @@ class ArtImporter(
         if (!tmp.renameTo(to)) error("$to に書けない")
         aspect
     } catch (e: Exception) {
-        Log.w(TAG, "$from を取り込めない", e)
+        Log.w(TAG, "$label を取り込めない", e)
         null
     }
 
@@ -137,5 +159,6 @@ class ArtImporter(
         const val MAX_SIDE = 2048
         const val QUALITY = 90
         val EXTENSIONS = listOf("webp", "jpg", "jpeg", "png")
+        val ID_CHARS = ('a'..'z') + ('0'..'9')
     }
 }

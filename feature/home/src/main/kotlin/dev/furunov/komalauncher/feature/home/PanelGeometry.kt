@@ -15,6 +15,7 @@ import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutResolver
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.Panel
+import dev.furunov.komalauncher.ui.art.PanelFace
 import kotlin.math.max
 
 /** 1 つのコマの、画面座標での形。画面の大きさが決まったときに 1 度だけ計算する。 */
@@ -33,7 +34,10 @@ class PanelGeometry(
     val image: String?,
     /** 画像を描く長方形（画面座標）。コマからはみ出す分は [shape] で切り抜く。 */
     val art: Rect?,
-)
+) {
+    /** コマの中身の描き方（編集画面と共有する）。 */
+    val face = PanelFace(polygon, art, PanelFace.placeholderFor(index))
+}
 
 @Immutable
 class HomeGeometry(

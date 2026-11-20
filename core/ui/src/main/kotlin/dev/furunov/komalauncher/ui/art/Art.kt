@@ -1,4 +1,4 @@
-package dev.furunov.komalauncher.feature.home
+package dev.furunov.komalauncher.ui.art
 
 import android.graphics.ImageDecoder
 import android.util.Log

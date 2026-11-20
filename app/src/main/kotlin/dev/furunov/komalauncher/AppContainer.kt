@@ -9,6 +9,7 @@ import dev.furunov.komalauncher.model.ports.BackupService
 import dev.furunov.komalauncher.model.ports.LayoutImporter
 import dev.furunov.komalauncher.model.ports.LayoutSource
 import dev.furunov.komalauncher.model.ports.LayoutState
+import dev.furunov.komalauncher.model.ports.LayoutStore
 import dev.furunov.komalauncher.model.settings.SettingsStore
 import dev.furunov.komalauncher.model.widgets.WidgetStore
 import dev.furunov.komalauncher.platform.apps.LauncherAppsCatalog
@@ -40,6 +41,7 @@ class AppContainer(
 
     private val fileLayout = FileLayoutStore(context, scope)
     val layoutSource: LayoutSource = fileLayout
+    val layoutStore: LayoutStore = fileLayout
     private val fileFolders = FileFolderStore(context, scope)
     private val fileSettings = FileSettingsStore(context, scope)
     val folderStore: FolderStore = fileFolders

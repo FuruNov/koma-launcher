@@ -1,6 +1,7 @@
 package dev.furunov.komalauncher.model.ports
 
 import dev.furunov.komalauncher.model.layout.Layout
+import dev.furunov.komalauncher.model.layout.PanelArt
 import dev.furunov.komalauncher.model.settings.LauncherAction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,4 +66,19 @@ interface ScreenEvents {
     val unlockPending: StateFlow<Boolean>
 
     fun consumeUnlock()
+}
+
+/** レイアウトの書き換え。編集画面が使う。 */
+interface LayoutStore : LayoutSource {
+    /** レイアウトを書き換える。見本を表示しているときは、見本を元に書き換える（書いた時点で利用者のレイアウトになる）。 */
+    fun update(transform: (Layout) -> Layout)
+
+    /**
+     * 利用者が選んだ画像（content:// の URI）を内部へ写し、コマに置ける形で返す。読めなければ null。
+     * 長辺 2048 以下に縮めるので、IO のスレッドで時間がかかる。
+     */
+    suspend fun addImage(uri: String): PanelArt?
+
+    /** どのコマも使っていない画像を消す。元に戻す履歴が要らなくなってから（編集画面を閉じたときに）呼ぶ。 */
+    fun pruneImages()
 }

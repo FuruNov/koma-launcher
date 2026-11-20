@@ -1,13 +1,16 @@
 package dev.furunov.komalauncher.platform.layout
 
 import android.content.Context
+import android.graphics.ImageDecoder
+import android.net.Uri
 import android.os.FileObserver
 import android.util.Log
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutParser
 import dev.furunov.komalauncher.model.layout.LayoutResult
-import dev.furunov.komalauncher.model.ports.LayoutSource
+import dev.furunov.komalauncher.model.layout.PanelArt
 import dev.furunov.komalauncher.model.ports.LayoutState
+import dev.furunov.komalauncher.model.ports.LayoutStore
 import dev.furunov.komalauncher.platform.store.JsonFileStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +24,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.nullable
 import java.io.File
 
@@ -35,7 +39,7 @@ import java.io.File
 class FileLayoutStore(
     private val context: Context,
     private val scope: CoroutineScope,
-) : LayoutSource {
+) : LayoutStore {
     /** 取り込み口。 */
     val importDirectory: File = requireNotNull(context.getExternalFilesDir(null)) { "外部ファイル領域を使えない" }
     private val importFile = File(importDirectory, FILE_NAME)
@@ -74,6 +78,17 @@ class FileLayoutStore(
     init {
         // アプリが止まっている間に置かれた layout.json も取り込む
         if (importFile.exists()) importSoon()
+    }
+
+    override fun update(transform: (Layout) -> Layout) = store.update { transform(it ?: sample) }
+
+    override suspend fun addImage(uri: String): PanelArt? = withContext(Dispatchers.IO) {
+        art.add(ImageDecoder.createSource(context.contentResolver, Uri.parse(uri)), uri)
+    }
+
+    override fun pruneImages() {
+        val layout = store.value.value ?: return
+        scope.launch(Dispatchers.IO) { importLock.withLock { art.prune(layout) } }
     }
 
     /** いまのレイアウトの layout.json の文。バックアップに使う。見本を表示しているときは null。 */
