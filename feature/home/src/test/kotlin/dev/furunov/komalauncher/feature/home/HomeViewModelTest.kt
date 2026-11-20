@@ -7,6 +7,11 @@ import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.folders.Folders
 import dev.furunov.komalauncher.model.layout.Layout
+import dev.furunov.komalauncher.model.layout.LayoutNode
+import dev.furunov.komalauncher.model.layout.LayoutShape
+import dev.furunov.komalauncher.model.media.MediaSessions
+import dev.furunov.komalauncher.model.media.NowPlaying
+import dev.furunov.komalauncher.model.media.PlaybackStatus
 import dev.furunov.komalauncher.model.layout.Panel
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.layout.PanelId
@@ -91,6 +96,40 @@ class HomeViewModelTest {
         override fun allShortcuts(): List<dev.furunov.komalauncher.model.apps.AppShortcut> = emptyList()
     }
 
+    private class FakeMedia : MediaSessions {
+        val calls = mutableListOf<String>()
+        override val nowPlaying = MutableStateFlow<NowPlaying?>(null)
+        override val hasAccess = MutableStateFlow(true)
+
+        override fun start() = Unit
+
+        override fun stop() = Unit
+
+        override fun togglePlayPause() {
+            calls += "toggle"
+        }
+
+        override fun next() {
+            calls += "next"
+        }
+
+        override fun previous() {
+            calls += "previous"
+        }
+
+        override fun openPlayer() {
+            calls += "openPlayer"
+        }
+
+        override fun openAccessSettings() {
+            calls += "openAccessSettings"
+        }
+
+        override fun openAppInfo() {
+            calls += "openAppInfo"
+        }
+    }
+
     private class FakeActions : ActionPerformer {
         val performed = mutableListOf<LauncherAction>()
 
@@ -105,6 +144,8 @@ class HomeViewModelTest {
     private lateinit var appsFake: FakeApps
     private lateinit var actions: FakeActions
     private lateinit var vm: HomeViewModel
+    private lateinit var media: FakeMedia
+    private var now = 0L
 
     @BeforeTest
     fun setUp() {
@@ -113,7 +154,9 @@ class HomeViewModelTest {
         folders = FakeFolders()
         appsFake = FakeApps()
         actions = FakeActions()
-        vm = HomeViewModel(layoutSource, folders, FakeSettings(), appsFake, actions)
+        media = FakeMedia()
+        now = 0L
+        vm = HomeViewModel(layoutSource, folders, FakeSettings(), appsFake, actions, media) { now }
     }
 
     @AfterTest
@@ -270,5 +313,121 @@ class HomeViewModelTest {
         vm.onEvent(HomeEvent.Perform(LauncherAction.OpenFolder("p1")))
         assertEquals(emptyList(), appsFake.launched)
         assertEquals(Overlay.Folder(PanelId("p1")), vm.state.value.overlay)
+    }
+
+    // ---- 音楽プレイヤーのコマ ----
+
+    /** プレイヤーの表示は線の木（version 2）のレイアウトだけで行うので、2 つのフォルダのコマの木を使う。 */
+    private fun useTree() {
+        val leaf = { id: String -> LayoutNode.Leaf(Panel(PanelId(id), PanelContent.Folder(listOf("com.android.chrome")))) }
+        val tree = Layout(LayoutShape.Tree(LayoutNode.Split(0f, 1f, leaf("p1"), leaf("p2"))))
+        layoutSource.flow.value = LayoutState.Loaded(tree, emptyMap())
+    }
+
+    private fun play(status: PlaybackStatus = PlaybackStatus.PLAYING, pausedAt: Long? = null) {
+        media.nowPlaying.value = NowPlaying("com.example.music", status, "t", pausedAt)
+    }
+
+    @Test
+    fun tapPlayerPanelTogglesPlayback() {
+        useTree()
+        folders.update { FolderEdits.setMusicPlayer(it, "p1", true) }
+        play()
+        vm.onEvent(HomeEvent.TapPanel(PanelId("p1")))
+        assertEquals(listOf("toggle"), media.calls)
+        assertEquals(Overlay.None, vm.state.value.overlay)
+        assertEquals(PanelId("p1"), vm.state.value.player?.panelId)
+    }
+
+    @Test
+    fun swipeOnPlayerPanelSkips() {
+        useTree()
+        folders.update { FolderEdits.setMusicPlayer(it, "p1", true) }
+        play()
+        vm.onEvent(HomeEvent.SwipePanel(PanelId("p1"), toLeft = true))
+        vm.onEvent(HomeEvent.SwipePanel(PanelId("p1"), toLeft = false))
+        assertEquals(listOf("next", "previous"), media.calls)
+    }
+
+    @Test
+    fun withoutSessionPlayerPanelOpensFolder() {
+        useTree()
+        folders.update { FolderEdits.setMusicPlayer(it, "p1", true) }
+        vm.onEvent(HomeEvent.TapPanel(PanelId("p1")))
+        assertEquals(Overlay.Folder(PanelId("p1")), vm.state.value.overlay)
+        assertEquals(null, vm.state.value.player)
+    }
+
+    @Test
+    fun pausedPastTimeoutOpensFolder() {
+        useTree()
+        folders.update { FolderEdits.setMusicPlayer(it, "p1", true) }
+        now = 31 * 60_000L
+        play(PlaybackStatus.PAUSED, pausedAt = 0L)
+        assertEquals(null, vm.state.value.player)
+        vm.onEvent(HomeEvent.TapPanel(PanelId("p1")))
+        assertEquals(Overlay.Folder(PanelId("p1")), vm.state.value.overlay)
+    }
+
+    @Test
+    fun pausedWithinTimeoutShowsPausedPlayer() {
+        useTree()
+        folders.update { FolderEdits.setMusicPlayer(it, "p1", true) }
+        now = 10 * 60_000L
+        play(PlaybackStatus.PAUSED, pausedAt = 0L)
+        assertEquals(false, vm.state.value.player?.playing)
+    }
+
+    @Test
+    fun directLaunchStillWorksWhenNotPlaying() {
+        useTree()
+        folders.update { FolderEdits.setDirectLaunch(FolderEdits.setMusicPlayer(it, "p1", true), "p1", true) }
+        vm.onEvent(HomeEvent.TapPanel(PanelId("p1")))
+        assertEquals(listOf(chrome), appsFake.launched)
+        play()
+        vm.onEvent(HomeEvent.TapPanel(PanelId("p1")))
+        assertEquals(listOf("toggle"), media.calls)
+        assertEquals(listOf(chrome), appsFake.launched)
+    }
+
+    @Test
+    fun playerPanelRemovedFromLayoutIsIgnored() {
+        useTree()
+        folders.update { FolderEdits.setMusicPlayer(it, "gone", true) }
+        play()
+        assertEquals(null, vm.state.value.player)
+    }
+
+    @Test
+    fun noPlayerOnVersion1Layout() {
+        folders.update { FolderEdits.setMusicPlayer(it, "p1", true) }
+        play()
+        assertEquals(null, vm.state.value.player)
+    }
+
+    @Test
+    fun noPlayerWithoutAccess() {
+        useTree()
+        folders.update { FolderEdits.setMusicPlayer(it, "p1", true) }
+        media.hasAccess.value = false
+        play()
+        assertEquals(null, vm.state.value.player)
+    }
+
+    @Test
+    fun turningOnWithoutAccessShowsExplanation() {
+        useTree()
+        media.hasAccess.value = false
+        vm.onEvent(HomeEvent.SetMusicPlayer(PanelId("p1"), on = true))
+        assertEquals(Overlay.MusicAccess, vm.state.value.overlay)
+        assertEquals("p1", vm.state.value.folders.musicPanel())
+    }
+
+    @Test
+    fun swipeOnFolderPanelDoesNothing() {
+        useTree()
+        vm.onEvent(HomeEvent.SwipePanel(PanelId("p1"), toLeft = true))
+        assertEquals(emptyList(), media.calls)
+        assertEquals(Overlay.None, vm.state.value.overlay)
     }
 }

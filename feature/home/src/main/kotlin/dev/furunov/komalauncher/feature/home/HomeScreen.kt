@@ -185,6 +185,8 @@ fun HomeScreen(
 
                     override fun onPanelLongPress(panel: PanelGeometry, position: Offset) = onEvent(HomeEvent.OpenOverlay(Overlay.PanelMenu(panel.panel.id)))
 
+                    override fun onPanelSwipe(panel: PanelGeometry, toLeft: Boolean) = onEvent(HomeEvent.SwipePanel(panel.panel.id, toLeft))
+
                     override fun onGesture(kind: GestureKind, position: Offset) = onEvent(HomeEvent.Gesture(kind))
                 }
             }

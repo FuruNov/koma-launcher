@@ -22,6 +22,9 @@ interface HomeGestureHandler {
 
     fun onPanelLongPress(panel: PanelGeometry, position: Offset)
 
+    /** コマの上の左右のスワイプ。[toLeft] が true なら左へ払った。 */
+    fun onPanelSwipe(panel: PanelGeometry, toLeft: Boolean)
+
     fun onGesture(kind: GestureKind, position: Offset)
 }
 
@@ -31,6 +34,7 @@ interface HomeGestureHandler {
  * - コマの上のタップは、指を離した瞬間に成立させる。ダブルタップを待たない（待つと約 300 ms 遅れる）。
  * - ダブルタップはコマの間の余白でだけ見分ける。余白の 1 回目のタップは何もしないので、待つ必要がない。
  * - 移動量が touchSlop を超えたらタップを取り消し、縦の移動量が [swipeDistance] を超えたらスワイプにする。
+ * - 横の移動量が [swipeDistance] を超え、縦より大きければ、コマの上の左右のスワイプにする（余白の上では何もしない）。
  * - 2 本目の指が触れたら、2 本指のスワイプかピンチとして扱う。
  */
 fun Modifier.homeGestures(
@@ -81,6 +85,12 @@ fun Modifier.homeGestures(
                 handler.onGesture(outcome.kind, down.position)
             }
 
+            is Outcome.HorizontalSwipe ->
+                panel?.let {
+                    handler.onPanelRelease(it, tapped = false)
+                    handler.onPanelSwipe(it, outcome.toLeft)
+                }
+
             Outcome.Nothing -> panel?.let { handler.onPanelRelease(it, tapped = false) }
         }
     }
@@ -93,6 +103,10 @@ private sealed interface Outcome {
 
     data class Gesture(
         val kind: GestureKind,
+    ) : Outcome
+
+    data class HorizontalSwipe(
+        val toLeft: Boolean,
     ) : Outcome
 
     data object Nothing : Outcome
@@ -153,6 +167,8 @@ private suspend fun AwaitPointerEventScope.trackGesture(
                     abs(d.y) > swipeDistance && abs(d.y) > abs(d.x) ->
                         Outcome.Gesture(if (d.y < 0) GestureKind.SwipeUp else GestureKind.SwipeDown)
 
+                    abs(d.x) > swipeDistance && abs(d.x) > abs(d.y) -> Outcome.HorizontalSwipe(toLeft = d.x < 0)
+
                     else -> Outcome.Nothing
                 }
             }
@@ -167,10 +183,11 @@ private suspend fun AwaitPointerEventScope.trackGesture(
         if (event.changes.none { it.pressed }) {
             val end = event.changes.firstOrNull()?.position ?: last
             val d = end - start
-            return if (!multi && abs(d.y) > swipeDistance && abs(d.y) > abs(d.x)) {
-                Outcome.Gesture(if (d.y < 0) GestureKind.SwipeUp else GestureKind.SwipeDown)
-            } else {
-                Outcome.Nothing
+            return when {
+                multi -> Outcome.Nothing
+                abs(d.y) > swipeDistance && abs(d.y) > abs(d.x) -> Outcome.Gesture(if (d.y < 0) GestureKind.SwipeUp else GestureKind.SwipeDown)
+                abs(d.x) > swipeDistance && abs(d.x) > abs(d.y) -> Outcome.HorizontalSwipe(toLeft = d.x < 0)
+                else -> Outcome.Nothing
             }
         }
     }

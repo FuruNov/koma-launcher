@@ -10,8 +10,13 @@ import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.folders.Folders
 import dev.furunov.komalauncher.model.layout.Layout
+import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.layout.PanelId
+import dev.furunov.komalauncher.model.media.MediaSessions
+import dev.furunov.komalauncher.model.media.NowPlaying
+import dev.furunov.komalauncher.model.media.PlaybackStatus
+import dev.furunov.komalauncher.model.media.PlayerRules
 import dev.furunov.komalauncher.model.ports.ActionPerformer
 import dev.furunov.komalauncher.model.ports.LayoutSource
 import dev.furunov.komalauncher.model.ports.LayoutState
@@ -19,10 +24,15 @@ import dev.furunov.komalauncher.model.settings.GestureKind
 import dev.furunov.komalauncher.model.settings.LauncherAction
 import dev.furunov.komalauncher.model.settings.Settings
 import dev.furunov.komalauncher.model.settings.SettingsStore
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
@@ -54,7 +64,21 @@ sealed interface Overlay {
         val fromPanel: String?,
         val shortcuts: List<AppShortcut>,
     ) : Overlay
+
+    /** 音楽プレイヤーに必要な「通知へのアクセス」の説明。 */
+    data object MusicAccess : Overlay
 }
+
+/** プレイヤーの表示にしているコマ。表示していなければ HomeUiState.player は null。 */
+@Immutable
+data class PlayerUi(
+    val panelId: PanelId,
+    /** false なら一時停止中。 */
+    val playing: Boolean,
+    val packageName: String,
+    /** 曲が変わったことの合図。 */
+    val trackKey: String,
+)
 
 /** アイコンを落とした先。座標からの判断は画面（HomeScreen）が行い、ここには結果だけが来る。 */
 sealed interface DropTarget {
@@ -87,6 +111,7 @@ data class HomeUiState(
     /** 直前に外したアプリ（「元に戻す」のため）。 */
     val undo: Folders?,
     val labels: Map<AppKey, String> = emptyMap(),
+    val player: PlayerUi? = null,
 ) {
     fun labelOf(app: AppKey): String = labels[app] ?: app.packageName
 }
@@ -156,6 +181,23 @@ sealed interface HomeEvent {
     data class OpenOverlay(
         val overlay: Overlay,
     ) : HomeEvent
+
+    /** コマの上の左右のスワイプ。 */
+    data class SwipePanel(
+        val panelId: PanelId,
+        val toLeft: Boolean,
+    ) : HomeEvent
+
+    data class SetMusicPlayer(
+        val panelId: PanelId,
+        val on: Boolean,
+    ) : HomeEvent
+
+    data object OpenPlayerApp : HomeEvent
+
+    data object OpenMusicAccess : HomeEvent
+
+    data object OpenAppInfoForAccess : HomeEvent
 }
 
 class HomeViewModel(
@@ -164,9 +206,45 @@ class HomeViewModel(
     settingsStore: SettingsStore,
     private val apps: AppCatalog,
     private val actions: ActionPerformer,
+    private val media: MediaSessions,
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private val overlay = MutableStateFlow<Overlay>(Overlay.None)
     private val undo = MutableStateFlow<Folders?>(null)
+
+    private class PlayerInputs(
+        val layout: Layout,
+        val folders: Folders,
+        val timeoutMinutes: Int,
+        val nowPlaying: NowPlaying?,
+        val hasAccess: Boolean,
+    )
+
+    /** 一時停止の期限が来たら、もう一度計算して流す（期限を過ぎたらいつものコマに戻すため）。 */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val player: Flow<PlayerUi?> =
+        combine(layoutSource.state, folderStore.folders, settingsStore.settings, media.nowPlaying, media.hasAccess) { l, f, s, np, access ->
+            PlayerInputs(l.layout, f, s.music.pauseTimeoutMinutes, np, access)
+        }.flatMapLatest { inputs ->
+            flow {
+                emit(playerOf(inputs))
+                val hideAt = PlayerRules.hideAtMillis(inputs.nowPlaying, inputs.timeoutMinutes) ?: return@flow
+                val wait = hideAt - clock()
+                if (wait > 0) {
+                    delay(wait)
+                    emit(playerOf(inputs))
+                }
+            }
+        }
+
+    private fun playerOf(i: PlayerInputs): PlayerUi? {
+        val id = i.folders.musicPanel() ?: return null
+        if (i.layout.shape !is LayoutShape.Tree || !i.hasAccess) return null
+        val panel = i.layout.panel(PanelId(id))?.takeIf { it.content is PanelContent.Folder } ?: return null
+        val np = i.nowPlaying ?: return null
+        if (!PlayerRules.showsPlayer(np, clock(), i.timeoutMinutes)) return null
+        return PlayerUi(panel.id, np.status != PlaybackStatus.PAUSED, np.packageName, np.trackKey)
+    }
 
     val state: StateFlow<HomeUiState> =
         combine(layoutSource.state, folderStore.folders, settingsStore.settings, overlay, undo) { l, f, s, o, u ->
@@ -182,6 +260,7 @@ class HomeViewModel(
                 undo = u,
             )
         }.combine(apps.apps) { s, list -> s.copy(labels = list.associate { it.key to it.label }) }
+            .combine(player) { s, p -> s.copy(player = p) }
             .stateIn(
                 viewModelScope,
                 SharingStarted.Eagerly,
@@ -217,6 +296,11 @@ class HomeViewModel(
     fun onEvent(event: HomeEvent) {
         when (event) {
             is HomeEvent.TapPanel -> {
+                // プレイヤーの表示の間は、タップで再生・一時停止を切り替える（フォルダは長押しのメニューから開く）
+                if (state.value.player?.panelId == event.panelId) {
+                    media.togglePlayPause()
+                    return
+                }
                 val panel = state.value.layout.panel(event.panelId) ?: return
                 when (panel.content) {
                     is PanelContent.Folder -> {
@@ -286,6 +370,31 @@ class HomeViewModel(
 
             is HomeEvent.Uninstall -> {
                 apps.requestUninstall(event.app)
+                overlay.value = Overlay.None
+            }
+
+            is HomeEvent.SwipePanel ->
+                if (state.value.player?.panelId == event.panelId) {
+                    if (event.toLeft) media.next() else media.previous()
+                }
+
+            is HomeEvent.SetMusicPlayer -> {
+                folderStore.update { FolderEdits.setMusicPlayer(it, event.panelId.value, event.on) }
+                overlay.value = if (event.on && !media.hasAccess.value) Overlay.MusicAccess else Overlay.None
+            }
+
+            HomeEvent.OpenPlayerApp -> {
+                media.openPlayer()
+                overlay.value = Overlay.None
+            }
+
+            HomeEvent.OpenMusicAccess -> {
+                media.openAccessSettings()
+                overlay.value = Overlay.None
+            }
+
+            HomeEvent.OpenAppInfoForAccess -> {
+                media.openAppInfo()
                 overlay.value = Overlay.None
             }
         }
