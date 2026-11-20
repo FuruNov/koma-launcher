@@ -88,12 +88,6 @@ interface LayoutStore : LayoutSource {
     ): PanelArt?
 
     /**
-     * 画像 [image] の人物を端末の中で切り抜き（ML Kit）、文字を人物の後ろに置けるようにする。
-     * 失敗したら利用者に見せる理由を返す。
-     */
-    suspend fun cutOutPerson(image: String): String?
-
-    /**
      * どのコマも使っていない画像を消す。元に戻す履歴が要らなくなってから（編集画面を閉じたときに）呼ぶ。
      * すぐに戻り、消すのは IO のスレッドで、取り込み・画像の追加と排他にして行う。
      */

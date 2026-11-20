@@ -95,12 +95,6 @@ class FileLayoutStore(
         }
     }
 
-    private val cutter = PersonCutter(art)
-
-    override suspend fun cutOutPerson(image: String): String? = withContext(Dispatchers.IO) {
-        importLock.withLock { cutter.cutOut(image) }.also { if (it == null) revision.value++ }
-    }
-
     override fun pruneImages() {
         val layout = store.value.value ?: return
         scope.launch(Dispatchers.IO) { importLock.withLock { art.prune(layout) } }

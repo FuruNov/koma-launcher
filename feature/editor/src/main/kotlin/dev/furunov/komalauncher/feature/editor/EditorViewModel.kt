@@ -216,16 +216,6 @@ class EditorViewModel(
         commit(LayoutEdits.setTree(local.value.layout, transform))
     }
 
-    /** 選んでいるコマの画像の人物を、端末の中で切り抜く。 */
-    fun cutOutPerson() {
-        val image = selectedArt()?.image ?: return
-        local.update { it.copy(busy = true, message = "人物を切り抜き中…") }
-        viewModelScope.launch {
-            val error = store.cutOutPerson(image)
-            local.update { it.copy(busy = false, message = error ?: "切り抜きが完了しました。文字と時計は人物の背後に表示されます") }
-        }
-    }
-
     fun undo() {
         val prev = history.pop() ?: return
         local.update { s -> s.copy(selected = s.selected?.takeIf { prev.panel(it) != null }) }

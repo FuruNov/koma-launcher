@@ -134,7 +134,6 @@ fun EditorScreen(
                             picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                         }
                         Chip("画像を削除", enabled = selectedPanel.art != null, onClick = vm::removeImage)
-                        Chip("人物の切り抜き", enabled = selectedPanel.art != null && !state.busy, onClick = vm::cutOutPerson)
                     }
                     selectedPanel.art?.let { art ->
                         Hint("ドラッグで移動、ピンチで拡大・縮小")

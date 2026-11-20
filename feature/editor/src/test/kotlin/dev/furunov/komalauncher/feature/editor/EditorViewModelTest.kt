@@ -49,8 +49,6 @@ class EditorViewModelTest {
             panel: PanelId,
         ): PanelArt? = nextImage?.also { a -> update { l -> LayoutEdits.placeImage(l, panel, a) } }
 
-        override suspend fun cutOutPerson(image: String): String? = null
-
         override fun pruneImages() {
             pruned++
         }
