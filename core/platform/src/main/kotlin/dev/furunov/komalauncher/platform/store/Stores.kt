@@ -1,6 +1,8 @@
 package dev.furunov.komalauncher.platform.store
 
 import android.content.Context
+import dev.furunov.komalauncher.model.apps.LaunchStore
+import dev.furunov.komalauncher.model.apps.Launches
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.folders.Folders
 import dev.furunov.komalauncher.model.settings.Settings
@@ -47,6 +49,21 @@ class FileWidgetStore(
     override val assignments: StateFlow<WidgetAssignments> = store.value
 
     override fun update(transform: (WidgetAssignments) -> WidgetAssignments) = store.update(transform)
+
+    fun flush() = store.flush()
+
+    val brokenFile: File? get() = store.brokenFile
+}
+
+class FileLaunchStore(
+    context: Context,
+    scope: CoroutineScope,
+) : LaunchStore {
+    // 起動のたびに変わるので、フォルダより長くまとめてから書く
+    private val store = JsonFileStore(File(context.filesDir, "launches.json"), Launches.serializer(), ::Launches, scope, debounceMs = 2000)
+    override val launches: StateFlow<Launches> = store.value
+
+    override fun update(transform: (Launches) -> Launches) = store.update(transform)
 
     fun flush() = store.flush()
 

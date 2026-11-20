@@ -3,6 +3,8 @@ package dev.furunov.komalauncher
 import android.content.Context
 import dev.furunov.komalauncher.feature.widgets.WidgetHostController
 import dev.furunov.komalauncher.model.apps.AppCatalog
+import dev.furunov.komalauncher.model.apps.CountingAppCatalog
+import dev.furunov.komalauncher.model.apps.LaunchStore
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.ports.ActionPerformer
 import dev.furunov.komalauncher.model.ports.BackupService
@@ -19,6 +21,7 @@ import dev.furunov.komalauncher.platform.files.SafLayoutImporter
 import dev.furunov.komalauncher.platform.layout.FileLayoutStore
 import dev.furunov.komalauncher.platform.sensor.SensorTiltSource
 import dev.furunov.komalauncher.platform.store.FileFolderStore
+import dev.furunov.komalauncher.platform.store.FileLaunchStore
 import dev.furunov.komalauncher.platform.store.FileSettingsStore
 import dev.furunov.komalauncher.platform.store.FileWidgetStore
 import dev.furunov.komalauncher.platform.system.BroadcastScreenEvents
@@ -47,7 +50,11 @@ class AppContainer(
     private val fileSettings = FileSettingsStore(context, scope)
     val folderStore: FolderStore = fileFolders
     val settingsStore: SettingsStore = fileSettings
-    val appCatalog: AppCatalog = LauncherAppsCatalog(context, scope)
+    private val fileLaunches = FileLaunchStore(context, scope)
+    val launchStore: LaunchStore = fileLaunches
+
+    /** 起動を数えるよう包む。ジェスチャーからの起動（DefaultActionPerformer）もここを通る。 */
+    val appCatalog: AppCatalog = CountingAppCatalog(LauncherAppsCatalog(context, scope), fileLaunches)
     val iconLoader: IconLoader = LauncherIconLoader(context)
     val screenEvents = BroadcastScreenEvents(context)
     val tilt = SensorTiltSource(context)
@@ -63,7 +70,7 @@ class AppContainer(
     /** 読めずに既定値で始めた保存ファイルがあれば、その知らせ。ホームの上端に出す。 */
     val storeNotice: String? =
         // レイアウトを読めなかったときは、FileLayoutStore が LayoutState の error で知らせる
-        listOfNotNull(fileFolders.brokenFile, fileSettings.brokenFile, fileWidgets.brokenFile)
+        listOfNotNull(fileFolders.brokenFile, fileSettings.brokenFile, fileWidgets.brokenFile, fileLaunches.brokenFile)
             .takeIf { it.isNotEmpty() }
             ?.let { files -> "保存ファイルを読めなかったので、初期の状態で始めました。元のファイルは ${files.joinToString { it.name }} に残してあります" }
 
@@ -79,6 +86,7 @@ class AppContainer(
         fileFolders.flush()
         fileSettings.flush()
         fileWidgets.flush()
+        fileLaunches.flush()
         fileLayout.flush()
     }
 }
