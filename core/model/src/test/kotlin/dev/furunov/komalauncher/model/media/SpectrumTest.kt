@@ -14,6 +14,13 @@ class SpectrumTest {
     }
 
     @Test
+    fun bottomEdgeSkipsZeroLengthEdge() {
+        // コマの間隔が 0 のとき、切る線の上の頂点が 2 回入ることがある。長さ 0 の辺を選ぶと棒の向きが決まらない
+        val e = Spectrum.bottomEdge(listOf(Point(0f, 0f), Point(100f, 0f), Point(100f, 80f), Point(100f, 80f), Point(0f, 60f)))
+        assertEquals(Point(0f, 60f) to Point(100f, 80f), e)
+    }
+
+    @Test
     fun barCountHasMinimum() = assertEquals(10, Spectrum.barCount(30f, 3f))
 
     @Test

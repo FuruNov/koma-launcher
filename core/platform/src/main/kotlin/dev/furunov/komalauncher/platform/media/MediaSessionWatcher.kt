@@ -1,6 +1,7 @@
 package dev.furunov.komalauncher.platform.media
 
 import android.app.ActivityOptions
+import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -58,6 +59,9 @@ class MediaSessionWatcher(
 
     private var started = false
     private var controllers: List<MediaController> = emptyList()
+
+    /** コントローラーごとのコールバック。終わったセッションを、そのコントローラーだけ外せるように分けて持つ。 */
+    private val callbacks = HashMap<MediaController, MediaController.Callback>()
     private var current: MediaController? = null
 
     /** セッションごとの、一時停止になった時刻（壁時計）。一時停止の期限に使う。 */
@@ -65,23 +69,28 @@ class MediaSessionWatcher(
     private var artKey: String? = null
     private var artJob: Job? = null
 
-    private val callback =
-        object : MediaController.Callback() {
-            override fun onPlaybackStateChanged(state: PlaybackState?) = refresh()
+    private fun callbackFor(c: MediaController) = object : MediaController.Callback() {
+        override fun onPlaybackStateChanged(state: PlaybackState?) = refresh()
 
-            override fun onMetadataChanged(metadata: MediaMetadata?) = refresh()
+        override fun onMetadataChanged(metadata: MediaMetadata?) = refresh()
 
-            override fun onSessionDestroyed() = refresh()
+        // 一覧の変更の通知を出さないアプリもあるので、終わったセッションはここで外す
+        override fun onSessionDestroyed() {
+            unregister(c)
+            controllers = controllers - c
+            refresh()
         }
+    }
+
+    private fun unregister(c: MediaController) {
+        callbacks.remove(c)?.let(c::unregisterCallback)
+    }
 
     private val sessionsListener =
         MediaSessionManager.OnActiveSessionsChangedListener { list -> watch(list.orEmpty()) }
 
     /** 通知へのアクセスが許可されているか。設定画面からも呼ぶ（監視していなくても判定できる）。 */
-    fun checkAccess(): Boolean {
-        val enabled = Settings.Secure.getString(app.contentResolver, "enabled_notification_listeners") ?: return false
-        return enabled.split(':').any { ComponentName.unflattenFromString(it) == component }
-    }
+    fun checkAccess(): Boolean = app.getSystemService(NotificationManager::class.java)?.isNotificationListenerAccessGranted(component) == true
 
     override fun start() {
         if (started) return
@@ -109,21 +118,29 @@ class MediaSessionWatcher(
         } catch (e: Exception) {
             // 登録できていなければ何もしない
         }
-        controllers.forEach { it.unregisterCallback(callback) }
+        controllers.forEach(::unregister)
         controllers = emptyList()
         // 離れている間の再生・一時停止は届かないので、戻ったときに PlaybackState の更新時刻から数え直す
         paused.reset()
     }
 
     private fun watch(list: List<MediaController>) {
-        controllers.forEach { it.unregisterCallback(callback) }
+        // stop の直前にキューに積まれた一覧の変更の通知が、止めた後に届くことがある。止めた後は監視を始め直さない
+        if (!started) return
+        controllers.forEach(::unregister)
         controllers = list
         // 先頭が止まっていても、2 番目が一時停止中ならそれを使うので、すべてを監視する
-        list.forEach { it.registerCallback(callback, main) }
+        list.forEach { c ->
+            callbackFor(c).also {
+                callbacks[c] = it
+                c.registerCallback(it, main)
+            }
+        }
         refresh()
     }
 
     private fun refresh() {
+        if (!started) return
         val now = System.currentTimeMillis()
         val live = HashSet<String>()
         var chosen: Triple<MediaController, PlaybackStatus, Long?>? = null
@@ -260,7 +277,11 @@ class MediaSessionWatcher(
         try {
             app.startActivity(detail)
         } catch (e: Exception) {
-            app.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            try {
+                app.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (e: Exception) {
+                // 設定画面を開けない端末では何もしない
+            }
         }
     }
 

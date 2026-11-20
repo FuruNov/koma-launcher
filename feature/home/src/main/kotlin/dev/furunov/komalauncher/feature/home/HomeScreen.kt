@@ -185,7 +185,7 @@ fun HomeScreen(
                     override fun onPanelRelease(panel: PanelGeometry, tapped: Boolean) {
                         val m = motions.getValue(panel.panel.id)
                         if (tapped) {
-                            if (currentState.value.player?.panelId == panel.panel.id) flash = PlayerFlashEvent(PlayerFlash.TOGGLE, System.nanoTime())
+                            currentState.value.player?.takeIf { it.panelId == panel.panel.id }?.let { flash = PlayerFlashEvent(PlayerFlash.forTap(it.playing), System.nanoTime()) }
                             // 動きの完了を待たずに開く。待つとタップへの反応が遅れて感じられる
                             onEvent(HomeEvent.TapPanel(panel.panel.id))
                             if (anim.enabled) scope.launch { pressAnim.pressUp(m, ctx(panel)) }

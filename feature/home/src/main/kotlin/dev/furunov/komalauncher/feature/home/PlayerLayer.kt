@@ -47,13 +47,27 @@ class HomeMedia(
 )
 
 /** 再生中のコマを操作したときに、中央に一瞬表示する記号。 */
-enum class PlayerFlash { TOGGLE, NEXT, PREVIOUS }
+enum class PlayerFlash {
+    PLAY,
+    PAUSE,
+    NEXT,
+    PREVIOUS,
+    ;
 
-/** 表示中の記号と、操作した時刻（同じ記号が続いても表示し直すため）。 */
+    companion object {
+        /** タップした時点で記号を決める（状態が届いた時点で記号が切り替わらないように）。 */
+        fun forTap(playing: Boolean): PlayerFlash = if (playing) PAUSE else PLAY
+    }
+}
+
+/** 表示中の記号と、操作した時刻（System.nanoTime。同じ記号が続いても表示し直すため）。 */
 data class PlayerFlashEvent(
     val kind: PlayerFlash,
     val at: Long,
-)
+) {
+    /** [nanos] より後の操作か。層が現れる前の操作の記号は表示しない。 */
+    fun isNewerThan(nanos: Long): Boolean = at > nanos
+}
 
 /** ジャケットのクロスフェード。曲が変わったら、前のジャケットを薄くしながら新しいジャケットを濃くする。 */
 @Stable
@@ -93,7 +107,9 @@ internal fun DrawScope.drawPlayerArt(
 ) {
     val filter = if (playing) null else pausedFilter
     val p = fade.progress.value
-    fade.old?.let { drawCover(it, 1f - p, filter) }
+    // 曲が変わるときは、前のジャケットを不透明のまま残して上に新しいジャケットを重ねる（下のコマの絵が透けないように）。
+    // ジャケットが無くなるときだけ、前のジャケットを薄くしてコマの絵に戻す
+    fade.old?.let { drawCover(it, if (fade.current != null) 1f else 1f - p, filter) }
     fade.current?.let { drawCover(it, p, filter) }
 }
 
@@ -195,9 +211,14 @@ internal fun PlayerLayer(
     }
 
     val flashProgress = remember { Animatable(1f) }
+    // 前回の再生のときの操作の記号を、次に再生したときに表示しないよう、層が現れた時刻より後の操作だけを表示する
+    val shownSince = remember { System.nanoTime() }
+    // アニメーションを始めた記号。始まる前の 1 フレームも、記号を表示し始めとして描くために使う
+    var started by remember { mutableStateOf<PlayerFlashEvent?>(null) }
     LaunchedEffect(flash) {
-        if (flash == null) return@LaunchedEffect
+        if (flash == null || !flash.isNewerThan(shownSince)) return@LaunchedEffect
         flashProgress.snapTo(0f)
+        started = flash
         flashProgress.animateTo(1f, tween(600, easing = LinearEasing))
     }
 
@@ -208,12 +229,16 @@ internal fun PlayerLayer(
             drawBars(bars, values, barColor)
             val cx = g.inscribed.center.x - b.left
             val cy = g.inscribed.center.y - b.top
+            val fresh = flash != null && flash.isNewerThan(shownSince)
+            val fp = if (fresh && started !== flash) 0f else flashProgress.value
+            val flashing = fresh && fp < 1f
             if (!playing) {
-                drawCircle(Color.Black.copy(alpha = 0.45f), radius = 26.dp.toPx(), center = Offset(cx, cy))
-                drawPlayMark(cx + 2.dp.toPx(), cy, 22.dp.toPx(), Color.White)
+                // 操作の記号が消えていくのに合わせて浮かび上がらせる（2 つの記号が重なって別の記号に見えないように）
+                val a = if (flashing) fp else 1f
+                drawCircle(Color.Black.copy(alpha = 0.45f * a), radius = 26.dp.toPx(), center = Offset(cx, cy))
+                drawPlayMark(cx + 2.dp.toPx(), cy, 22.dp.toPx(), Color.White.copy(alpha = a))
             }
-            val fp = flashProgress.value
-            if (flash != null && fp < 1f) {
+            if (flash != null && flashing) {
                 val a = 1f - fp
                 drawCircle(Color.Black.copy(alpha = 0.5f * a), radius = (30 + 10 * fp).dp.toPx(), center = Offset(cx, cy))
                 val s = 24.dp.toPx()
@@ -221,7 +246,8 @@ internal fun PlayerLayer(
                 when (flash.kind) {
                     PlayerFlash.NEXT -> drawSkipMark(cx, cy, s, 1f, white)
                     PlayerFlash.PREVIOUS -> drawSkipMark(cx, cy, s, -1f, white)
-                    PlayerFlash.TOGGLE -> if (playing) drawPauseMark(cx, cy, s, white) else drawPlayMark(cx + 2.dp.toPx(), cy, s, white)
+                    PlayerFlash.PAUSE -> drawPauseMark(cx, cy, s, white)
+                    PlayerFlash.PLAY -> drawPlayMark(cx + 2.dp.toPx(), cy, s, white)
                 }
             }
         }

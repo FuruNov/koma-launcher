@@ -93,6 +93,8 @@ fun SettingsScreen(deps: SettingsDeps) {
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             val row = askingFor
             if (granted && row != null) deps.store.update { row.set(it, true) }
+            // 「今後表示しない」で断られていると、ダイアログが出ずにすぐ断られる。何も起きないように見えないよう、理由を表示する
+            if (!granted) message = "マイクの権限が無いため、オンにできません。Android の設定のアプリ情報の「権限」から許可できます"
             askingFor = null
         }
 

@@ -27,11 +27,16 @@ interface AudioSpectrum {
 
 /** ビジュアライザーの棒の計算。毎フレーム呼ぶので、配列を新しく作らずに引数の配列へ書く。 */
 object Spectrum {
-    /** 棒を立てる辺。中点が最も下にある辺で、x の小さい端を first にする。 */
+    /**
+     * 棒を立てる辺。中点が最も下にある辺で、x の小さい端を first にする。
+     * 長さがほぼ 0 の辺は除く（コマの間隔が 0 のとき、同じ頂点が 2 回入ることがあるため）。
+     */
     fun bottomEdge(points: List<Point>): Pair<Point, Point> {
+        val edges = points.indices.map { points[it] to points[(it + 1) % points.size] }
         val (a, b) =
-            points.indices
-                .map { points[it] to points[(it + 1) % points.size] }
+            edges
+                .filter { (p, q) -> hypot(q.x - p.x, q.y - p.y) > MIN_EDGE }
+                .ifEmpty { edges }
                 .maxBy { (p, q) -> p.y + q.y }
         return if (a.x <= b.x) a to b else b to a
     }
@@ -99,6 +104,8 @@ object Spectrum {
     }
 
     fun isSilent(fft: ByteArray): Boolean = fft.all { it == 0.toByte() }
+
+    private const val MIN_EDGE = 0.5f
 
     // FFT の値は 1 バイト（-128〜127）なので、大きさの上限を 128 とする
     private val LOG_MAX = log10(1f + 128f)
