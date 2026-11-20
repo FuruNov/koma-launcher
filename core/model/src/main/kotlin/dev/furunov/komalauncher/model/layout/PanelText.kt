@@ -1,6 +1,7 @@
 package dev.furunov.komalauncher.model.layout
 
 import dev.furunov.komalauncher.model.geometry.Rect
+import kotlin.math.max
 import kotlin.math.min
 
 /**
@@ -57,9 +58,11 @@ object PanelText {
     )
 
     /**
-     * 名前の置き場所を、コマに内接する長方形 [box] の全体から探す。大きさは 3 段階、位置は 7×7 で試し、
+     * 名前の置き場所を探す。大きさの基準はコマに内接する長方形 [box] で決め、大きさは 3 段階で試す。
+     * 位置は [area]（既定は [box]）の中を 9×9 で試し、[fits] が false の位置（コマからはみ出す位置）は除く。
+     * 斜めのコマでは、内接する長方形の外にも置ける場所（斜めの辺の近くの三角の部分）があるので、[area] を外接長方形にして広く探す。
      * [cover]（長方形の中で人物が占める割合 0〜1）が最も小さい所を選ぶ。縮めた分だけ少し不利に数える（小さくなりすぎないように）。
-     * 人物の地図が無ければ（[cover] が null）、最も大きく、左上の位置に置く。
+     * 人物の地図が無ければ（[cover] が null）、最も大きく、左上の位置に置く。どこにも収まらなければ [box] の中に置く。
      */
     fun placeLabel(
         box: Rect,
@@ -67,9 +70,13 @@ object PanelText {
         vertical: Boolean,
         english: Boolean,
         cover: ((Rect) -> Float)?,
+        area: Rect = box,
+        fits: (Rect) -> Boolean = { true },
+        /** 大きさの倍率（編集画面のピンチで決める）。 */
+        scale: Float = 1f,
     ): Placement {
         val n = length.coerceAtLeast(1)
-        val maxSize =
+        val maxSize = scale *
             if (vertical) {
                 if (english) min(box.width * 0.2f, box.height * 0.7f / (n * 0.62f)) else min(box.width * 0.2f, box.height * 0.72f / n)
             } else {
@@ -86,27 +93,107 @@ object PanelText {
             return if (vertical) size to len else len to size
         }
 
-        var best: Placement? = null
-        var bestScore = Float.POSITIVE_INFINITY
-        for (k in listOf(1f, 0.8f, 0.65f)) {
-            val size = maxSize * k
-            val (bw, bh) = boxOf(size)
-            for (i in 0..6) {
-                for (j in 0..6) {
-                    val cx = box.left + bw / 2f + (box.width - bw) * i / 6f
-                    val cy = box.top + bh / 2f + (box.height - bh) * j / 6f
-                    val c = cover?.invoke(Rect(cx - bw / 2f, cy - bh / 2f, cx + bw / 2f, cy + bh / 2f)) ?: 0f
-                    val score = c + (1f - k) * 0.25f
-                    if (score < bestScore) {
-                        bestScore = score
-                        best = Placement(cx, cy, size, bw, bh)
+        fun search(
+            where: Rect,
+            steps: Int,
+            accept: (Rect) -> Boolean,
+        ): Placement? {
+            var best: Placement? = null
+            var bestScore = Float.POSITIVE_INFINITY
+            for (k in listOf(1f, 0.8f, 0.65f)) {
+                val size = maxSize * k
+                val (bw, bh) = boxOf(size)
+                for (i in 0..steps) {
+                    for (j in 0..steps) {
+                        val cx = where.left + bw / 2f + (where.width - bw) * i / steps
+                        val cy = where.top + bh / 2f + (where.height - bh) * j / steps
+                        val r = Rect(cx - bw / 2f, cy - bh / 2f, cx + bw / 2f, cy + bh / 2f)
+                        if (!accept(r)) continue
+                        val score = (cover?.invoke(r) ?: 0f) + (1f - k) * 0.25f
+                        if (score < bestScore) {
+                            bestScore = score
+                            best = Placement(cx, cy, size, bw, bh)
+                        }
                     }
                 }
+                if (cover == null && best != null) break
             }
-            if (cover == null) break
+            return best
         }
-        return requireNotNull(best)
+        return search(area, 8, fits) ?: requireNotNull(search(box, 6) { true })
     }
+
+    /**
+     * アイコンのまとまり（幅 [width]・高さ [height] の長方形）の置き場所を、[area] の中から 7×7 で探す。[fits] が false の位置（コマからはみ出す位置）は除く。
+     * [cover]（人物が占める割合）が小さく、[avoid]（名前・時計・大見出し）と重ならない位置を選ぶ。
+     * 同じくらいなら右下に寄せる（名前は左上に置かれやすいので）。どこにも収まらなければ null。
+     */
+    fun placeIcon(
+        area: Rect,
+        width: Float,
+        height: Float,
+        cover: ((Rect) -> Float)?,
+        avoid: List<Rect>,
+        fits: (Rect) -> Boolean,
+        /** true なら、[avoid] と少しでも重なる位置は使わない（置けなければ null）。 */
+        clear: Boolean = false,
+    ): Rect? {
+        if (area.width < width || area.height < height) return null
+        var best: Rect? = null
+        var bestScore = Float.POSITIVE_INFINITY
+        for (i in 0..6) {
+            for (j in 0..6) {
+                val left = area.left + (area.width - width) * i / 6f
+                val top = area.top + (area.height - height) * j / 6f
+                val r = Rect(left, top, left + width, top + height)
+                if (!fits(r)) continue
+                if (clear && avoid.any { overlapRatio(r, it) > 0f }) continue
+                // 少しでも重なれば大きく不利にする（まとまりが大きいと、面積の割合だけでは小さな重なりを見逃すため）
+                val overlap = avoid.sumOf { overlapRatio(r, it).let { o -> if (o > 0f) 1.0 + o else 0.0 } }.toFloat()
+                // 右下からの離れ具合（0〜1）。小さな重みで、同じくらいの候補の中から右下を選ぶ
+                val corner = ((6 - i) + (6 - j)) / 12f
+                // 名前・時計・大見出しとの重なりは、人物との重なりよりずっと強く避ける（文字が読めなくなるので）
+                val score = (cover?.invoke(r) ?: 0f) + overlap * 5f + corner * 0.05f
+                if (score < bestScore) {
+                    bestScore = score
+                    best = r
+                }
+            }
+        }
+        return best
+    }
+
+    /** [a] のうち [b] と重なる面積の割合（0〜1）。 */
+    private fun overlapRatio(
+        a: Rect,
+        b: Rect,
+    ): Float {
+        val w = min(a.right, b.right) - max(a.left, b.left)
+        val h = min(a.bottom, b.bottom) - max(a.top, b.top)
+        if (w <= 0f || h <= 0f || a.width <= 0f || a.height <= 0f) return 0f
+        return w * h / (a.width * a.height)
+    }
+
+    /**
+     * 文字をコマの縁から離す距離（画面の画素）。枠はコマの内側に引くので、枠の線の太さ（二重なら内側の線まで）に余白を足す。
+     * [scale] は画面の幅 / 基準の幅。
+     */
+    fun textInset(
+        frame: Frame,
+        scale: Float,
+    ): Float {
+        val b = frame.border
+        val line =
+            when (b.style) {
+                BorderStyle.NONE -> 0f
+                BorderStyle.SINGLE -> b.width
+                BorderStyle.DOUBLE -> b.width + max(4f, b.width * 0.35f)
+            }
+        return (line + TEXT_MARGIN) * scale
+    }
+
+    /** 枠の内側から文字までの余白（基準の幅のときの画素）。 */
+    private const val TEXT_MARGIN = 16f
 
     /** 大見出しの大きさ。幅はコマの幅の 9 割に合わせる（描くときに横に伸縮する）。 */
     fun mastheadSize(bounds: Rect): Float = min(bounds.height * 0.16f, bounds.width * 0.42f)

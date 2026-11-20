@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -44,6 +45,8 @@ fun AppIcon(
     key: AppKey,
     size: Dp,
     modifier: Modifier = Modifier,
+    /** アイコンに掛ける色の変換（コマの色調に合わせるときなど）。 */
+    colorFilter: ColorFilter? = null,
 ) {
     val loader = LocalIconLoader.current
     val px = with(LocalDensity.current) { size.roundToPx() }
@@ -53,7 +56,7 @@ fun AppIcon(
     }
     val b = bitmap
     if (b != null) {
-        Image(b, contentDescription = null, modifier = modifier.size(size))
+        Image(b, contentDescription = null, modifier = modifier.size(size), colorFilter = colorFilter)
     } else {
         // 読み込み中は同じ大きさの影を置き、並びがずれないようにする
         Box(modifier.size(size).background(Color(0x33FFFFFF), RoundedCornerShape(size / 4)))

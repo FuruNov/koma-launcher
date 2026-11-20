@@ -224,6 +224,8 @@ object LayoutParser {
         val masthead: String = "",
         val mastheadY: Float = 0.09f,
         val mastheadPanel: String? = null,
+        val icon: Boolean = true,
+        val mastheadScale: Float = 1f,
     ) {
         fun toModel() = TextSpec(
             label =
@@ -236,6 +238,8 @@ object LayoutParser {
             masthead = masthead,
             mastheadY = mastheadY,
             mastheadPanel = mastheadPanel?.let(::PanelId),
+            mastheadScale = mastheadScale.coerceIn(0.5f, 2f),
+            icon = icon,
         )
 
         companion object {
@@ -249,6 +253,8 @@ object LayoutParser {
                 lang = if (t.english) "en" else "ja",
                 masthead = t.masthead,
                 mastheadY = t.mastheadY,
+                mastheadScale = t.mastheadScale,
+                icon = t.icon,
                 mastheadPanel = t.mastheadPanel?.value,
             )
         }
@@ -416,6 +422,10 @@ object LayoutParser {
         val kind: Kind,
         val label: String? = null,
         val labelEn: String? = null,
+        /** アイコンのまとまりの中心 [x, y]（コマの外接長方形に対する割合）。省くと自動。 */
+        val iconAt: List<Float>? = null,
+        val labelScale: Float = 1f,
+        val iconScale: Float = 1f,
         val apps: List<String>? = null,
         val art: ArtDto? = null,
         // version 1 だけ
@@ -431,6 +441,9 @@ object LayoutParser {
             },
             label = label,
             labelEn = labelEn,
+            iconAt = iconAt?.takeIf { it.size == 2 }?.let { Point(it[0].coerceIn(0f, 1f), it[1].coerceIn(0f, 1f)) },
+            labelScale = labelScale.coerceIn(0.5f, 2f),
+            iconScale = iconScale.coerceIn(0.5f, 2f),
             art = art?.let { PanelArt(it.image, it.aspect, it.zoom, it.dx, it.dy, it.dim.coerceIn(0f, 1f)) },
         )
 
@@ -445,6 +458,9 @@ object LayoutParser {
                 },
                 label = p.label,
                 labelEn = p.labelEn,
+                iconAt = p.iconAt?.let { listOf(it.x, it.y) },
+                labelScale = p.labelScale,
+                iconScale = p.iconScale,
                 apps = (p.content as? PanelContent.Folder)?.initialApps?.takeIf { it.isNotEmpty() },
                 art = p.art?.let { ArtDto(it.image, it.aspect, it.zoom, it.dx, it.dy, it.dim) },
             )

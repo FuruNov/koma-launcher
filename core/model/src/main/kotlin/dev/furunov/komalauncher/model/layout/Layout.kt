@@ -50,6 +50,12 @@ data class Panel(
     val art: PanelArt? = null,
     /** 英語表示のときの名前。null か空なら [label] を表示する。 */
     val labelEn: String? = null,
+    /** アイコンのまとまりの中心（コマの外接長方形に対する割合）。null なら空いた場所を自動で探す。編集画面でドラッグして決める。 */
+    val iconAt: Point? = null,
+    /** 名前の大きさの倍率（自動で決めた大きさに掛ける）。編集画面でピンチして決める。 */
+    val labelScale: Float = 1f,
+    /** アイコンの大きさの倍率（自動で決めた大きさに掛ける）。編集画面でピンチして決める。 */
+    val iconScale: Float = 1f,
 )
 
 /**
@@ -153,6 +159,10 @@ data class TextSpec(
     val mastheadY: Float = 0.09f,
     /** 大見出しを置くコマ。null なら時計のコマ。 */
     val mastheadPanel: PanelId? = null,
+    /** 大見出しの大きさの倍率（コマの大きさから決めた大きさに掛ける）。編集画面でピンチして決める。 */
+    val mastheadScale: Float = 1f,
+    /** true なら、フォルダのコマに先頭のアプリのアイコンを置く（どのコマに何のアプリがあるか分かるように）。 */
+    val icon: Boolean = true,
 )
 
 /** ランチャーが描く時計（段階 4）。利用者が選んだ「人物の後ろ」だけを持つ。 */
@@ -179,6 +189,12 @@ data class FxSpec(
     fun clockShift(): Float = if (parallax) 18f * strength else 0f
 
     fun textShift(): Float = if (parallax) 7f * strength else 0f
+
+    /** 大見出しを動かす最大の量。名前より大きく動かし、いちばん手前の層に見せる（利用者の希望で追加。2026-11-21）。 */
+    fun mastheadShift(): Float = if (parallax) 20f * strength else 0f
+
+    /** アイコンを動かす最大の量。絵と名前の間の層に見せる。 */
+    fun iconShift(): Float = if (parallax) 16f * strength else 0f
 }
 
 /** コマの形の決め方。version 1 と 2 の違いはここに閉じ込め、描画は [LayoutResolver] の結果だけを見る。 */

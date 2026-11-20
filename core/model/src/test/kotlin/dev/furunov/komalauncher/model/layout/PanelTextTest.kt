@@ -10,6 +10,15 @@ class PanelTextTest {
     private val box = Rect(0f, 0f, 600f, 1000f)
 
     @Test
+    fun textInsetCoversTheBorderAndAMargin() {
+        // 枠なしでも余白（16）を空ける。一重は線の太さ、二重は内側の線まで足す
+        assertEquals(16f, PanelText.textInset(Frame(border = Border(BorderStyle.NONE, 20f)), 1f))
+        assertEquals(36f, PanelText.textInset(Frame(border = Border(BorderStyle.SINGLE, 20f)), 1f))
+        assertEquals(43f, PanelText.textInset(Frame(border = Border(BorderStyle.DOUBLE, 20f)), 1f))
+        assertEquals(18f, PanelText.textInset(Frame(border = Border(BorderStyle.SINGLE, 20f)), 0.5f))
+    }
+
+    @Test
     fun labelShowsOnlyWhatTheUserTyped() {
         val folder = Panel(PanelId("a"), PanelContent.Folder(emptyList()), "道具")
         // 英語の名前が無ければ、訳さずに名前を出す
@@ -48,7 +57,7 @@ class PanelTextTest {
     fun labelStaysInsideBox() {
         listOf(true, false).forEach { vertical ->
             listOf(true, false).forEach { en ->
-                val p = PanelText.placeLabel(box, 7, vertical, en) { r -> if (r.top < 500f) 1f else 0f }
+                val p = PanelText.placeLabel(box, 7, vertical, en, cover = { r -> if (r.top < 500f) 1f else 0f })
                 assertTrue(p.centerX - p.boxWidth / 2f >= -1e-3f && p.centerX + p.boxWidth / 2f <= 600.001f)
                 assertTrue(p.centerY - p.boxHeight / 2f >= -1e-3f && p.centerY + p.boxHeight / 2f <= 1000.001f)
             }
@@ -56,9 +65,19 @@ class PanelTextTest {
     }
 
     @Test
+    fun searchesOutsideTheBoxButOnlyWhereItFits() {
+        // 上の半分が人物。内接する長方形 box の外（area の下の部分）にも探しに行き、fits が許す所にだけ置く
+        val area = Rect(0f, 0f, 600f, 1600f)
+        val p =
+            PanelText.placeLabel(box, 5, vertical = false, english = true, cover = { r -> if (r.top < 1000f) 1f else 0f }, area = area, fits = { r -> r.bottom <= 1500f })
+        assertTrue(p.centerY - p.boxHeight / 2f >= 1000f)
+        assertTrue(p.centerY + p.boxHeight / 2f <= 1500.001f)
+    }
+
+    @Test
     fun shrinksOnlyWhenItHelpsEnough() {
         // どこも半分隠れるなら、縮めても得をしないので最大のまま
-        val p = PanelText.placeLabel(box, 5, vertical = false, english = true) { 0.5f }
+        val p = PanelText.placeLabel(box, 5, vertical = false, english = true, cover = { 0.5f })
         assertEquals(PanelText.placeLabel(box, 5, vertical = false, english = true, cover = null).size, p.size, 1e-3f)
     }
 

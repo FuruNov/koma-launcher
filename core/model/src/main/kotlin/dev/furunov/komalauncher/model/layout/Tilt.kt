@@ -1,6 +1,7 @@
 package dev.furunov.komalauncher.model.layout
 
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.sign
 
 /** 端末の傾き。x・y とも −1〜1（±20 度で端）。x は左右（ロール）、y は前後（ピッチ）。 */
@@ -17,6 +18,9 @@ data class Tilt(
         /** これ未満の揺れは無視する（手の小さな震えで絵が揺れないように）。 */
         const val DEAD_DEGREES = 1f
 
+        /** 目標を変える最小の差（傾きの単位。0.025 は約 0.5 度）。これ未満の揺れでは描き直さない。 */
+        const val STEP = 0.025f
+
         /** 1 フレームで目標へ寄せる割合。急に跳ばないよう、少しずつ寄せる。 */
         const val FOLLOW = 0.08f
 
@@ -32,6 +36,12 @@ data class Tilt(
             val v = if (abs(d) < DEAD_DEGREES) 0f else d - sign(d) * DEAD_DEGREES
             return (v / FULL_DEGREES).coerceIn(-1f, 1f)
         }
+
+        /** [tilt] を [step] の刻みに丸める。描き直しを、見た目が変わる（1 画素以上動く）ときだけにするため。 */
+        fun quantize(
+            tilt: Tilt,
+            step: Float,
+        ): Tilt = if (step <= 0f) tilt else Tilt((tilt.x / step).roundToInt() * step, (tilt.y / step).roundToInt() * step)
 
         /** [current] を [target] へ 1 フレーム分寄せる。十分近ければ目標そのものを返す（描き直しを止めるため）。 */
         fun follow(

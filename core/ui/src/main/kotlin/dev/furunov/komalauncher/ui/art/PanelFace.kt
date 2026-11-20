@@ -88,8 +88,8 @@ class PanelFace(
     private val artOffset = art?.let { IntOffset((it.left - bounds.left).roundToInt(), (it.top - bounds.top).roundToInt()) }
     private val artSize = art?.let { IntSize(it.width.roundToInt().coerceAtLeast(1), it.height.roundToInt().coerceAtLeast(1)) }
 
-    /** 淡い色合い。GPU が画素ごとに掛けるので、画像を作り直さない。 */
-    private val toneFilter: ColorFilter? = ToneMatrix.of(style.look)?.let { ColorFilter.colorMatrix(ColorMatrix(it)) }
+    /** 淡い色合い。GPU が画素ごとに掛けるので、画像を作り直さない。コマに置くアプリのアイコンにも同じものを掛け、絵の中で浮かないようにする。色調が無ければ null。 */
+    val toneFilter: ColorFilter? = ToneMatrix.of(style.look)?.let { ColorFilter.colorMatrix(ColorMatrix(it)) }
 
     /**
      * 内側の影。モックアップは SVG のぼかし（標準偏差 = 太さ × 0.45）を掛けた線をコマの形で切り抜く。
@@ -159,6 +159,11 @@ class PanelFace(
                 drawRect(brush, topLeft = Offset(-bounds.width, -bounds.height), size = Size(bounds.width * 3f, bounds.height * 3f), blendMode = BlendMode.Screen)
             }
         }
+        drawBorder()
+    }
+
+    /** 枠の線だけを描く。コマの上に重ねる層（音楽プレイヤーの棒など）を、枠の後ろに見せたいときに、その層の上から描き直す。 */
+    fun DrawScope.drawBorder() {
         if (innerLineWidth > 0f) drawPath(path, innerLineColor, style = Stroke(width = innerLineWidth * 2f, join = StrokeJoin.Miter))
         if (borderWidth > 0f) drawPath(path, borderColor, style = Stroke(width = borderWidth * 2f, join = StrokeJoin.Miter))
     }

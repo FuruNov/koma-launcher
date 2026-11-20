@@ -22,12 +22,15 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun HomeMenu(
     onEditLayout: () -> Unit,
+    /** 時計・大見出し・名前・アイコンをホームの上で直接動かす「配置を調整」に入る。 */
+    onAdjust: () -> Unit,
     onSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     BackHandler(onBack = onDismiss)
     Box(Modifier.fillMaxSize().background(Color(0x66000000)).clickable(onClick = onDismiss), contentAlignment = Alignment.Center) {
         Column(Modifier.width(240.dp).background(Color(0xFF1E1E24), RoundedCornerShape(16.dp)).padding(8.dp)) {
+            MenuItem("配置を調整", onAdjust)
             MenuItem("コマ割りを編集", onEditLayout)
             MenuItem("ランチャーの設定", onSettings)
         }

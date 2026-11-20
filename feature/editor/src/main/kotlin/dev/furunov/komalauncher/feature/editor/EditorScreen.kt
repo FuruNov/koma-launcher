@@ -68,6 +68,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.furunov.komalauncher.model.apps.AppKey
 import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.folders.Folders
 import dev.furunov.komalauncher.model.geometry.Point
@@ -79,16 +80,21 @@ import dev.furunov.komalauncher.model.layout.LayoutEdits
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.Panel
 import dev.furunov.komalauncher.model.layout.PanelContent
+import dev.furunov.komalauncher.model.layout.PanelId
+import dev.furunov.komalauncher.model.layout.ResolvedLayout
+import dev.furunov.komalauncher.model.layout.ResolvedPanel
 import dev.furunov.komalauncher.model.layout.SplitDirection
 import dev.furunov.komalauncher.model.layout.Tone
 import dev.furunov.komalauncher.ui.apps.AppPicker
 import dev.furunov.komalauncher.ui.art.PanelFace
 import dev.furunov.komalauncher.ui.art.PanelStyle
+import dev.furunov.komalauncher.ui.art.PanelTextSpec
 import dev.furunov.komalauncher.ui.art.buildPanelTexts
 import dev.furunov.komalauncher.ui.art.drawPanelTexts
 import dev.furunov.komalauncher.ui.art.localPlacement
 import dev.furunov.komalauncher.ui.art.rememberArts
 import dev.furunov.komalauncher.ui.art.rememberMasks
+import dev.furunov.komalauncher.ui.icons.rememberIconBitmaps
 import java.time.LocalDateTime
 import kotlin.math.hypot
 import kotlin.math.roundToInt
@@ -125,6 +131,12 @@ fun EditorScreen(
     // コマを押して選んだら、そのコマの設定を見せる
     LaunchedEffect(state.selected) { if (state.selected != null) tab = EditorTab.Panel }
     val names = remember(folders) { folders.byPanel.mapNotNull { (id, f) -> f.name?.let { id to it } }.toMap() }
+    // コマに置くアイコンのアプリ（フォルダは先頭から順、全アプリ一覧は記号で null）。ホームと同じ位置に縮小図にも描く
+    val iconApps =
+        remember(folders, state.layout) {
+            folders.byPanel.filterValues { it.apps.isNotEmpty() }.mapValues { (_, f) -> f.apps.map<AppKey, AppKey?> { it } } +
+                state.layout.panels.filter { it.content == PanelContent.Drawer }.associate { it.id.value to listOf<AppKey?>(null) }
+        }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().background(Color(0xFF121216)).safeDrawingPadding()) {
@@ -137,7 +149,7 @@ fun EditorScreen(
                 Spacer(Modifier.width(8.dp))
                 Chip("閉じる", onClick = onClose)
             }
-            Preview(vm, state, names, screenWidth, screenHeight, Color(tree?.frame?.gutterColor ?: defaultGutterColor), tab == EditorTab.Whole, Modifier.weight(1.3f).fillMaxWidth())
+            Preview(vm, state, names, iconApps, screenWidth, screenHeight, Color(tree?.frame?.gutterColor ?: defaultGutterColor), tab == EditorTab.Whole, Modifier.weight(1.3f).fillMaxWidth())
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Chip("選択中のコマ", selected = tab == EditorTab.Panel) { tab = EditorTab.Panel }
                 Chip("全体", selected = tab == EditorTab.Whole) { tab = EditorTab.Whole }
@@ -198,6 +210,9 @@ private fun PanelControls(
         Chip("結合", enabled = vm.selectedCutPath() != null, onClick = vm::merge)
     }
     ChipRow("種類") { Chip(kindLabel(panel.content), onClick = vm::cycleKind) }
+    if (panel.iconAt != null || panel.iconScale != 1f) {
+        ChipRow("アイコン") { Chip("位置と大きさを自動に戻す") { vm.resetIcons(panel.id) } }
+    }
     // ウィジェットのコマには名前を表示しないので、欄も出さない
     if (panel.content != PanelContent.Widget) {
         val folderName = folders.byPanel[panel.id.value]?.name
@@ -343,6 +358,8 @@ private fun Preview(
     state: EditorUiState,
     /** フォルダに付けた名前（コマの id → 名前）。ホームと同じ名前を縮小図に表示する。 */
     names: Map<String, String>,
+    /** コマに置くアイコンのアプリ（コマの id → 先頭から順。全アプリ一覧の記号は null）。 */
+    iconApps: Map<String, List<AppKey?>>,
     screenWidth: Float,
     screenHeight: Float,
     gutter: Color,
@@ -366,7 +383,10 @@ private fun Preview(
     val measurer = rememberTextMeasurer(cacheSize = 16)
     val masks by rememberMasks(state.masks, state.imagesRevision)
     val texts =
-        remember(resolved, state.layout, masks, names) { buildPanelTexts(state.layout, resolved.panels, screenWidth, names, masks) }
+        remember(resolved, state.layout, masks, names, iconApps) { buildPanelTexts(state.layout, resolved.panels, screenWidth, names, masks, iconApps.mapValues { it.value.size }) }
+    // アイコンの画像。全部のコマの分を 1 つの並びで読み込み、描くときにコマごとに切り分ける
+    val iconKeys = resolved.panels.flatMap { p -> texts[p.panel.id]?.icons.orEmpty().zip(iconApps[p.panel.id.value].orEmpty()) { r, app -> app to r.width.roundToInt() } }
+    val iconBitmaps by rememberIconBitmaps(iconKeys)
     val now = remember { LocalDateTime.now() }
     val density = LocalDensity.current
     val handleRadius = with(density) { 22.dp.toPx() }
@@ -412,31 +432,9 @@ private fun Preview(
                             }
                             return@awaitEachGesture
                         }
-                        // 2. 「全体」のタブでは、時計と大見出しを掴んで動かす。指を離したところのコマに置く
-                        val text = if (currentMoveTexts) vm.textAt(p0) else null
-                        if (text != null) {
-                            val c0 = vm.textCenter(text) ?: return@awaitEachGesture
-                            var began = false
-                            while (true) {
-                                val e = awaitPointerEvent()
-                                val ch = e.changes.firstOrNull { it.id == down.id } ?: break
-                                if (!ch.pressed) break
-                                if (!began && (ch.position - start).getDistance() < viewConfiguration.touchSlop) continue
-                                if (!began) {
-                                    vm.beginGesture()
-                                    began = true
-                                }
-                                ch.consume()
-                                val d = (ch.position - start) / s
-                                vm.moveText(text, Point(c0.x + d.x, c0.y + d.y))
-                            }
-                            // 動かさずに離したら、ほかの場所と同じく、そのコマを選ぶ
-                            if (!began) currentResolved.panels.lastOrNull { it.polygon.bounds.contains(p0) && it.polygon.contains(p0) }?.let { vm.select(it.panel.id) }
-                            return@awaitEachGesture
-                        }
                         val hit = currentResolved.panels.lastOrNull { it.polygon.bounds.contains(p0) && it.polygon.contains(p0) }
                         val art = vm.selectedArt()
-                        // 3. 「選択中のコマ」のタブでは、選んでいるコマの絵を動かす・広げる
+                        // 2. 「選択中のコマ」のタブでは、選んでいるコマの絵を動かす・広げる
                         if (!currentMoveTexts && hit != null && hit.panel.id == st.selected && art != null) {
                             var began = false
                             var startCentroid = start
@@ -469,7 +467,7 @@ private fun Preview(
                             }
                             return@awaitEachGesture
                         }
-                        // 4. 押して離したら、そのコマを選ぶ
+                        // 3. 押して離したら、そのコマを選ぶ
                         val up = waitForUpOrCancel(down.id)
                         // 余白を押しても選択は変えない（モックアップと同じ。細いコマの間で線の端を掴み損ねても、選択が外れないように）
                         if (up != null && hit != null && (up - start).getDistance() < viewConfiguration.touchSlop) vm.select(hit.panel.id)
@@ -479,14 +477,18 @@ private fun Preview(
             scale(s, s, pivot = Offset.Zero) {
                 // 拡大縮小の中で描くので、大きさは画面の画素で渡す（キャンバスの大きさのままだと一部しか塗らない）
                 drawRect(gutter, size = Size(screenWidth, screenHeight))
+                var iconIndex = 0
                 for ((p, face) in resolved.panels.zip(faces)) {
                     val b = face.bounds
+                    val iconCount = minOf(texts[p.panel.id]?.icons?.size ?: 0, iconApps[p.panel.id.value]?.size ?: 0)
+                    val panelIcons = iconBitmaps.drop(iconIndex).take(iconCount)
+                    iconIndex += iconCount
                     translate(b.left, b.top) {
                         clipPath(face.path) {
                             with(face) { drawArt(p.panel.art?.image?.let(arts::get)) }
                             texts[p.panel.id]?.let { spec ->
                                 val (mo, ms) = p.art?.let { localPlacement(b, it) } ?: (null to null)
-                                drawPanelTexts(spec, Size(b.width, b.height), measurer, now, p.panel.art?.image?.let(masks::get)?.bitmap, mo, ms)
+                                drawPanelTexts(spec, Size(b.width, b.height), measurer, now, p.panel.art?.image?.let(masks::get)?.bitmap, mo, ms, icons = panelIcons, iconFilter = face.toneFilter)
                             }
                             with(face) { drawOverlay() }
                         }
@@ -692,6 +694,11 @@ private fun TextAndClockControls(
         Chip("英語", selected = text.english) { vm.setTree { it.copy(text = it.text.copy(english = true)) } }
         Chip("日本語", selected = !text.english) { vm.setTree { it.copy(text = it.text.copy(english = false)) } }
     }
+    // フォルダのコマに先頭のアプリのアイコンを置くか（どのコマに何のアプリがあるか分かるように）
+    ChipRow("アイコン") {
+        Chip("表示", selected = text.icon) { vm.setTree { it.copy(text = it.text.copy(icon = true)) } }
+        Chip("非表示", selected = !text.icon) { vm.setTree { it.copy(text = it.text.copy(icon = false)) } }
+    }
     // 入力中の文字はこの画面で持つ（NameFields と同じ理由）。履歴は書き始めたときに 1 回だけ積む
     var masthead by remember(restored) { mutableStateOf(TextFieldValue(text.masthead)) }
     var recorded by remember(restored) { mutableStateOf(false) }
@@ -708,7 +715,7 @@ private fun TextAndClockControls(
     if (clock.enabled) {
         SliderRow("サイズ", clock.size * 100f, 50f..160f, step = 5f, mark = 100f) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(size = v / 100f)) } }
     }
-    if (clock.enabled || text.masthead.isNotBlank()) Hint("時計と大見出しは、縮小図の上でドラッグして動かせます")
+    Hint("時計・大見出し・名前・アイコンの位置と大きさは、ホームの「配置を調整」で変えられます（余白か、そのコンポーネントを長押し）")
     ChipRow("視差") {
         Chip("オン", selected = tree.fx.parallax) { vm.setTree { it.copy(fx = it.fx.copy(parallax = !it.fx.parallax)) } }
     }

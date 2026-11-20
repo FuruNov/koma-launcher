@@ -99,6 +99,8 @@ class ParallaxAmounts(
     val art: Float,
     val text: Float,
     val clock: Float,
+    val masthead: Float = 0f,
+    val icon: Float = 0f,
 )
 
 /** レイアウトの視差の指定を、この画面の画素にする（長さはレイアウトの基準の幅で書いてあるので、画面の幅に合わせる）。 */
@@ -108,5 +110,5 @@ fun parallaxOf(
 ): ParallaxAmounts {
     val tree = layout.shape as? LayoutShape.Tree ?: return ParallaxAmounts(0f, 0f, 0f)
     val s = width / tree.frame.refWidth
-    return ParallaxAmounts(tree.fx.artShift() * s, tree.fx.textShift() * s, tree.fx.clockShift() * s)
+    return ParallaxAmounts(tree.fx.artShift() * s, tree.fx.textShift() * s, tree.fx.clockShift() * s, tree.fx.mastheadShift() * s, tree.fx.iconShift() * s)
 }

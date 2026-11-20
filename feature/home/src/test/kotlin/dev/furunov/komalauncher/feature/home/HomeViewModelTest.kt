@@ -346,7 +346,8 @@ class HomeViewModelTest {
         play()
         vm.onEvent(HomeEvent.SwipePanel(PanelId("p1"), toLeft = true))
         vm.onEvent(HomeEvent.SwipePanel(PanelId("p1"), toLeft = false))
-        assertEquals(listOf("next", "previous"), media.calls)
+        // 左へ払うと前の曲、右へ払うと次の曲
+        assertEquals(listOf("previous", "next"), media.calls)
     }
 
     @Test

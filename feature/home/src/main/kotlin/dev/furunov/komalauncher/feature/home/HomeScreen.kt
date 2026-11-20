@@ -32,6 +32,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextMeasurer
@@ -47,8 +48,13 @@ import androidx.lifecycle.repeatOnLifecycle
 import dev.furunov.komalauncher.feature.home.anim.MotionContext
 import dev.furunov.komalauncher.feature.home.anim.PanelAnimations
 import dev.furunov.komalauncher.feature.home.anim.PanelMotion
+import dev.furunov.komalauncher.model.apps.AppKey
+import dev.furunov.komalauncher.model.geometry.Rect
+import dev.furunov.komalauncher.model.layout.EditHistory
+import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.PanelContent
+import dev.furunov.komalauncher.model.layout.PanelId
 import dev.furunov.komalauncher.model.layout.ResolvedPanel
 import dev.furunov.komalauncher.model.layout.Tilt
 import dev.furunov.komalauncher.model.ports.TiltSource
@@ -64,6 +70,7 @@ import dev.furunov.komalauncher.ui.dnd.DragItem
 import dev.furunov.komalauncher.ui.dnd.DragShadow
 import dev.furunov.komalauncher.ui.dnd.DragSource
 import dev.furunov.komalauncher.ui.dnd.LocalDragDrop
+import dev.furunov.komalauncher.ui.icons.rememberIconBitmaps
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -100,6 +107,8 @@ fun HomeScreen(
     tilt: TiltSource? = null,
     /** 再生中のコマのジャケットと音。null ならジャケットを描かず、棒はそれらしい動きにする。 */
     media: HomeMedia? = null,
+    /** レイアウトを書き換える（「配置を調整」で使う）。 */
+    editLayout: ((Layout) -> Layout) -> Unit = {},
 ) {
     // コマの間の色は、レイアウトに書いてあればそれを、無ければ設定の色を使う
     val frameGutter = (state.layout.shape as? LayoutShape.Tree)?.frame?.gutterColor
@@ -116,13 +125,19 @@ fun HomeScreen(
         val arts by rememberArts(state.images, geometry.artSizes, state.imagesRevision)
         val masks by rememberMasks(state.masks, state.imagesRevision)
         val folderNames = remember(state.folders) { state.folders.byPanel.mapNotNull { (id, f) -> f.name?.let { id to it } }.toMap() }
+        // アイコンを置くコマと、置けるアイコンの数（フォルダはアプリの数、全アプリ一覧は記号 1 つ）
+        val iconPanels =
+            remember(state.folders, state.layout) {
+                state.folders.byPanel.filterValues { it.apps.isNotEmpty() }.mapValues { it.value.apps.size } +
+                    state.layout.panels.filter { it.content == PanelContent.Drawer }.associate { it.id.value to 1 }
+            }
         // 文字の置き場所は、コマの形・文字の指定・切り抜き（人物の地図）が変わったときだけ探し直す
         val playerPanel = state.player?.panelId
         val texts =
-            remember(geometry, state.layout, folderNames, masks, playerPanel) {
-                val built = buildPanelTexts(state.layout, geometry.panels.map { ResolvedPanel(it.panel, it.index, it.polygon, it.art) }, wPx, folderNames, masks)
-                // 再生中のコマには名前を出さない（時計と大見出しは残す）
-                if (playerPanel == null) built else built.mapValues { (id, spec) -> if (id == playerPanel) spec.copy(labels = emptyList()) else spec }
+            remember(geometry, state.layout, folderNames, masks, playerPanel, iconPanels) {
+                val built = buildPanelTexts(state.layout, geometry.panels.map { ResolvedPanel(it.panel, it.index, it.polygon, it.art) }, wPx, folderNames, masks, iconPanels)
+                // 再生中のコマには名前とアイコンを出さない（時計と大見出しは残す）
+                if (playerPanel == null) built else built.mapValues { (id, spec) -> if (id == playerPanel) spec.copy(labels = emptyList(), icons = emptyList()) else spec }
             }
         val playerArt by (media?.art ?: NO_ART).collectAsState()
         val artFade = rememberArtFade(playerArt.takeIf { playerPanel != null })
@@ -130,10 +145,18 @@ fun HomeScreen(
         val measurer = rememberTextMeasurer(cacheSize = 16)
         val now by rememberMinuteClock()
         val parallax = remember(state.layout, wPx) { parallaxOf(state.layout, wPx) }
-        val shownTilt = rememberShownTilt(tilt, parallax.art > 0f)
+        // 一覧やフォルダなどを開いている間は、後ろのホームの視差を止める（手の揺れで描き直し続け、開く動きが重くなるため）
+        val shownTilt = rememberShownTilt(tilt, parallax.art > 0f, paused = state.overlay != Overlay.None || state.adjusting, maxShiftPx = maxOf(parallax.art, parallax.clock, parallax.masthead, parallax.icon))
         val anim = state.settings.animation
         val pressAnim = PanelAnimations.press(anim.press)
         val currentState = rememberUpdatedState(state)
+        val currentTexts = rememberUpdatedState(texts)
+        // 「配置を調整」で使う、今の配置（コマの位置・文字とアイコンの置き場所）
+        val adjustTarget = AdjustTarget(state.layout, geometry.panels.map { ResolvedPanel(it.panel, it.index, it.polygon, it.art) }, texts, wPx)
+        val currentAdjust = rememberUpdatedState<AdjustTarget?>(adjustTarget)
+        // 「配置を調整」の間の元に戻す履歴。調整を始めるたびに空にする
+        val adjustHistory = remember(state.adjusting) { EditHistory<Layout>() }
+        var adjustCanUndo by remember(state.adjusting) { mutableStateOf(false) }
         val dropInfo = remember { FolderDropInfo() }
         val removeZoneBottom = with(density) { REMOVE_ZONE_HEIGHT.toPx() } + WindowInsets.statusBars.getTop(density)
 
@@ -183,9 +206,14 @@ fun HomeScreen(
                         scope.launch { pressAnim.pressDown(motions.getValue(panel.panel.id), ctx(panel)) }
                     }
 
-                    override fun onPanelRelease(panel: PanelGeometry, tapped: Boolean) {
+                    override fun onPanelRelease(panel: PanelGeometry, tapped: Boolean, position: Offset) {
                         val m = motions.getValue(panel.panel.id)
-                        if (tapped) {
+                        // アイコンの枠の中を押したら、フォルダを開かずに先頭のアプリを起動する（人物の後ろに隠れた部分も含む）
+                        val iconApp = if (tapped) iconAppAt(panel, position, currentTexts.value, currentState.value) else null
+                        if (iconApp != null) {
+                            onEvent(HomeEvent.Launch(iconApp))
+                            if (anim.enabled) scope.launch { pressAnim.pressUp(m, ctx(panel)) }
+                        } else if (tapped) {
                             currentState.value.player?.takeIf { it.panelId == panel.panel.id }?.let { flash = PlayerFlashEvent(PlayerFlash.forTap(it.playing), System.nanoTime()) }
                             // 動きの完了を待たずに開く。待つとタップへの反応が遅れて感じられる
                             onEvent(HomeEvent.TapPanel(panel.panel.id))
@@ -195,11 +223,15 @@ fun HomeScreen(
                         }
                     }
 
-                    override fun onPanelLongPress(panel: PanelGeometry, position: Offset) = onEvent(HomeEvent.OpenOverlay(Overlay.PanelMenu(panel.panel.id)))
+                    // 時計・大見出し・名前・アイコンの上の長押しは「配置を調整」に入る。それ以外はコマのメニュー
+                    override fun onPanelLongPress(panel: PanelGeometry, position: Offset) {
+                        val onPart = currentAdjust.value?.let { partAt(it, dev.furunov.komalauncher.model.geometry.Point(position.x, position.y)) } != null
+                        onEvent(if (onPart) HomeEvent.Adjust(true) else HomeEvent.OpenOverlay(Overlay.PanelMenu(panel.panel.id)))
+                    }
 
                     override fun onPanelSwipe(panel: PanelGeometry, toLeft: Boolean) {
                         if (currentState.value.player?.panelId == panel.panel.id) {
-                            flash = PlayerFlashEvent(if (toLeft) PlayerFlash.NEXT else PlayerFlash.PREVIOUS, System.nanoTime())
+                            flash = PlayerFlashEvent(if (toLeft) PlayerFlash.PREVIOUS else PlayerFlash.NEXT, System.nanoTime())
                         }
                         onEvent(HomeEvent.SwipePanel(panel.panel.id, toLeft))
                     }
@@ -234,7 +266,17 @@ fun HomeScreen(
         }
 
         CompositionLocalProvider(LocalDragDrop provides dnd) {
-            Box(Modifier.fillMaxSize().homeGestures(geometryState, gesturesEnabled, handler)) {
+            val adjustRecord = {
+                adjustHistory.push(currentState.value.layout)
+                adjustCanUndo = true
+            }
+            val gestures =
+                if (state.adjusting) {
+                    Modifier.adjustGestures(currentAdjust, adjustRecord, editLayout)
+                } else {
+                    Modifier.homeGestures(geometryState, gesturesEnabled, handler)
+                }
+            Box(Modifier.fillMaxSize().then(gestures)) {
                 for (g in geometry.panels) {
                     PanelLayer(
                         g = g,
@@ -242,6 +284,7 @@ fun HomeScreen(
                         art = g.image?.let(arts::get),
                         mask = g.image?.let(masks::get)?.bitmap,
                         texts = texts[g.panel.id],
+                        icons = panelIcons(g, texts[g.panel.id], state),
                         measurer = measurer,
                         now = { now },
                         tilt = { shownTilt.value },
@@ -318,6 +361,17 @@ fun HomeScreen(
                 else -> slots.overlay(o)
             }
 
+            if (state.adjusting) {
+                AdjustOverlay(
+                    target = adjustTarget,
+                    canUndo = adjustCanUndo,
+                    onUndo = {
+                        adjustHistory.undo(currentState.value.layout)?.let { prev -> editLayout { prev } }
+                        adjustCanUndo = adjustHistory.canUndo
+                    },
+                    onDone = { onEvent(HomeEvent.Adjust(false)) },
+                )
+            }
             if (dnd.isDragging && dnd.item?.source is DragSource.Folder) {
                 RemoveZone(active = dnd.position.y < removeZoneBottom, modifier = Modifier.align(Alignment.TopCenter))
             }
@@ -372,6 +426,8 @@ private fun PanelLayer(
     art: ImageBitmap?,
     mask: ImageBitmap?,
     texts: PanelTextSpec?,
+    /** 先頭のアプリと、そのアイコンを置く場所（コマの左上が原点の画素）。 */
+    icons: List<PanelIcon>,
     measurer: TextMeasurer,
     /** 時計の時刻。描画の段階で読む（毎分、そのコマだけを描き直す）。 */
     now: () -> LocalDateTime,
@@ -385,6 +441,9 @@ private fun PanelLayer(
 ) {
     val density = LocalDensity.current
     val b = g.bounds
+    // どのコマに何のアプリがあるか分かるよう、フォルダの先頭のアプリのアイコンを背景の空いた所に描く。
+    // 文字と同じ層で描き、人物の切り抜きで抜いて人物の後ろに回す（描画の段階で読むので、読み込めたら描き直す）
+    val iconBitmaps = rememberIconBitmaps(icons.map { it.app to it.rect.width.roundToInt() })
     Box(
         Modifier
             .offset { IntOffset(b.left.roundToInt(), b.top.roundToInt()) }
@@ -420,7 +479,11 @@ private fun PanelLayer(
                         ms,
                         textShift = Offset(-t.x * parallax.text, -t.y * parallax.text),
                         clockShift = Offset(-t.x * parallax.clock, -t.y * parallax.clock),
+                        mastheadShift = Offset(-t.x * parallax.masthead, -t.y * parallax.masthead),
+                        iconShift = Offset(-t.x * parallax.icon, -t.y * parallax.icon),
                         artShift = artShift,
+                        icons = if (player == null) iconBitmaps.value else emptyList(),
+                        iconFilter = g.face.toneFilter,
                     )
                 }
                 // 光の反射は傾きと逆へ流す（手に持った紙に光が当たっているように見せる）
@@ -465,21 +528,31 @@ private fun rememberMinuteClock(): State<LocalDateTime> {
 private fun rememberShownTilt(
     source: TiltSource?,
     enabled: Boolean,
+    /** true の間は、今の傾きのまま止める（絵が跳ばないよう、0 には戻さない）。 */
+    paused: Boolean,
+    /** 傾きが端（1）のときに、絵・文字・時計が動く量の最大（画素）。1 画素未満の変化で描き直さないよう、これで刻みを決める。 */
+    maxShiftPx: Float,
 ): State<Tilt> {
     val shown = remember { mutableStateOf(Tilt.ZERO) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(source, enabled) {
+    LaunchedEffect(source, enabled, paused) {
         if (source == null || !enabled) {
             shown.value = Tilt.ZERO
             return@LaunchedEffect
         }
+        if (paused) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             source.start()
             try {
+                // 目標へ寄せる途中の値は手元で持ち、画面に渡す値は 1 画素ずつ動く刻みに丸める。
+                // 刻みが変わったときだけ状態が変わるので、1 画素未満の動きでは描き直さない（手に持つと毎フレーム描いていたため）
+                val step = if (maxShiftPx > 0f) 1f / maxShiftPx else 1f
+                var current = shown.value
                 source.target.collectLatest { target ->
-                    while (shown.value != target) {
+                    while (current != target) {
                         withFrameNanos { }
-                        shown.value = Tilt.follow(shown.value, target)
+                        current = Tilt.follow(current, target)
+                        shown.value = Tilt.quantize(current, step)
                     }
                 }
             } finally {
@@ -492,3 +565,33 @@ private fun rememberShownTilt(
 }
 
 private val NO_ART = kotlinx.coroutines.flow.MutableStateFlow<androidx.compose.ui.graphics.ImageBitmap?>(null)
+
+/** コマに置くアイコン。[app] が null なら全アプリ一覧の記号。[rect] はコマの左上が原点の画素。 */
+internal data class PanelIcon(
+    val app: AppKey?,
+    val rect: Rect,
+)
+
+/** [position]（画面の座標）がコマのアイコンの枠の中なら、そのアプリ。全アプリ一覧の記号と、再生中のコマは除く。 */
+private fun iconAppAt(
+    panel: PanelGeometry,
+    position: Offset,
+    texts: Map<PanelId, PanelTextSpec>,
+    state: HomeUiState,
+): AppKey? {
+    if (panel.panel.content !is PanelContent.Folder || state.player?.panelId == panel.panel.id) return null
+    val x = position.x - panel.bounds.left
+    val y = position.y - panel.bounds.top
+    return panelIcons(panel, texts[panel.panel.id], state).firstOrNull { x in it.rect.left..it.rect.right && y in it.rect.top..it.rect.bottom }?.app
+}
+
+/** コマに置くアイコン。フォルダは先頭から順のアプリ、全アプリ一覧は記号（app が null）。 */
+private fun panelIcons(
+    g: PanelGeometry,
+    spec: PanelTextSpec?,
+    state: HomeUiState,
+): List<PanelIcon> {
+    val rects = spec?.icons.orEmpty()
+    if (g.panel.content == PanelContent.Drawer) return rects.take(1).map { PanelIcon(null, it) }
+    return rects.zip(state.folders.appsOf(g.panel.id.value)) { r, app -> PanelIcon(app, r) }
+}

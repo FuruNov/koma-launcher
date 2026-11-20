@@ -55,6 +55,15 @@ class LayoutV2ParserTest {
     }
 
     @Test
+    fun iconPositionRoundTrips() {
+        val layout = assertIs<LayoutResult.Ok>(LayoutParser.parse(valid)).layout
+        assertNull(layout.panels[0].iconAt)
+        val moved = LayoutEdits.updatePanel(layout, layout.panels[0].id) { it.copy(iconAt = dev.furunov.komalauncher.model.geometry.Point(0.25f, 0.75f)) }
+        val again = assertIs<LayoutResult.Ok>(LayoutParser.parse(LayoutParser.encode(moved))).layout
+        assertEquals(dev.furunov.komalauncher.model.geometry.Point(0.25f, 0.75f), again.panels[0].iconAt)
+    }
+
+    @Test
     fun autoBorderContrastsWithGutter() {
         val auto = Border()
         assertEquals(Border.WHITE, auto.colorOn(0xFF111111))

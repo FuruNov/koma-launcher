@@ -3,6 +3,8 @@ package dev.furunov.komalauncher.model.geometry
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class PolygonTest {
@@ -16,6 +18,23 @@ class PolygonTest {
         Polygon(
             listOf(Point(0f, 0f), Point(4f, 0f), Point(4f, 6f), Point(10f, 6f), Point(10f, 10f), Point(0f, 10f)),
         )
+
+    @Test
+    fun spanBetweenTakesTheNarrowestWidthInTheBand() {
+        // 右の辺は y = 0 で x = 10、y = 10 で x = 6。帯 2〜5 で最も狭いのは y = 5 の 8
+        val (l, r) = assertNotNull(slanted.spanBetween(2f, 5f))
+        assertEquals(0f, l, 1e-4f)
+        assertEquals(8f, r, 1e-4f)
+        assertEquals(0f to 10f, square.spanBetween(0f, 10f))
+        assertNull(square.spanBetween(11f, 12f))
+    }
+
+    @Test
+    fun insetShrinksAndStopsAtTheCenter() {
+        assertEquals(Rect(2f, 2f, 8f, 8f), Rect(0f, 0f, 10f, 10f).inset(2f))
+        // 幅より大きく寄せると、中心の線になる
+        assertEquals(Rect(5f, 8f, 5f, 12f), Rect(0f, 0f, 10f, 20f).inset(8f))
+    }
 
     @Test
     fun insideConvex() = assertTrue(square.contains(Point(5f, 5f)))

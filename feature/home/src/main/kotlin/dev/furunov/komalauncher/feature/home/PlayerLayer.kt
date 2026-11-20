@@ -31,6 +31,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import dev.furunov.komalauncher.feature.home.anim.PanelMotion
 import dev.furunov.komalauncher.model.media.AudioSpectrum
 import dev.furunov.komalauncher.model.media.Spectrum
+import dev.furunov.komalauncher.model.media.SpectrumShaper
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.hypot
 import kotlin.math.max
@@ -172,13 +173,15 @@ internal fun PlayerLayer(
     LaunchedEffect(playing, spectrum, bars.count) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             val target = FloatArray(bars.count)
-            val fft = ByteArray(FFT_SIZE)
+            val shaper = SpectrumShaper(bars.count)
             var started = playing && spectrum?.start() == true
             var silentSince = -1L
             var lastRestart = 0L
-            // 取得できない間（失敗・無音が 5 秒続く）は、それらしい動きを見せる。取得は止めず、音が届いたらすぐ実際の音に戻す。
-            // 曲の静かな出だしや、音の出力先が変わって Visualizer が使えなくなったときに、再生中ずっと戻らなくなるのを避ける
+            // 取得できない間（失敗、または一度も音を受け取れないまま無音が 5 秒続く）は、それらしい動きを見せる。
+            // 取得は止めず、音が届いたらすぐ実際の音に戻す（曲の静かな出だしや、音の出力先が変わったときに戻れるように）
             var simulate = !started
+            // 一度でも音を受け取れたら、その後の無音は本当の無音（曲の間など）とみなし、棒を 0 にする
+            var heard = false
             try {
                 var last = withFrameNanosCompat()
                 while (true) {
@@ -188,22 +191,26 @@ internal fun PlayerLayer(
                     if (!playing) {
                         target.fill(0f)
                     } else {
-                        val ok = started && spectrum != null && spectrum.read(fft)
-                        if (ok && !Spectrum.isSilent(fft)) {
+                        val fft = if (started) spectrum?.read() else null
+                        val ok = fft != null
+                        if (fft != null && !Spectrum.isSilent(fft)) {
                             silentSince = -1L
                             simulate = false
-                            Spectrum.bands(fft, bars.count, target)
+                            heard = true
+                            shaper.shape(fft, spectrum?.sampleRateHz ?: 48_000, dt, target)
                         } else {
                             if (silentSince < 0) silentSince = t
-                            if (!ok || t - silentSince > SILENCE_NANOS) simulate = true
+                            val stuck = !ok || t - silentSince > SILENCE_NANOS
+                            if (stuck && !heard) simulate = true
                             // 取得できないときは、作り直して試す（間隔を空ける）
-                            if (spectrum != null && simulate && t - lastRestart > RESTART_NANOS) {
+                            if (spectrum != null && stuck && t - lastRestart > RESTART_NANOS) {
                                 lastRestart = t
                                 // start に成功した分だけ stop する（ほかの処理が使っている分まで数を減らさないように）
                                 if (started) spectrum.stop()
                                 started = spectrum.start()
                             }
-                            if (!simulate) Spectrum.bands(fft, bars.count, target)
+                            // 無音なら 0 にする。読み取りに失敗したときも、前の値のまま止まらないよう 0 にする
+                            if (!simulate) target.fill(0f)
                         }
                         if (simulate) Spectrum.simulated(bars.count, t / 1e9f, 1f, target)
                     }
@@ -235,6 +242,8 @@ internal fun PlayerLayer(
             @Suppress("UNUSED_EXPRESSION")
             frame
             drawBars(bars, values, barColor)
+            // 棒はコマの枠の後ろに見せる（枠の上に棒が出ないよう、棒の上から枠を描き直す）
+            with(g.face) { drawBorder() }
             val cx = g.inscribed.center.x - b.left
             val cy = g.inscribed.center.y - b.top
             val fresh = flash != null && flash.isNewerThan(shownSince)
@@ -337,7 +346,5 @@ private fun DrawScope.drawSkipMark(
 
 private suspend fun withFrameNanosCompat(): Long = androidx.compose.runtime.withFrameNanos { it }
 
-// Visualizer の FFT の大きさ（取得できる最大の 1024 に合わせる。実装側で短ければ詰めて書く）
-private const val FFT_SIZE = 1024
 private const val SILENCE_NANOS = 5_000_000_000L
 private const val RESTART_NANOS = 3_000_000_000L

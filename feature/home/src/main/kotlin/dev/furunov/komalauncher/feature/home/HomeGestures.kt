@@ -17,8 +17,8 @@ import kotlin.math.hypot
 interface HomeGestureHandler {
     fun onPanelPress(panel: PanelGeometry)
 
-    /** [tapped] が true ならタップが成立した。false ならスワイプなどで取り消された。 */
-    fun onPanelRelease(panel: PanelGeometry, tapped: Boolean)
+    /** [tapped] が true ならタップが成立した。false ならスワイプなどで取り消された。[position] は押した位置（画面の座標）。 */
+    fun onPanelRelease(panel: PanelGeometry, tapped: Boolean, position: Offset)
 
     fun onPanelLongPress(panel: PanelGeometry, position: Offset)
 
@@ -56,7 +56,7 @@ fun Modifier.homeGestures(
         when (outcome) {
             is Outcome.Tap -> {
                 if (panel != null) {
-                    handler.onPanelRelease(panel, tapped = true)
+                    handler.onPanelRelease(panel, tapped = true, down.position)
                 } else {
                     val now = down.uptimeMillis
                     val near = (down.position - lastGutterTapPos).getDistance() < swipeDistance
@@ -72,7 +72,7 @@ fun Modifier.homeGestures(
 
             is Outcome.LongPress -> {
                 if (panel != null) {
-                    handler.onPanelRelease(panel, tapped = false)
+                    handler.onPanelRelease(panel, tapped = false, down.position)
                     handler.onPanelLongPress(panel, down.position)
                 } else {
                     handler.onGesture(GestureKind.LongPressGutter, down.position)
@@ -81,17 +81,17 @@ fun Modifier.homeGestures(
             }
 
             is Outcome.Gesture -> {
-                panel?.let { handler.onPanelRelease(it, tapped = false) }
+                panel?.let { handler.onPanelRelease(it, tapped = false, down.position) }
                 handler.onGesture(outcome.kind, down.position)
             }
 
             is Outcome.HorizontalSwipe ->
                 panel?.let {
-                    handler.onPanelRelease(it, tapped = false)
+                    handler.onPanelRelease(it, tapped = false, down.position)
                     handler.onPanelSwipe(it, outcome.toLeft)
                 }
 
-            Outcome.Nothing -> panel?.let { handler.onPanelRelease(it, tapped = false) }
+            Outcome.Nothing -> panel?.let { handler.onPanelRelease(it, tapped = false, down.position) }
         }
     }
 }

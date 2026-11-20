@@ -117,6 +117,8 @@ data class HomeUiState(
     val undo: Folders?,
     val labels: Map<AppKey, String> = emptyMap(),
     val player: PlayerUi? = null,
+    /** true なら「配置を調整」の状態（時計・大見出し・名前・アイコンを指で動かし、拡大縮小する）。 */
+    val adjusting: Boolean = false,
 ) {
     fun labelOf(app: AppKey): String = labels[app] ?: app.packageName
 }
@@ -136,6 +138,11 @@ sealed interface HomeEvent {
 
     /** ホームボタン。開いているものを閉じる。 */
     data object Home : HomeEvent
+
+    /** 「配置を調整」の状態に入る・出る。 */
+    data class Adjust(
+        val on: Boolean,
+    ) : HomeEvent
 
     data object Dismiss : HomeEvent
 
@@ -215,6 +222,7 @@ class HomeViewModel(
     private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private val overlay = MutableStateFlow<Overlay>(Overlay.None)
+    private val adjusting = MutableStateFlow(false)
     private val undo = MutableStateFlow<Folders?>(null)
 
     private class PlayerInputs(
@@ -266,6 +274,7 @@ class HomeViewModel(
             )
         }.combine(apps.apps) { s, list -> s.copy(labels = list.associate { it.key to it.label }) }
             .combine(player) { s, p -> s.copy(player = p) }
+            .combine(adjusting) { s, a -> s.copy(adjusting = a) }
             .stateIn(
                 viewModelScope,
                 SharingStarted.Eagerly,
@@ -332,7 +341,15 @@ class HomeViewModel(
                 overlay.value = Overlay.None
             }
 
-            HomeEvent.Home, HomeEvent.Dismiss -> overlay.value = Overlay.None
+            HomeEvent.Home, HomeEvent.Dismiss -> {
+                overlay.value = Overlay.None
+                adjusting.value = false
+            }
+
+            is HomeEvent.Adjust -> {
+                overlay.value = Overlay.None
+                adjusting.value = event.on
+            }
 
             is HomeEvent.EditFolders -> {
                 if (event.recordUndo) undo.value = folderStore.folders.value
@@ -380,7 +397,8 @@ class HomeViewModel(
 
             is HomeEvent.SwipePanel ->
                 if (state.value.player?.panelId == event.panelId) {
-                    if (event.toLeft) media.next() else media.previous()
+                    // 右へ払うと次の曲、左へ払うと前の曲（利用者が実機で試し、こちらが直感に合うとした。2026-11-20）
+                    if (event.toLeft) media.previous() else media.next()
                 }
 
             is HomeEvent.SetMusicPlayer -> {

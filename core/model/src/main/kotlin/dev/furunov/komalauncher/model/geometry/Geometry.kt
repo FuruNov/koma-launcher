@@ -22,6 +22,13 @@ data class Rect(
     val center: Point get() = Point((left + right) / 2f, (top + bottom) / 2f)
 
     fun contains(p: Point): Boolean = p.x in left..right && p.y in top..bottom
+
+    /** 四辺を [d] だけ内側へ寄せる。寄せすぎて幅や高さが負になるときは、中心の線（点）にする。 */
+    fun inset(d: Float): Rect {
+        val dx = minOf(d, width / 2f)
+        val dy = minOf(d, height / 2f)
+        return Rect(left + dx, top + dy, right - dx, bottom - dy)
+    }
 }
 
 /**
@@ -42,6 +49,42 @@ class Polygon(
     val centroid: Point by lazy { Point(points.sumOf { it.x.toDouble() }.toFloat() / points.size, points.sumOf { it.y.toDouble() }.toFloat() / points.size) }
 
     fun map(transform: (Point) -> Point): Polygon = Polygon(points.map(transform))
+
+    /**
+     * 高さ [y0]〜[y1] の帯の中で、どの高さでも多角形の内側にある横の範囲（左端と右端）。帯が多角形にかからなければ null。
+     * コマは直線で割ってできる凸多角形なので、帯の上端・下端と、帯の中の頂点の高さだけを調べれば足りる。
+     */
+    fun spanBetween(
+        y0: Float,
+        y1: Float,
+    ): Pair<Float, Float>? {
+        val ys = listOf(y0, y1) + points.map { it.y }.filter { it > y0 && it < y1 }
+        var left = Float.NEGATIVE_INFINITY
+        var right = Float.POSITIVE_INFINITY
+        for (y in ys) {
+            val (l, r) = spanAt(y) ?: return null
+            left = maxOf(left, l)
+            right = minOf(right, r)
+        }
+        return if (left <= right) left to right else null
+    }
+
+    /** 高さ [y] の横の線と多角形が交わる範囲（最も左と最も右）。交わらなければ null。 */
+    private fun spanAt(y: Float): Pair<Float, Float>? {
+        var lo = Float.POSITIVE_INFINITY
+        var hi = Float.NEGATIVE_INFINITY
+        for (i in points.indices) {
+            val a = points[i]
+            val b = points[(i + 1) % points.size]
+            if ((y < minOf(a.y, b.y)) || (y > maxOf(a.y, b.y))) continue
+            val x = if (a.y == b.y) null else a.x + (y - a.y) / (b.y - a.y) * (b.x - a.x)
+            for (v in listOfNotNull(x, if (a.y == b.y) a.x else null, if (a.y == b.y) b.x else null)) {
+                lo = minOf(lo, v)
+                hi = maxOf(hi, v)
+            }
+        }
+        return if (lo <= hi) lo to hi else null
+    }
 
     /**
      * 辺と頂点の上は内側として扱う。隣り合うコマの境界線を叩いたときに、

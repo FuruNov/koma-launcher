@@ -1,5 +1,6 @@
 package dev.furunov.komalauncher.model.layout
 
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -35,5 +36,16 @@ class TiltTest {
         assertEquals(13f, fx.artShift())
         assertEquals(9f, fx.clockShift())
         assertEquals(3.5f, fx.textShift())
+        // 大見出しとアイコンは、名前より大きく動かす
+        assertEquals(10f, fx.mastheadShift())
+        assertEquals(8f, fx.iconShift())
+    }
+
+    @Test
+    fun quantizeRoundsToSteps() {
+        // 端で 10 画素動くなら、0.1 ずつの刻み（1 画素ずつ）にする
+        assertEquals(Tilt(0.3f, -0.1f), Tilt.quantize(Tilt(0.27f, -0.12f), 0.1f).let { Tilt((it.x * 10).roundToInt() / 10f, (it.y * 10).roundToInt() / 10f) })
+        // 刻みの半分より小さい変化では、同じ値のまま（描き直さない）
+        assertEquals(Tilt.quantize(Tilt(0.31f, 0f), 0.1f), Tilt.quantize(Tilt(0.34f, 0f), 0.1f))
     }
 }

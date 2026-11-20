@@ -229,65 +229,8 @@ class EditorViewModel(
         commit(LayoutEdits.updatePanel(local.value.layout, id) { it.copy(label = label.takeIf { s -> s.isNotBlank() }, labelEn = labelEn.takeIf { s -> s.isNotBlank() }) })
     }
 
-    /** 画面の点 [p] にある、指で動かせる文字（時計か大見出し）。時計が上に重なるので先に調べる。 */
-    fun textAt(p: Point): MovableText? {
-        val tree = local.value.layout.shape as? LayoutShape.Tree ?: return null
-        val panels = resolve().panels
-        if (tree.clock.enabled) {
-            val c = textCenter(MovableText.CLOCK) ?: return null
-            val k = tree.clock.size * width / tree.frame.refWidth
-            if (kotlin.math.abs(p.x - c.x) < 450f * k && p.y - c.y in -240f * k..170f * k) return MovableText.CLOCK
-        }
-        val id = PanelText.mastheadPanel(panels, tree.text, tree.clock) ?: return null
-        val b = panels.firstOrNull { it.panel.id == id }?.polygon?.bounds ?: return null
-        val c = textCenter(MovableText.MASTHEAD) ?: return null
-        val half = PanelText.mastheadSize(b) * 0.6f
-        return if (kotlin.math.abs(p.x - c.x) < b.width * 0.45f && kotlin.math.abs(p.y - c.y) < half) MovableText.MASTHEAD else null
-    }
-
-    /** 文字の中心（画面の座標）。 */
-    fun textCenter(t: MovableText): Point? {
-        val tree = local.value.layout.shape as? LayoutShape.Tree ?: return null
-        val panels = resolve().panels
-        return when (t) {
-            MovableText.CLOCK -> {
-                val b = panels.firstOrNull { it.panel.id == PanelText.clockPanel(panels, tree.clock) }?.polygon?.bounds ?: return null
-                Point(b.left + tree.clock.x * b.width, b.top + tree.clock.y * b.height)
-            }
-
-            MovableText.MASTHEAD -> {
-                val b = panels.firstOrNull { it.panel.id == PanelText.mastheadPanel(panels, tree.text, tree.clock) }?.polygon?.bounds ?: return null
-                Point(b.left + b.width / 2f, b.top + tree.text.mastheadY * b.height)
-            }
-        }
-    }
-
-    /**
-     * 文字の中心を画面の点 [center] へ動かす。置くコマは [center] の下のコマで、位置はそのコマの中の割合で持つ
-     * （人物の後ろに回す処理がコマごとなので）。大見出しは横の中央に置くので、縦の位置だけを変える。
-     * ドラッグの間に呼ぶ（始まりで [beginGesture]）。
-     */
-    fun moveText(
-        t: MovableText,
-        center: Point,
-    ) {
-        val panels = resolve().panels
-        val hit = panels.lastOrNull { it.polygon.bounds.contains(center) && it.polygon.contains(center) } ?: return
-        // 置き場所を決めていない大見出しは時計のコマに付いていくので、時計を動かす前に今のコマへ固定する
-        val tree = local.value.layout.shape as? LayoutShape.Tree ?: return
-        val mastheadId = tree.text.mastheadPanel ?: PanelText.mastheadPanel(panels, tree.text, tree.clock)
-        val b = hit.polygon.bounds
-        val x = ((center.x - b.left) / b.width).coerceIn(0f, 1f)
-        val y = ((center.y - b.top) / b.height).coerceIn(0f, 1f)
-        commit(
-            LayoutEdits.setTree(local.value.layout) {
-                when (t) {
-                    MovableText.CLOCK -> it.copy(clock = it.clock.copy(panel = hit.panel.id, x = x, y = y), text = it.text.copy(mastheadPanel = mastheadId))
-                    MovableText.MASTHEAD -> it.copy(text = it.text.copy(mastheadPanel = hit.panel.id, mastheadY = y))
-                }
-            },
-        )
-    }
+    /** コマ [id] のアイコンの位置と大きさを自動に戻す（ホームの「配置を調整」で決めたもの）。 */
+    fun resetIcons(id: PanelId) = edit { l -> LayoutEdits.updatePanel(l, id) { it.copy(iconAt = null, iconScale = 1f) } }
 
     fun undo() = restore(history.undo(local.value.layout))
 
@@ -330,6 +273,3 @@ class EditorViewModel(
         store.update { layout }
     }
 }
-
-/** 縮小図の上で指で動かせる文字。 */
-enum class MovableText { CLOCK, MASTHEAD }

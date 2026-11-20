@@ -28,7 +28,6 @@ import dev.furunov.komalauncher.feature.widgets.WidgetPicker
 import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.settings.LauncherAction
-import dev.furunov.komalauncher.platform.media.VisualizerSpectrum
 import dev.furunov.komalauncher.ui.apps.AppPicker
 import dev.furunov.komalauncher.ui.icons.LocalIconLoader
 import kotlinx.coroutines.Dispatchers
@@ -78,6 +77,7 @@ class MainActivity : ComponentActivity() {
 
                                 Overlay.HomeMenu ->
                                     HomeMenu(
+                                        onAdjust = { home.onEvent(HomeEvent.Adjust(true)) },
                                         onEditLayout = {
                                             home.onEvent(HomeEvent.Dismiss)
                                             startActivity(Intent(this@MainActivity, EditorActivity::class.java))
@@ -134,7 +134,7 @@ class MainActivity : ComponentActivity() {
             val media =
                 remember(reactToAudio) {
                     val granted = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-                    HomeMedia(container.media.art, if (reactToAudio && granted) VisualizerSpectrum() else null)
+                    HomeMedia(container.media.art, if (reactToAudio && granted) container.spectrum else null)
                 }
             CompositionLocalProvider(LocalIconLoader provides container.iconLoader) {
                 HomeScreen(
@@ -146,6 +146,7 @@ class MainActivity : ComponentActivity() {
                     onUnlockPlayed = container.screenEvents::consumeUnlock,
                     slots = slots,
                     media = media,
+                    editLayout = container.layoutStore::update,
                 )
                 pickerFor?.let { panelId ->
                     WidgetPicker(panelId, container.widgets, onDismiss = { container.widgets.pickerFor.value = null })
