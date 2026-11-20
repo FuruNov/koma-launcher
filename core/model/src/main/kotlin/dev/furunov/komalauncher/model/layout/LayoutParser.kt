@@ -406,6 +406,7 @@ object LayoutParser {
         val zoom: Float = 1f,
         val dx: Float = 0f,
         val dy: Float = 0f,
+        val dim: Float = 0f,
     )
 
     @Serializable
@@ -427,7 +428,7 @@ object LayoutParser {
                 Kind.DRAWER -> PanelContent.Drawer
             },
             label = label,
-            art = art?.let { PanelArt(it.image, it.aspect, it.zoom, it.dx, it.dy) },
+            art = art?.let { PanelArt(it.image, it.aspect, it.zoom, it.dx, it.dy, it.dim.coerceIn(0f, 1f)) },
         )
 
         companion object {
@@ -441,7 +442,7 @@ object LayoutParser {
                 },
                 label = p.label,
                 apps = (p.content as? PanelContent.Folder)?.initialApps?.takeIf { it.isNotEmpty() },
-                art = p.art?.let { ArtDto(it.image, it.aspect, it.zoom, it.dx, it.dy) },
+                art = p.art?.let { ArtDto(it.image, it.aspect, it.zoom, it.dx, it.dy, it.dim) },
             )
         }
     }

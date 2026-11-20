@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.FileObserver
 import android.util.Log
 import dev.furunov.komalauncher.model.layout.Layout
+import dev.furunov.komalauncher.model.layout.LayoutEdits
 import dev.furunov.komalauncher.model.layout.LayoutParser
 import dev.furunov.komalauncher.model.layout.LayoutResult
 import dev.furunov.komalauncher.model.layout.PanelArt
@@ -89,7 +90,7 @@ class FileLayoutStore(
     ): PanelArt? = withContext(Dispatchers.IO) {
         importLock.withLock {
             art.add(ImageDecoder.createSource(context.contentResolver, Uri.parse(uri)), uri)?.also { a ->
-                store.update { l -> (l ?: sample).mapPanels { if (it.id == panel) it.copy(art = a) else it } }
+                store.update { l -> LayoutEdits.placeImage(l ?: sample, panel, a) }
             }
         }
     }

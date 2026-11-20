@@ -126,3 +126,28 @@ class SampleLayoutTest {
         assertEquals(layout, json.decodeFromString(LayoutParser.serializer, json.encodeToString(LayoutParser.serializer, layout)))
     }
 }
+
+class PanelDimTest {
+    private fun withDim(dim: String) =
+        """
+        { "version": 2, "tree": { "panel": { "id": "p1", "kind": "widget", "art": { "image": "a"$dim } } } }
+        """.trimIndent()
+
+    private fun dimOf(text: String) = assertIs<LayoutResult.Ok>(LayoutParser.parse(text)).layout.panels.single().art!!.dim
+
+    @Test
+    fun dimDefaultsToZero() = assertEquals(0f, dimOf(withDim("")))
+
+    @Test
+    fun dimRoundTrips() {
+        val layout = assertIs<LayoutResult.Ok>(LayoutParser.parse(withDim(""", "dim": 0.4"""))).layout
+        assertEquals(0.4f, layout.panels.single().art!!.dim)
+        assertEquals(0.4f, dimOf(LayoutParser.encode(layout)))
+    }
+
+    @Test
+    fun dimIsClamped() {
+        assertEquals(1f, dimOf(withDim(""", "dim": 1.5""")))
+        assertEquals(0f, dimOf(withDim(""", "dim": -1""")))
+    }
+}

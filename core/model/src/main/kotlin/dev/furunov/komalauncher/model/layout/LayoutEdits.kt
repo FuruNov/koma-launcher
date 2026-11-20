@@ -87,6 +87,20 @@ object LayoutEdits {
         transform: (Panel) -> Panel,
     ): Layout = layout.mapPanels { if (it.id == panelId) transform(it) else it }
 
+    /** コマの画像を [art] に替える。暗さはコマの読みやすさの設定なので、前の画像のものを引き継ぐ。 */
+    fun placeImage(
+        layout: Layout,
+        panelId: PanelId,
+        art: PanelArt,
+    ): Layout = updatePanel(layout, panelId) { it.copy(art = art.copy(dim = it.art?.dim ?: art.dim)) }
+
+    /** コマの絵の暗さを変える（0〜1 に収める）。絵の無いコマでは何もしない。 */
+    fun setDim(
+        layout: Layout,
+        panelId: PanelId,
+        dim: Float,
+    ): Layout = updatePanel(layout, panelId) { p -> p.copy(art = p.art?.copy(dim = dim.coerceIn(0f, 1f))) }
+
     /** 種類を フォルダ → ウィジェット → 全アプリ一覧 の順に切り替える（モックアップと同じ順）。 */
     fun cycleKind(
         layout: Layout,

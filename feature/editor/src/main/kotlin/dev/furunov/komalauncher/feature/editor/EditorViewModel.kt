@@ -173,9 +173,15 @@ class EditorViewModel(
             if (art != null) {
                 committed = true
                 history.push(before)
-                local.update { s -> s.copy(layout = LayoutEdits.updatePanel(s.layout, id) { it.copy(art = art) }, canUndo = true) }
+                local.update { s -> s.copy(layout = LayoutEdits.placeImage(s.layout, id, art), canUndo = true) }
             }
         }
+    }
+
+    /** 選んでいるコマの絵の暗さ（0〜1）。スライダーから呼ぶ（始まりで [beginGesture]）。 */
+    fun setDim(value: Float) {
+        val id = local.value.selected ?: return
+        commit(LayoutEdits.setDim(local.value.layout, id, value))
     }
 
     fun removeImage() {

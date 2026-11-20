@@ -47,7 +47,7 @@ class EditorViewModelTest {
         override suspend fun addImage(
             uri: String,
             panel: PanelId,
-        ): PanelArt? = nextImage?.also { a -> update { l -> l.mapPanels { if (it.id == panel) it.copy(art = a) else it } } }
+        ): PanelArt? = nextImage?.also { a -> update { l -> LayoutEdits.placeImage(l, panel, a) } }
 
         override suspend fun cutOutPerson(image: String): String? = null
 
@@ -143,5 +143,27 @@ class EditorViewModelTest {
     fun closePrunesImages() {
         vm.close()
         assertEquals(1, store.pruned)
+    }
+
+    @Test
+    fun setDimChangesSelectedArt() {
+        vm.select(PanelId("p1"))
+        vm.setImage("content://x")
+        vm.beginGesture()
+        vm.setDim(0.3f)
+        assertEquals(0.3f, store.flow.value.layout.panels[0].art?.dim)
+        vm.undo()
+        assertEquals(0f, store.flow.value.layout.panels[0].art?.dim)
+    }
+
+    @Test
+    fun replacingImageKeepsDim() {
+        vm.select(PanelId("p1"))
+        vm.setImage("content://x")
+        vm.setDim(0.3f)
+        store.nextImage = PanelArt("img-2", 1.5f)
+        vm.setImage("content://y")
+        assertEquals("img-2", store.flow.value.layout.panels[0].art?.image)
+        assertEquals(0.3f, store.flow.value.layout.panels[0].art?.dim)
     }
 }

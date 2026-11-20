@@ -123,4 +123,24 @@ class LayoutEditsTest {
         assertEquals(10, popped.last())
         assertFalse(h.canUndo)
     }
+
+    @Test
+    fun placeImageKeepsDim() {
+        val dimmed = LayoutEdits.updatePanel(one, PanelId("p1")) { it.copy(art = art.copy(dim = 0.4f)) }
+        val placed = LayoutEdits.placeImage(dimmed, PanelId("p1"), PanelArt("new", 1f))
+        assertEquals(PanelArt("new", 1f, dim = 0.4f), placed.panel(PanelId("p1"))?.art)
+    }
+
+    @Test
+    fun placeImageOnEmptyPanelHasNoDim() {
+        val bare = LayoutEdits.updatePanel(one, PanelId("p1")) { it.copy(art = null) }
+        assertEquals(PanelArt("new", 1f), LayoutEdits.placeImage(bare, PanelId("p1"), PanelArt("new", 1f)).panel(PanelId("p1"))?.art)
+    }
+
+    @Test
+    fun setDimClampsAndNeedsArt() {
+        assertEquals(1f, LayoutEdits.setDim(one, PanelId("p1"), 2f).panel(PanelId("p1"))?.art?.dim)
+        val bare = LayoutEdits.updatePanel(one, PanelId("p1")) { it.copy(art = null) }
+        assertNull(LayoutEdits.setDim(bare, PanelId("p1"), 0.5f).panel(PanelId("p1"))?.art)
+    }
 }

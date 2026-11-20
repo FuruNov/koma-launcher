@@ -38,6 +38,8 @@ data class PanelArt(
     val zoom: Float = 1f,
     val dx: Float = 0f,
     val dy: Float = 0f,
+    /** 絵の上に重ねる黒の不透明度（0〜1）。透過させたウィジェットの文字を明るい絵の上でも読めるようにする。 */
+    val dim: Float = 0f,
 )
 
 data class Panel(

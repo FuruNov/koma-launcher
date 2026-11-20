@@ -68,6 +68,8 @@ class PanelFace(
     art: Rect?,
     val placeholder: Color,
     style: PanelStyle = PanelStyle.NONE,
+    /** 絵の上に重ねる黒の不透明度（PanelArt.dim）。文字より前に塗るので、名前・時計は暗くならない。 */
+    private val dim: Float = 0f,
 ) {
     val bounds: Rect = polygon.bounds
 
@@ -133,6 +135,8 @@ class PanelFace(
     ) {
         if (bitmap != null && artOffset != null && artSize != null) {
             translate(shift.x, shift.y) { drawImage(bitmap, dstOffset = artOffset, dstSize = artSize, colorFilter = toneFilter) }
+            // 絵の移動（視差）の外で塗る。動かしても暗い部分がずれないように
+            if (dim > 0f) drawRect(Color.Black.copy(alpha = dim), size = Size(bounds.width, bounds.height))
         } else {
             drawRect(placeholder)
         }

@@ -136,7 +136,11 @@ fun EditorScreen(
                         Chip("画像を外す", enabled = selectedPanel.art != null, onClick = vm::removeImage)
                         Chip("人物を切り抜く", enabled = selectedPanel.art != null && !state.busy, onClick = vm::cutOutPerson)
                     }
-                    if (selectedPanel.art != null) Hint("画像はドラッグで動かし、2 本の指で広げると大きくなります。絵の端は見えない範囲で止まります")
+                    selectedPanel.art?.let { art ->
+                        Hint("画像はドラッグで動かし、2 本の指で広げると大きくなります。絵の端は見えない範囲で止まります")
+                        // 透過させたウィジェットや名前を、明るい絵の上でも読めるようにする
+                        SliderRow("暗さ", art.dim * 100f, 0f..100f) { v -> vm.setDim(v / 100f) }
+                    }
                 }
                 if (frame != null) {
                     SliderRow("コマの間", frame.gutter, 0f..60f) { v -> vm.setFrame(record = false) { it.copy(gutter = v) } }
@@ -201,7 +205,7 @@ private fun Preview(
     val faces =
         remember(resolved, state.layout) {
             val style = PanelStyle.of(state.layout, screenWidth)
-            resolved.panels.map { PanelFace(it.polygon, it.art, PanelFace.placeholderFor(it.index), style) }
+            resolved.panels.map { PanelFace(it.polygon, it.art, PanelFace.placeholderFor(it.index), style, it.panel.art?.dim ?: 0f) }
         }
     val measurer = rememberTextMeasurer(cacheSize = 16)
     val masks by rememberMasks(state.masks, state.imagesRevision)

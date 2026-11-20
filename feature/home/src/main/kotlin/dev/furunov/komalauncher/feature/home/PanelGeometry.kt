@@ -38,7 +38,7 @@ class PanelGeometry(
     style: PanelStyle = PanelStyle.NONE,
 ) {
     /** コマの中身の描き方（編集画面と共有する）。 */
-    val face = PanelFace(polygon, art, PanelFace.placeholderFor(index), style)
+    val face = PanelFace(polygon, art, PanelFace.placeholderFor(index), style, panel.art?.dim ?: 0f)
 }
 
 @Immutable
