@@ -49,6 +49,9 @@ object LayoutParser {
     } catch (e: Exception) {
         // kotlinx.serialization の例外の文言は長いので、最初の行だけを見せる
         LayoutResult.Error("layout.json を読めません: ${e.message?.lineSequence()?.firstOrNull() ?: e::class.simpleName}")
+    } catch (e: StackOverflowError) {
+        // 入れ子が極端に深い JSON は、読む途中で止まる。アプリを止めずに誤りとして扱う
+        LayoutResult.Error("layout.json の入れ子が深すぎます")
     }
 
     /** 内部の layout.json に書く形。version 1 のレイアウトは version 1 の形で書く（多角形を木に直せないため）。 */
@@ -87,6 +90,8 @@ object LayoutParser {
         // 絵は files/art/ の下にこの名前で写すので、別の場所を指せないようにする
         if (dto.image != null && !FILE_NAME.matches(dto.image)) return "image にはファイル名だけを書いてください: ${dto.image}"
         duplicate(panels.map { it.id })?.let { return it }
+        // version 1 では描かないが、art.image も version 2 と同じく、別の場所を指せないようにしておく
+        panels.forEach { p -> p.art?.let { if (!IMAGE_ID.matches(it.image)) return "コマ ${p.id} の art.image には英数字と - _ だけを使ってください" } }
         panels.forEach { p ->
             val polygon = p.polygon ?: return "コマ ${p.id} の polygon がありません"
             if (polygon.size < 3) return "コマ ${p.id} の頂点が 3 つ未満です"
@@ -104,6 +109,7 @@ object LayoutParser {
             path: String,
         ): String? {
             val where = if (path.isEmpty()) "tree" else "tree の $path"
+            if (path.length > MAX_DEPTH) return "tree の入れ子が深すぎます（$MAX_DEPTH 段まで）"
             if (node.panel != null) {
                 if (node.cut != null || node.a != null || node.b != null) return "$where に panel と cut の両方があります"
                 leaves.add(node.panel)
@@ -156,6 +162,9 @@ object LayoutParser {
 
     private val ASPECT_RANGE = 0.05f..20f
     private const val MAX_ART_VALUE = 10f
+
+    /** 木の深さの上限。画面を 2^32 に割ることは無いので、これを超える木は壊れていると見なす。 */
+    private const val MAX_DEPTH = 32
     private val IMAGE_ID = Regex("[A-Za-z0-9_-]{1,64}")
     private val FILE_NAME = Regex("[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}")
 

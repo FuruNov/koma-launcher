@@ -44,7 +44,10 @@ class EditorViewModelTest {
             flow.value = LayoutState.Loaded(transform(flow.value.layout), emptyMap())
         }
 
-        override suspend fun addImage(uri: String): PanelArt? = nextImage
+        override suspend fun addImage(
+            uri: String,
+            panel: PanelId,
+        ): PanelArt? = nextImage?.also { a -> update { l -> l.mapPanels { if (it.id == panel) it.copy(art = a) else it } } }
 
         override suspend fun cutOutPerson(image: String): String? = null
 

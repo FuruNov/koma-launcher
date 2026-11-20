@@ -1,0 +1,35 @@
+# stage5-mockup-release (2026-11-20T10:58:03+09:00)
+device: SM-S918B / Android 13 / Physical size: 1080x1920
+apk:     versionName=0.1.0 flags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+
+## 起動（コールドスタート、5 回）
+TotalTime: 227
+TotalTime: 230
+TotalTime: 213
+TotalTime: 236
+TotalTime: 212
+
+## 待機中のメモリ（ホームを表示して 5 秒後）
+Native Heap        0        0        0        0        0    32540    24736     3223
+Java Heap:        0                              0
+Native Heap:        0                              0
+Code:    20844                         167228
+Graphics:        0                              0
+TOTAL PSS:   133667            TOTAL RSS:   268688       TOTAL SWAP PSS:      639
+
+## フォルダの開閉を 20 回
+Total frames rendered: 60
+Janky frames: 0 (0.00%)
+Janky frames (legacy): 0 (0.00%)
+50th percentile: 5ms
+90th percentile: 12ms
+
+## フォルダの開閉の後のメモリ
+TOTAL PSS:    66021            TOTAL RSS:   187864       TOTAL SWAP PSS:      385
+
+## 編集画面を開き、割る・元に戻す・閉じるを 10 回した後のメモリ（使用量が増え続けないか）
+Native Heap        0        0        0        0        0    38324    24291     5673
+Java Heap:       64                            168
+Native Heap:        0                              0
+Graphics:        0                              0
+TOTAL PSS:    81625            TOTAL RSS:   192344       TOTAL SWAP PSS:    13498

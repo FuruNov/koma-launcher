@@ -9,6 +9,7 @@ import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutParser
 import dev.furunov.komalauncher.model.layout.LayoutResult
 import dev.furunov.komalauncher.model.layout.PanelArt
+import dev.furunov.komalauncher.model.layout.PanelId
 import dev.furunov.komalauncher.model.ports.LayoutState
 import dev.furunov.komalauncher.model.ports.LayoutStore
 import dev.furunov.komalauncher.platform.store.JsonFileStore
@@ -82,14 +83,21 @@ class FileLayoutStore(
 
     override fun update(transform: (Layout) -> Layout) = store.update { transform(it ?: sample) }
 
-    override suspend fun addImage(uri: String): PanelArt? = withContext(Dispatchers.IO) {
-        art.add(ImageDecoder.createSource(context.contentResolver, Uri.parse(uri)), uri)
+    override suspend fun addImage(
+        uri: String,
+        panel: PanelId,
+    ): PanelArt? = withContext(Dispatchers.IO) {
+        importLock.withLock {
+            art.add(ImageDecoder.createSource(context.contentResolver, Uri.parse(uri)), uri)?.also { a ->
+                store.update { l -> (l ?: sample).mapPanels { if (it.id == panel) it.copy(art = a) else it } }
+            }
+        }
     }
 
     private val cutter = PersonCutter(art)
 
     override suspend fun cutOutPerson(image: String): String? = withContext(Dispatchers.IO) {
-        cutter.cutOut(image).also { if (it == null) revision.value++ }
+        importLock.withLock { cutter.cutOut(image) }.also { if (it == null) revision.value++ }
     }
 
     override fun pruneImages() {

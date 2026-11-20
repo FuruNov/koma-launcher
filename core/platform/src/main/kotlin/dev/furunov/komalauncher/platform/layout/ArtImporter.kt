@@ -184,8 +184,11 @@ class ArtImporter(
             val w = bitmap.width
             val h = bitmap.height
             val px = IntArray(w * h)
-            bitmap.getPixels(px, 0, w, 0, 0, w, h)
-            bitmap.recycle()
+            try {
+                bitmap.getPixels(px, 0, w, 0, 0, w, h)
+            } finally {
+                bitmap.recycle()
+            }
             val values = FloatArray(px.size) { ((px[it] shr 16) and 0xFF) / 255f }
             saveMask(id, if (inv != null) values else MaskMath.keepFromPerson(values), w, h)
             from

@@ -139,7 +139,7 @@ fun EditorScreen(
                     if (selectedPanel.art != null) Hint("画像はドラッグで動かし、2 本の指で広げると大きくなります。絵の端は見えない範囲で止まります")
                 }
                 if (frame != null) {
-                    SliderRow("コマの間", frame.gutter, 0f..60f, onStart = vm::beginGesture) { v -> vm.setFrame(record = false) { it.copy(gutter = v) } }
+                    SliderRow("コマの間", frame.gutter, 0f..60f) { v -> vm.setFrame(record = false) { it.copy(gutter = v) } }
                     ChipRow("間の色") {
                         Chip("黒", selected = frame.gutterColor == BLACK) { vm.setFrame { it.copy(gutterColor = BLACK) } }
                         Chip("白", selected = frame.gutterColor == WHITE) { vm.setFrame { it.copy(gutterColor = WHITE) } }
@@ -151,7 +151,7 @@ fun EditorScreen(
                         }
                         Chip("裁ち落とし", selected = frame.bleed) { vm.setFrame { it.copy(bleed = !it.bleed) } }
                     }
-                    SliderRow("枠の太さ", frame.border.width, 0f..40f, onStart = vm::beginGesture) { v -> vm.setFrame(record = false) { it.copy(border = it.border.copy(width = v)) } }
+                    SliderRow("枠の太さ", frame.border.width, 0f..40f) { v -> vm.setFrame(record = false) { it.copy(border = it.border.copy(width = v)) } }
                     val tree = state.layout.shape as? LayoutShape.Tree
                     if (tree != null) TextAndClockControls(vm, tree, state.selected)
                     val look = (state.layout.shape as? LayoutShape.Tree)?.look
@@ -161,10 +161,10 @@ fun EditorScreen(
                             Chip("淡い色合い", selected = look.tone == Tone.SOFT) { vm.setLook { it.copy(tone = Tone.SOFT) } }
                         }
                         if (look.tone != Tone.NONE) {
-                            SliderRow("かかり具合", look.strength * 100f, 0f..100f, onStart = vm::beginGesture) { v -> vm.setLook(record = false) { it.copy(strength = v / 100f) } }
+                            SliderRow("かかり具合", look.strength * 100f, 0f..100f) { v -> vm.setLook(record = false) { it.copy(strength = v / 100f) } }
                         }
-                        SliderRow("内側の影", look.inner * 100f, 0f..100f, onStart = vm::beginGesture) { v -> vm.setLook(record = false) { it.copy(inner = v / 100f) } }
-                        SliderRow("光の反射", look.sheen * 100f, 0f..100f, onStart = vm::beginGesture) { v -> vm.setLook(record = false) { it.copy(sheen = v / 100f) } }
+                        SliderRow("内側の影", look.inner * 100f, 0f..100f) { v -> vm.setLook(record = false) { it.copy(inner = v / 100f) } }
+                        SliderRow("光の反射", look.sheen * 100f, 0f..100f) { v -> vm.setLook(record = false) { it.copy(sheen = v / 100f) } }
                     }
                 }
             }
@@ -286,9 +286,10 @@ private fun Preview(
                             }
                             return@awaitEachGesture
                         }
-                        // 3. 押して離したら、そのコマを選ぶ（余白なら選ぶのをやめる）
+                        // 3. 押して離したら、そのコマを選ぶ
                         val up = waitForUpOrCancel(down.id)
-                        if (up != null && (up - start).getDistance() < viewConfiguration.touchSlop) vm.select(hit?.panel?.id)
+                        // 余白を押しても選択は変えない（モックアップと同じ。細いコマの間で線の端を掴み損ねても、選択が外れないように）
+                        if (up != null && hit != null && (up - start).getDistance() < viewConfiguration.touchSlop) vm.select(hit.panel.id)
                     }
                 },
         ) {
@@ -404,7 +405,8 @@ private fun SliderRow(
     title: String,
     value: Float,
     range: ClosedFloatingPointRange<Float>,
-    onStart: () -> Unit,
+    // スライダーの変更は「元に戻す」の履歴に積まない（モックアップと同じ）。見た目の微調整で履歴の上限（50 件）が埋まり、割る・消すを戻せなくなるのを避ける
+    onStart: () -> Unit = {},
     onChange: (Float) -> Unit,
 ) {
     val currentChange by rememberUpdatedState(onChange)
@@ -478,7 +480,7 @@ private fun TextAndClockControls(
         )
     }
     if (text.masthead.isNotBlank()) {
-        SliderRow("見出しの高さ", text.mastheadY * 100f, 0f..100f, onStart = vm::beginGesture) { v -> vm.setTree(record = false) { it.copy(text = it.text.copy(mastheadY = v / 100f)) } }
+        SliderRow("見出しの高さ", text.mastheadY * 100f, 0f..100f) { v -> vm.setTree(record = false) { it.copy(text = it.text.copy(mastheadY = v / 100f)) } }
         if (selected != null) ChipRow("") { Chip("選んだコマに見出しを置く") { vm.setTree { it.copy(text = it.text.copy(mastheadPanel = selected)) } } }
     }
     ChipRow("時計") {
@@ -487,14 +489,14 @@ private fun TextAndClockControls(
         if (selected != null) Chip("選んだコマに置く") { vm.setTree { it.copy(clock = it.clock.copy(enabled = true, panel = selected)) } }
     }
     if (clock.enabled) {
-        SliderRow("大きさ", clock.size * 100f, 50f..160f, onStart = vm::beginGesture) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(size = v / 100f)) } }
-        SliderRow("横の位置", clock.x * 100f, 0f..100f, onStart = vm::beginGesture) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(x = v / 100f)) } }
-        SliderRow("縦の位置", clock.y * 100f, 0f..100f, onStart = vm::beginGesture) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(y = v / 100f)) } }
+        SliderRow("大きさ", clock.size * 100f, 50f..160f) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(size = v / 100f)) } }
+        SliderRow("横の位置", clock.x * 100f, 0f..100f) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(x = v / 100f)) } }
+        SliderRow("縦の位置", clock.y * 100f, 0f..100f) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(y = v / 100f)) } }
     }
     ChipRow("視差") {
         Chip("傾けると奥行き", selected = tree.fx.parallax) { vm.setTree { it.copy(fx = it.fx.copy(parallax = !it.fx.parallax)) } }
     }
     if (tree.fx.parallax) {
-        SliderRow("視差の強さ", tree.fx.strength * 100f, 30f..200f, onStart = vm::beginGesture) { v -> vm.setTree(record = false) { it.copy(fx = it.fx.copy(strength = v / 100f)) } }
+        SliderRow("視差の強さ", tree.fx.strength * 100f, 30f..200f) { v -> vm.setTree(record = false) { it.copy(fx = it.fx.copy(strength = v / 100f)) } }
     }
 }

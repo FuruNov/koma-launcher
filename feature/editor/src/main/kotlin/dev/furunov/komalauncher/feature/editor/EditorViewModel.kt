@@ -71,6 +71,17 @@ class EditorViewModel(
             s.copy(images = (l as? LayoutState.Loaded)?.images.orEmpty(), imagesRevision = (l as? LayoutState.Loaded)?.revision ?: 0L, masks = (l as? LayoutState.Loaded)?.masks.orEmpty())
         }.stateIn(viewModelScope, SharingStarted.Eagerly, local.value)
 
+    /** 1 度でも保存したか。 */
+    private var committed = false
+
+    init {
+        // まだ何も保存していない間は、保存側の変更（取り込みの完了など）に合わせる。1 度でも保存したら手元の状態を正とする
+        // （保存側の状態は遅れて届くので、保存の後に合わせると、届いた古い値で手元の変更を戻してしまう）
+        viewModelScope.launch {
+            store.state.collect { l -> if (!committed && l.layout != local.value.layout) local.update { it.copy(layout = l.layout) } }
+        }
+    }
+
     /** 画面の大きさ（画素）。割る線の位置と、絵を動かせる範囲を決めるのに使う。ホームと同じ大きさを渡す。 */
     private var width = 1f
     private var height = 1f
@@ -155,9 +166,15 @@ class EditorViewModel(
         val id = local.value.selected ?: return
         local.update { it.copy(busy = true) }
         viewModelScope.launch {
-            val art = store.addImage(uri)
+            val before = local.value.layout
+            // 保存側が画像を写してコマに置くところまでを済ませる。ここでは同じ変更を手元の状態に写し、元に戻せるようにする
+            val art = store.addImage(uri, id)
             local.update { it.copy(busy = false, message = if (art == null) "画像を読めませんでした" else null) }
-            if (art != null) edit { l -> LayoutEdits.updatePanel(l, id) { it.copy(art = art) } }
+            if (art != null) {
+                committed = true
+                history.push(before)
+                local.update { s -> s.copy(layout = LayoutEdits.updatePanel(s.layout, id) { it.copy(art = art) }, canUndo = true) }
+            }
         }
     }
 
@@ -230,6 +247,7 @@ class EditorViewModel(
     }
 
     private fun commit(layout: Layout) {
+        committed = true
         local.update { it.copy(layout = layout, canUndo = history.canUndo) }
         store.update { layout }
     }

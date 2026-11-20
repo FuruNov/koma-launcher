@@ -32,7 +32,14 @@ class PersonCutter(
             } catch (e: Exception) {
                 return "画像を読めません: ${e.message}"
             }
-        val segmenter = SubjectSegmentation.getClient(SubjectSegmenterOptions.Builder().enableForegroundConfidenceMask().build())
+        // Google Play 開発者サービスが無い端末では、作る時点で例外になることがある
+        val segmenter =
+            try {
+                SubjectSegmentation.getClient(SubjectSegmenterOptions.Builder().enableForegroundConfidenceMask().build())
+            } catch (e: Exception) {
+                bitmap.recycle()
+                return "端末の中で切り抜けません（${e.message ?: e::class.simpleName}）。PC で作った切り抜きを取り込んでください"
+            }
         try {
             val result =
                 suspendCancellableCoroutine { cont ->

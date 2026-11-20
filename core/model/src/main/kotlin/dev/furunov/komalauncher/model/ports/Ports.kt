@@ -2,6 +2,7 @@ package dev.furunov.komalauncher.model.ports
 
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.PanelArt
+import dev.furunov.komalauncher.model.layout.PanelId
 import dev.furunov.komalauncher.model.layout.Tilt
 import dev.furunov.komalauncher.model.settings.LauncherAction
 import kotlinx.coroutines.flow.Flow
@@ -77,10 +78,14 @@ interface LayoutStore : LayoutSource {
     fun update(transform: (Layout) -> Layout)
 
     /**
-     * 利用者が選んだ画像（content:// の URI）を内部へ写し、コマに置ける形で返す。読めなければ null。
+     * 利用者が選んだ画像（content:// の URI）を内部へ写し、コマ [panel] に置く。置いた画像を返す（読めなければ null）。
+     * 写すことと置くことを 1 つの排他の中で行う。間に [pruneImages] が入ると、まだどのコマも使っていない新しい画像が消されるため。
      * 長辺 2048 以下に縮めるので、IO のスレッドで時間がかかる。
      */
-    suspend fun addImage(uri: String): PanelArt?
+    suspend fun addImage(
+        uri: String,
+        panel: PanelId,
+    ): PanelArt?
 
     /**
      * 画像 [image] の人物を端末の中で切り抜き（ML Kit）、文字を人物の後ろに置けるようにする。
@@ -88,7 +93,10 @@ interface LayoutStore : LayoutSource {
      */
     suspend fun cutOutPerson(image: String): String?
 
-    /** どのコマも使っていない画像を消す。元に戻す履歴が要らなくなってから（編集画面を閉じたときに）呼ぶ。 */
+    /**
+     * どのコマも使っていない画像を消す。元に戻す履歴が要らなくなってから（編集画面を閉じたときに）呼ぶ。
+     * すぐに戻り、消すのは IO のスレッドで、取り込み・画像の追加と排他にして行う。
+     */
     fun pruneImages()
 }
 

@@ -91,6 +91,13 @@ class LayoutV2ParserTest {
         assertTrue(err("""{"version":2,"tree":{"panel":{"id":"x","kind":"folder","art":{"image":"../x"}}}}""").contains("art.image"))
         assertTrue(err("""{"version":1,"image":"../a.png","aspect":1,"panels":[{"id":"a","kind":"widget","polygon":[[0,0],[1,0],[1,1]]}]}""").contains("image"))
         assertTrue(err("""{"version":2,"tree":{"panel":{"id":"x","kind":"folder","art":{"image":"a","aspect":0}}}}""").contains("aspect"))
+        // 極端に深い木
+        val deep = (1..40).fold("""{"panel":{"id":"x","kind":"folder"}}""") { acc, i -> """{"cut":{"ta":0.1,"tb":0.6},"a":{"panel":{"id":"p$i","kind":"folder"}},"b":$acc}""" }
+        assertTrue(err("""{"version":2,"tree":$deep}""").contains("深すぎ"))
+        assertTrue(err("""{"version":2,"look":{"inner":2},"tree":{"panel":{"id":"x","kind":"folder"}}}""").contains("look"))
+        assertTrue(err("""{"version":2,"clock":{"size":9},"tree":{"panel":{"id":"x","kind":"folder"}}}""").contains("clock"))
+        assertTrue(err("""{"version":2,"fx":{"strength":9},"tree":{"panel":{"id":"x","kind":"folder"}}}""").contains("fx"))
+        assertTrue(err("""{"version":3,"tree":{"panel":{"id":"x","kind":"folder"}}}""").contains("version"))
         // 桁外れの値は描画の大きさを壊すので、読み込みで止める
         assertTrue(err("""{"version":2,"tree":{"panel":{"id":"x","kind":"folder","art":{"image":"a","zoom":1e40}}}}""").contains("zoom"))
         assertTrue(err("""{"version":2,"tree":{"panel":{"id":"x","kind":"folder","art":{"image":"a","dx":1e40}}}}""").contains("dx"))
