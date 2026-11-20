@@ -109,6 +109,14 @@ object LayoutEdits {
         return Layout(shape.copy(frame = transform(shape.frame)))
     }
 
+    fun setLook(
+        layout: Layout,
+        transform: (Look) -> Look,
+    ): Layout {
+        val shape = layout.shape as? LayoutShape.Tree ?: return layout
+        return Layout(shape.copy(look = transform(shape.look)))
+    }
+
     /** 型。利用者が 11/20 に残すと決めたのは大ゴマと 1 コマ。 */
     enum class Template(
         val label: String,
@@ -147,8 +155,9 @@ object LayoutEdits {
                         ),
                     )
             }
-        val frame = (base.shape as? LayoutShape.Tree)?.frame ?: Frame()
-        return Layout(LayoutShape.Tree(root, frame))
+        // フチと見た目は今のものを引き継ぐ（型を選び直しても、合わせた見た目が戻らないように）
+        val old = base.shape as? LayoutShape.Tree
+        return Layout(LayoutShape.Tree(root, old?.frame ?: Frame(), old?.look ?: Look()))
     }
 
     /** `p` + 番号の id のうち最大の番号 + 1。モックアップの採番と同じ形にする。 */

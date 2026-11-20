@@ -134,6 +134,9 @@ object LayoutParser {
             return "frame の margin・gutter・border.width は 0〜${maxLength.toInt()} にしてください"
         }
         listOfNotNull(frame.gutterColor, frame.border.color).forEach { if (parseColor(it) == null) return "色 $it は #rrggbb の形で書いてください" }
+        dto.look?.let { l ->
+            if (listOf(l.strength, l.inner, l.sheen).any { !it.isFinite() || it !in 0f..1f }) return "look の strength・inner・sheen は 0〜1 にしてください"
+        }
         return null
     }
 
@@ -164,9 +167,10 @@ object LayoutParser {
         // version 2
         val frame: FrameDto? = null,
         val tree: NodeDto? = null,
+        val look: LookDto? = null,
     ) {
         fun toModel(): Layout = if (version >= 2) {
-            Layout(LayoutShape.Tree(requireNotNull(tree).toModel(), (frame ?: FrameDto()).toModel()))
+            Layout(LayoutShape.Tree(requireNotNull(tree).toModel(), (frame ?: FrameDto()).toModel(), (look ?: LookDto()).toModel()))
         } else {
             Layout(
                 LayoutShape.Fixed(
@@ -179,7 +183,7 @@ object LayoutParser {
 
         companion object {
             fun of(layout: Layout): LayoutDto = when (val s = layout.shape) {
-                is LayoutShape.Tree -> LayoutDto(version = 2, frame = FrameDto.of(s.frame), tree = NodeDto.of(s.root))
+                is LayoutShape.Tree -> LayoutDto(version = 2, frame = FrameDto.of(s.frame), tree = NodeDto.of(s.root), look = LookDto.of(s.look))
 
                 is LayoutShape.Fixed ->
                     LayoutDto(
@@ -190,6 +194,29 @@ object LayoutParser {
                     )
             }
         }
+    }
+
+    @Serializable
+    private data class LookDto(
+        val tone: ToneDto = ToneDto.NONE,
+        val strength: Float = 1f,
+        val inner: Float = 0f,
+        val sheen: Float = 0f,
+    ) {
+        fun toModel() = Look(if (tone == ToneDto.SOFT) Tone.SOFT else Tone.NONE, strength, inner, sheen)
+
+        companion object {
+            fun of(l: Look) = LookDto(if (l.tone == Tone.SOFT) ToneDto.SOFT else ToneDto.NONE, l.strength, l.inner, l.sheen)
+        }
+    }
+
+    @Serializable
+    private enum class ToneDto {
+        @SerialName("none")
+        NONE,
+
+        @SerialName("soft")
+        SOFT,
     }
 
     @Serializable

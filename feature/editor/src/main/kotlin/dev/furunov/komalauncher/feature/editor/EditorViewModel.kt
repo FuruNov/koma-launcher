@@ -12,6 +12,7 @@ import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutEdits
 import dev.furunov.komalauncher.model.layout.LayoutResolver
 import dev.furunov.komalauncher.model.layout.LayoutShape
+import dev.furunov.komalauncher.model.layout.Look
 import dev.furunov.komalauncher.model.layout.PanelArt
 import dev.furunov.komalauncher.model.layout.PanelId
 import dev.furunov.komalauncher.model.layout.ResolvedLayout
@@ -168,6 +169,15 @@ class EditorViewModel(
     ) {
         if (record) record()
         commit(LayoutEdits.setFrame(local.value.layout, transform))
+    }
+
+    /** 見た目の変更。使い方は [setFrame] と同じ。 */
+    fun setLook(
+        record: Boolean = true,
+        transform: (Look) -> Look,
+    ) {
+        if (record) record()
+        commit(LayoutEdits.setLook(local.value.layout, transform))
     }
 
     fun undo() {

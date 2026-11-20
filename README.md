@@ -43,7 +43,8 @@ scripts/record-animations.sh <出力先>             # アニメーションの�
 ```
 
 - コマ割りは、コマを線で 2 つに割ることを繰り返した木で書く。葉は `panel`、枝は `cut`・`a`・`b`。`ta`・`tb` は線の両端の位置で、親のコマの周に対する割合（左上の頂点から時計回り）。`a` は線の進む向きの左側のコマ。画面の縦横比が変わっても、線の端は縁の同じ割合の位置に来る。
-- 長さ（`margin`・`gutter`・`border.width`）は、画面の幅が `refWidth` のときの画素数で書く。`gutterColor` を省くと設定の「コマの間の色」を使う。枠線（`border`）は段階 3 で描く。
+- 長さ（`margin`・`gutter`・`border.width`）は、画面の幅が `refWidth` のときの画素数で書く。`gutterColor` を省くと設定の「コマの間の色」を使う。枠線（`border`）はコマの内側に引く。
+- `look` はコマの見た目。`tone`（`none`・`soft` の淡い色合い）、`strength`（かかり具合）、`inner`（内側の影）、`sheen`（光の反射）。どれも 0〜1 で、省くと何もしない。
 - `kind` は `folder`（フォルダ）・`widget`（ウィジェット）・`drawer`（押すと全アプリ一覧を開く）。
 - `art.image` の画像は、取り込み口の `art/<image>.(jpg|jpeg|png|webp)` に置く。アプリは長辺 2048 以下に縮めて内部へ写し、縦横比（`art.aspect`）を書き込む。`zoom`（1〜3）と `dx`・`dy`（コマの外接長方形の幅・高さに対するずらし）は、絵の端がコマに見えない範囲に収めて使う。
 - 画像だけを差し替えるときも、`layout.json` を置き直す（取り込みは `layout.json` が置かれたときに始まる）。

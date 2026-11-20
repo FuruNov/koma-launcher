@@ -62,7 +62,9 @@ import dev.furunov.komalauncher.model.layout.LayoutEdits
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.layout.SplitDirection
+import dev.furunov.komalauncher.model.layout.Tone
 import dev.furunov.komalauncher.ui.art.PanelFace
+import dev.furunov.komalauncher.ui.art.PanelStyle
 import dev.furunov.komalauncher.ui.art.rememberArts
 import kotlin.math.hypot
 
@@ -139,6 +141,18 @@ fun EditorScreen(
                         Chip("裁ち落とし", selected = frame.bleed) { vm.setFrame { it.copy(bleed = !it.bleed) } }
                     }
                     SliderRow("枠の太さ", frame.border.width, 0f..40f, onStart = vm::beginGesture) { v -> vm.setFrame(record = false) { it.copy(border = it.border.copy(width = v)) } }
+                    val look = (state.layout.shape as? LayoutShape.Tree)?.look
+                    if (look != null) {
+                        ChipRow("色合い") {
+                            Chip("変換しない", selected = look.tone == Tone.NONE) { vm.setLook { it.copy(tone = Tone.NONE) } }
+                            Chip("淡い色合い", selected = look.tone == Tone.SOFT) { vm.setLook { it.copy(tone = Tone.SOFT) } }
+                        }
+                        if (look.tone != Tone.NONE) {
+                            SliderRow("かかり具合", look.strength * 100f, 0f..100f, onStart = vm::beginGesture) { v -> vm.setLook(record = false) { it.copy(strength = v / 100f) } }
+                        }
+                        SliderRow("内側の影", look.inner * 100f, 0f..100f, onStart = vm::beginGesture) { v -> vm.setLook(record = false) { it.copy(inner = v / 100f) } }
+                        SliderRow("光の反射", look.sheen * 100f, 0f..100f, onStart = vm::beginGesture) { v -> vm.setLook(record = false) { it.copy(sheen = v / 100f) } }
+                    }
                 }
             }
         }
@@ -170,6 +184,12 @@ private fun Preview(
             resolved.panels.mapNotNull { p -> p.art?.let { a -> p.panel.art?.image?.let { it to Size(a.width, a.height) } } }.toMap()
         }
     val arts by rememberArts(state.images, sizes, state.imagesRevision)
+    // 影の Paint などを毎回作らないよう、形か見た目が変わったときだけ作る
+    val faces =
+        remember(resolved, state.layout) {
+            val style = PanelStyle.of(state.layout, screenWidth)
+            resolved.panels.map { PanelFace(it.polygon, it.art, PanelFace.placeholderFor(it.index), style) }
+        }
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val handleRadius = with(density) { 22.dp.toPx() }
@@ -258,8 +278,7 @@ private fun Preview(
             scale(s, s, pivot = Offset.Zero) {
                 // 拡大縮小の中で描くので、大きさは画面の画素で渡す（キャンバスの大きさのままだと一部しか塗らない）
                 drawRect(gutter, size = Size(screenWidth, screenHeight))
-                for (p in resolved.panels) {
-                    val face = PanelFace(p.polygon, p.art, PanelFace.placeholderFor(p.index))
+                for ((p, face) in resolved.panels.zip(faces)) {
                     val b = face.bounds
                     translate(b.left, b.top) {
                         clipPath(face.path) { with(face) { drawContent(p.panel.art?.image?.let(arts::get)) } }

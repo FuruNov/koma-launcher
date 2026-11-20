@@ -16,6 +16,7 @@ import dev.furunov.komalauncher.model.layout.LayoutResolver
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.Panel
 import dev.furunov.komalauncher.ui.art.PanelFace
+import dev.furunov.komalauncher.ui.art.PanelStyle
 import kotlin.math.max
 
 /** 1 つのコマの、画面座標での形。画面の大きさが決まったときに 1 度だけ計算する。 */
@@ -34,9 +35,10 @@ class PanelGeometry(
     val image: String?,
     /** 画像を描く長方形（画面座標）。コマからはみ出す分は [shape] で切り抜く。 */
     val art: Rect?,
+    style: PanelStyle = PanelStyle.NONE,
 ) {
     /** コマの中身の描き方（編集画面と共有する）。 */
-    val face = PanelFace(polygon, art, PanelFace.placeholderFor(index))
+    val face = PanelFace(polygon, art, PanelFace.placeholderFor(index), style)
 }
 
 @Immutable
@@ -64,12 +66,13 @@ class HomeGeometry(
     companion object {
         fun of(layout: Layout, width: Float, height: Float): HomeGeometry {
             val fixedImage = (layout.shape as? LayoutShape.Fixed)?.image
+            val style = PanelStyle.of(layout, width)
             val panels =
                 LayoutResolver.resolve(layout, width, height).panels.map { r ->
                     val poly = r.polygon
                     val b = poly.bounds
                     val image = fixedImage ?: r.panel.art?.image
-                    PanelGeometry(r.panel, r.index, poly, b, poly.largestInscribedRect(), PolygonShape(poly, b.left, b.top), image, r.art)
+                    PanelGeometry(r.panel, r.index, poly, b, poly.largestInscribedRect(), PolygonShape(poly, b.left, b.top), image, r.art, style)
                 }
             return HomeGeometry(panels)
         }

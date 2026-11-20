@@ -100,12 +100,30 @@ data class Frame(
     val border: Border = Border(),
 )
 
+/** 漫画風の色合い。モックアップで利用者が残したのは「変換しない」と「淡い色合い」だけ（2026-11-20）。 */
+enum class Tone { NONE, SOFT }
+
+/**
+ * コマの見た目（段階 3）。値はどれも 0〜1。
+ * 既定は何もしない（version 2 の初めのファイルに look が無くても、見た目が変わらないように）。
+ */
+data class Look(
+    val tone: Tone = Tone.NONE,
+    /** 色合いのかかり具合。0 で元の色、1 で淡い色合いそのもの。 */
+    val strength: Float = 1f,
+    /** 内側の影の濃さ。 */
+    val inner: Float = 0f,
+    /** 光の反射の強さ。 */
+    val sheen: Float = 0f,
+)
+
 /** コマの形の決め方。version 1 と 2 の違いはここに閉じ込め、描画は [LayoutResolver] の結果だけを見る。 */
 sealed interface LayoutShape {
     /** version 2。線の木とコマごとの画像。 */
     data class Tree(
         val root: LayoutNode,
         val frame: Frame = Frame(),
+        val look: Look = Look(),
     ) : LayoutShape
 
     /** version 1。1 枚の絵と、絵に対する 0〜1 の相対座標の多角形。 */

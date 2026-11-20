@@ -43,7 +43,13 @@ jq '
         color: ($s.border.color // "#111111")
       }
     },
-    tree: ($s.tree | node)
+    tree: ($s.tree | node),
+    look: {
+      tone: (if $s.filter == "soft" then "soft" else "none" end),
+      strength: ($s.strength // 1),
+      inner: ($s.shade.inner // 0),
+      sheen: ($s.shade.sheen // 0)
+    }
   }' "$STATE" >"$OUT"
 echo "layout.json を作りました: $OUT"
 
