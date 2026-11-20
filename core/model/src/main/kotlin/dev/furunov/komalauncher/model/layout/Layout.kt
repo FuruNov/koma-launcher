@@ -117,6 +117,34 @@ data class Look(
     val sheen: Float = 0f,
 )
 
+/** コマの名前の向き。 */
+enum class LabelMode { NONE, VERTICAL, HORIZONTAL }
+
+/** 文字（段階 4）。名前と大見出しは、切り抜きがあれば人物の後ろに置く。 */
+data class TextSpec(
+    val label: LabelMode = LabelMode.NONE,
+    /** true なら英語の名前（モックアップの既定）。 */
+    val english: Boolean = true,
+    /** 大見出し。空なら出さない。 */
+    val masthead: String = "",
+    /** 大見出しの縦の位置（コマの高さに対する割合）。 */
+    val mastheadY: Float = 0.09f,
+    /** 大見出しを置くコマ。null なら時計のコマ。 */
+    val mastheadPanel: PanelId? = null,
+)
+
+/** ランチャーが描く時計（段階 4）。利用者が選んだ「人物の後ろ」だけを持つ。 */
+data class ClockSpec(
+    val enabled: Boolean = false,
+    /** 置くコマ。null か存在しないコマなら、いちばん大きいコマ。 */
+    val panel: PanelId? = null,
+    /** コマの外接長方形に対する中心の位置。 */
+    val x: Float = 0.5f,
+    val y: Float = 0.83f,
+    /** 大きさ（モックアップの 0.5〜1.6）。 */
+    val size: Float = 0.78f,
+)
+
 /** コマの形の決め方。version 1 と 2 の違いはここに閉じ込め、描画は [LayoutResolver] の結果だけを見る。 */
 sealed interface LayoutShape {
     /** version 2。線の木とコマごとの画像。 */
@@ -124,6 +152,8 @@ sealed interface LayoutShape {
         val root: LayoutNode,
         val frame: Frame = Frame(),
         val look: Look = Look(),
+        val text: TextSpec = TextSpec(),
+        val clock: ClockSpec = ClockSpec(),
     ) : LayoutShape
 
     /** version 1。1 枚の絵と、絵に対する 0〜1 の相対座標の多角形。 */

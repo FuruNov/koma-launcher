@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,6 +40,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.scale
@@ -58,14 +60,21 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.furunov.komalauncher.model.geometry.Point
 import dev.furunov.komalauncher.model.layout.BorderStyle
 import dev.furunov.komalauncher.model.layout.CutEnd
+import dev.furunov.komalauncher.model.layout.LabelMode
 import dev.furunov.komalauncher.model.layout.LayoutEdits
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.PanelContent
+import dev.furunov.komalauncher.model.layout.PanelId
 import dev.furunov.komalauncher.model.layout.SplitDirection
 import dev.furunov.komalauncher.model.layout.Tone
 import dev.furunov.komalauncher.ui.art.PanelFace
 import dev.furunov.komalauncher.ui.art.PanelStyle
+import dev.furunov.komalauncher.ui.art.buildPanelTexts
+import dev.furunov.komalauncher.ui.art.drawPanelTexts
+import dev.furunov.komalauncher.ui.art.localPlacement
 import dev.furunov.komalauncher.ui.art.rememberArts
+import dev.furunov.komalauncher.ui.art.rememberMasks
+import java.time.LocalDateTime
 import kotlin.math.hypot
 
 /**
@@ -101,8 +110,9 @@ fun EditorScreen(
             Spacer(Modifier.width(8.dp))
             Chip("閉じる", onClick = onClose)
         }
-        Preview(vm, state, screenWidth, screenHeight, Color(frame?.gutterColor ?: defaultGutterColor), Modifier.weight(1f).fillMaxWidth())
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp)) {
+        Preview(vm, state, screenWidth, screenHeight, Color(frame?.gutterColor ?: defaultGutterColor), Modifier.weight(1.3f).fillMaxWidth())
+        // 操作の欄が伸びても縮小図が潰れないよう、高さを分け合う（操作の欄は中でスクロールする）
+        Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp)) {
             state.message?.let {
                 BasicText(it, style = TextStyle(color = Color(0xFFFFD54F), fontSize = 13.sp), modifier = Modifier.padding(vertical = 4.dp).clickable(onClick = vm::dismissMessage))
             }
@@ -124,6 +134,7 @@ fun EditorScreen(
                             picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                         }
                         Chip("画像を外す", enabled = selectedPanel.art != null, onClick = vm::removeImage)
+                        Chip("人物を切り抜く", enabled = selectedPanel.art != null && !state.busy, onClick = vm::cutOutPerson)
                     }
                     if (selectedPanel.art != null) Hint("画像はドラッグで動かし、2 本の指で広げると大きくなります。絵の端は見えない範囲で止まります")
                 }
@@ -141,6 +152,8 @@ fun EditorScreen(
                         Chip("裁ち落とし", selected = frame.bleed) { vm.setFrame { it.copy(bleed = !it.bleed) } }
                     }
                     SliderRow("枠の太さ", frame.border.width, 0f..40f, onStart = vm::beginGesture) { v -> vm.setFrame(record = false) { it.copy(border = it.border.copy(width = v)) } }
+                    val tree = state.layout.shape as? LayoutShape.Tree
+                    if (tree != null) TextAndClockControls(vm, tree, state.selected)
                     val look = (state.layout.shape as? LayoutShape.Tree)?.look
                     if (look != null) {
                         ChipRow("色合い") {
@@ -190,7 +203,11 @@ private fun Preview(
             val style = PanelStyle.of(state.layout, screenWidth)
             resolved.panels.map { PanelFace(it.polygon, it.art, PanelFace.placeholderFor(it.index), style) }
         }
-    val measurer = rememberTextMeasurer()
+    val measurer = rememberTextMeasurer(cacheSize = 16)
+    val masks by rememberMasks(state.masks, state.imagesRevision)
+    val texts =
+        remember(resolved, state.layout, masks) { buildPanelTexts(state.layout, resolved.panels, screenWidth, emptyMap(), masks) }
+    val now = remember { LocalDateTime.now() }
     val density = LocalDensity.current
     val handleRadius = with(density) { 22.dp.toPx() }
     val current by rememberUpdatedState(state)
@@ -281,7 +298,14 @@ private fun Preview(
                 for ((p, face) in resolved.panels.zip(faces)) {
                     val b = face.bounds
                     translate(b.left, b.top) {
-                        clipPath(face.path) { with(face) { drawContent(p.panel.art?.image?.let(arts::get)) } }
+                        clipPath(face.path) {
+                            with(face) { drawArt(p.panel.art?.image?.let(arts::get)) }
+                            texts[p.panel.id]?.let { spec ->
+                                val (mo, ms) = p.art?.let { localPlacement(b, it) } ?: (null to null)
+                                drawPanelTexts(spec, Size(b.width, b.height), measurer, now, p.panel.art?.image?.let(masks::get)?.bitmap, mo, ms)
+                            }
+                            with(face) { drawOverlay() }
+                        }
                     }
                     // 種類と名前。ホームでは出さない編集用の表示
                     val text = listOfNotNull(p.panel.label, kindLabel(p.panel.content)).distinct().joinToString("\n")
@@ -416,5 +440,55 @@ private fun SliderRow(
             Box(Modifier.offset(x = (maxWidth - 20.dp) * f).size(20.dp).background(Color(0xFFFFD54F), RoundedCornerShape(10.dp)))
         }
         BasicText(value.toInt().toString(), style = TextStyle(color = Color.White, fontSize = 13.sp), modifier = Modifier.width(32.dp))
+    }
+}
+
+/** 文字（名前・大見出し）と時計の操作。 */
+@Composable
+private fun TextAndClockControls(
+    vm: EditorViewModel,
+    tree: LayoutShape.Tree,
+    selected: PanelId?,
+) {
+    val text = tree.text
+    val clock = tree.clock
+    ChipRow("名前") {
+        listOf(LabelMode.VERTICAL to "縦書き", LabelMode.HORIZONTAL to "横書き", LabelMode.NONE to "出さない").forEach { (m, label) ->
+            Chip(label, selected = text.label == m) { vm.setTree { it.copy(text = it.text.copy(label = m)) } }
+        }
+        Chip("英語", selected = text.english) { vm.setTree { it.copy(text = it.text.copy(english = true)) } }
+        Chip("日本語", selected = !text.english) { vm.setTree { it.copy(text = it.text.copy(english = false)) } }
+    }
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        BasicText("大見出し", style = TextStyle(color = Color(0xFF9E9EA8), fontSize = 13.sp), modifier = Modifier.width(64.dp))
+        // 1 文字ごとに履歴を積むと「元に戻す」が細かすぎるので、入力の間は記録しない
+        BasicTextField(
+            value = text.masthead,
+            onValueChange = { v -> vm.setTree(record = false) { it.copy(text = it.text.copy(masthead = v.take(40))) } },
+            singleLine = true,
+            textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+            cursorBrush = SolidColor(Color.White),
+            decorationBox = { inner ->
+                Box(Modifier.fillMaxWidth().background(Color(0xFF2A2A32), RoundedCornerShape(8.dp)).padding(10.dp)) {
+                    if (text.masthead.isEmpty()) BasicText("（空なら出さない）", style = TextStyle(color = Color(0xFF6A6A74), fontSize = 15.sp))
+                    inner()
+                }
+            },
+            modifier = Modifier.weight(1f),
+        )
+    }
+    if (text.masthead.isNotBlank()) {
+        SliderRow("見出しの高さ", text.mastheadY * 100f, 0f..100f, onStart = vm::beginGesture) { v -> vm.setTree(record = false) { it.copy(text = it.text.copy(mastheadY = v / 100f)) } }
+        if (selected != null) ChipRow("") { Chip("選んだコマに見出しを置く") { vm.setTree { it.copy(text = it.text.copy(mastheadPanel = selected)) } } }
+    }
+    ChipRow("時計") {
+        Chip("出さない", selected = !clock.enabled) { vm.setTree { it.copy(clock = it.clock.copy(enabled = false)) } }
+        Chip("人物の後ろ", selected = clock.enabled) { vm.setTree { it.copy(clock = it.clock.copy(enabled = true)) } }
+        if (selected != null) Chip("選んだコマに置く") { vm.setTree { it.copy(clock = it.clock.copy(enabled = true, panel = selected)) } }
+    }
+    if (clock.enabled) {
+        SliderRow("大きさ", clock.size * 100f, 50f..160f, onStart = vm::beginGesture) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(size = v / 100f)) } }
+        SliderRow("横の位置", clock.x * 100f, 0f..100f, onStart = vm::beginGesture) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(x = v / 100f)) } }
+        SliderRow("縦の位置", clock.y * 100f, 0f..100f, onStart = vm::beginGesture) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(y = v / 100f)) } }
     }
 }

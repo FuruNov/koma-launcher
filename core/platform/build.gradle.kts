@@ -21,6 +21,7 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.coroutines.android)
     implementation(libs.serialization.json)
+    implementation(libs.mlkit.subject.segmentation)
     testImplementation(libs.kotlin.test)
     testImplementation(libs.coroutines.test)
 }

@@ -6,6 +6,7 @@ import android.graphics.ImageDecoder
 import android.util.Log
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutShape
+import dev.furunov.komalauncher.model.layout.MaskMath
 import dev.furunov.komalauncher.model.layout.PanelArt
 import java.io.File
 import kotlin.math.max
@@ -39,6 +40,12 @@ class ArtImporter(
     /** 画像の id → 内部のファイルの絶対パス。ファイルがある画像だけを返す。 */
     fun existing(layout: Layout): Map<String, String> = layout.images.mapNotNull { id -> fileOf(layout, id).takeIf { it.isFile }?.let { id to it.absolutePath } }.toMap()
 
+    /** 人物の切り抜き（白が人物以外を表す透明度の画像）。画像の id ごとに 1 枚。 */
+    fun maskFileOf(image: String): File = File(directory, "$image.mask.png")
+
+    /** 画像の id → 切り抜きのファイルの絶対パス。ファイルがある画像だけを返す。 */
+    fun existingMasks(layout: Layout): Map<String, String> = if (layout.shape is LayoutShape.Fixed) emptyMap() else layout.images.mapNotNull { id -> maskFileOf(id).takeIf { it.isFile }?.let { id to it.absolutePath } }.toMap()
+
     /** [layout] が参照する画像を、取り込み口の [source]（とその下の art/）から内部へ写す。IO のスレッドで呼ぶ。 */
     fun import(
         layout: Layout,
@@ -71,6 +78,7 @@ class ArtImporter(
 
                 else -> missing.add(id)
             }
+            if (layout.shape is LayoutShape.Tree) importMask(id, source)?.let(consumed::add)
         }
         val withAspects = layout.mapPanels { p -> p.art?.let { a -> aspects[a.image]?.let { p.copy(art = a.copy(aspect = it)) } } ?: p }
         return Result(withAspects, missing, consumed)
@@ -103,7 +111,7 @@ class ArtImporter(
 
     /** [layout] が使っていない画像のファイルを消す。 */
     fun prune(layout: Layout) {
-        val keep = layout.images.map { fileOf(layout, it).name }.toSet()
+        val keep = layout.images.flatMap { listOf(fileOf(layout, it).name, maskFileOf(it).name) }.toSet()
         directory.listFiles()?.filter { it.isFile && it.name !in keep }?.forEach { it.delete() }
     }
 
@@ -154,11 +162,68 @@ class ArtImporter(
         return if (o.outWidth > 0 && o.outHeight > 0) o.outWidth.toFloat() / o.outHeight else null
     }
 
-    private companion object {
-        const val TAG = "ArtImporter"
-        const val MAX_SIDE = 2048
-        const val QUALITY = 90
-        val EXTENSIONS = listOf("webp", "jpg", "jpeg", "png")
-        val ID_CHARS = ('a'..'z') + ('0'..'9')
+    /**
+     * 取り込み口の切り抜きを内部へ写す。写した元のファイルを返す（無ければ null）。
+     * - art/<id>.inv.*: 白が人物以外（モックアップの INV と同じ。そのまま使う）
+     * - art/<id>.mask.*: 白が人物（BiRefNet などの出力。濃さ 0.35〜0.65 を 0〜1 に詰め、反転する）
+     */
+    private fun importMask(
+        id: String,
+        source: File,
+    ): File? {
+        val inv = MASK_EXTENSIONS.map { File(source, "art/$id.inv.$it") }.firstOrNull { it.isFile }
+        val raw = MASK_EXTENSIONS.map { File(source, "art/$id.mask.$it") }.firstOrNull { it.isFile }
+        val from = inv ?: raw ?: return null
+        return try {
+            val bitmap =
+                ImageDecoder.decodeBitmap(ImageDecoder.createSource(from)) { decoder, info, _ ->
+                    val scale = MASK_SIDE.toFloat() / max(info.size.width, info.size.height)
+                    if (scale < 1f) decoder.setTargetSize((info.size.width * scale).roundToInt(), (info.size.height * scale).roundToInt())
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                }
+            val w = bitmap.width
+            val h = bitmap.height
+            val px = IntArray(w * h)
+            bitmap.getPixels(px, 0, w, 0, 0, w, h)
+            bitmap.recycle()
+            val values = FloatArray(px.size) { ((px[it] shr 16) and 0xFF) / 255f }
+            saveMask(id, if (inv != null) values else MaskMath.keepFromPerson(values), w, h)
+            from
+        } catch (e: Exception) {
+            Log.w(TAG, "$from を取り込めない", e)
+            null
+        }
+    }
+
+    /** 「残す」濃さ（0〜1、人物以外が 1）から、白で透明度を持つ切り抜きを書く。端末の中の切り抜きでも使う。 */
+    fun saveMask(
+        id: String,
+        keep: FloatArray,
+        w: Int,
+        h: Int,
+    ) {
+        directory.mkdirs()
+        val px = IntArray(w * h) { ((keep[it].coerceIn(0f, 1f) * 255f).roundToInt() shl 24) or 0xFFFFFF }
+        val out = Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
+        val to = maskFileOf(id)
+        val tmp = File(to.path + ".tmp")
+        try {
+            tmp.outputStream().use { out.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        } finally {
+            out.recycle()
+        }
+        if (!tmp.renameTo(to)) error("$to に書けない")
+    }
+
+    companion object {
+        private const val TAG = "ArtImporter"
+        private const val MAX_SIDE = 2048
+        private const val QUALITY = 90
+        private val EXTENSIONS = listOf("webp", "jpg", "jpeg", "png")
+        private val MASK_EXTENSIONS = listOf("png", "webp")
+
+        /** 切り抜きの長辺。文字を切り抜くだけなので、絵より粗くてよい。 */
+        const val MASK_SIDE = 1024
+        private val ID_CHARS = ('a'..'z') + ('0'..'9')
     }
 }

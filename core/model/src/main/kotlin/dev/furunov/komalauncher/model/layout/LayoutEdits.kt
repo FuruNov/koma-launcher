@@ -117,6 +117,15 @@ object LayoutEdits {
         return Layout(shape.copy(look = transform(shape.look)))
     }
 
+    /** 文字・時計など、木以外の項目の変更。 */
+    fun setTree(
+        layout: Layout,
+        transform: (LayoutShape.Tree) -> LayoutShape.Tree,
+    ): Layout {
+        val shape = layout.shape as? LayoutShape.Tree ?: return layout
+        return Layout(transform(shape))
+    }
+
     /** 型。利用者が 11/20 に残すと決めたのは大ゴマと 1 コマ。 */
     enum class Template(
         val label: String,
@@ -155,9 +164,10 @@ object LayoutEdits {
                         ),
                     )
             }
-        // フチと見た目は今のものを引き継ぐ（型を選び直しても、合わせた見た目が戻らないように）
-        val old = base.shape as? LayoutShape.Tree
-        return Layout(LayoutShape.Tree(root, old?.frame ?: Frame(), old?.look ?: Look()))
+        // フチ・見た目・文字・時計は今のものを引き継ぐ（型を選び直しても、合わせた見た目が戻らないように）。
+        // 時計と大見出しのコマは id が変わるので、いちばん大きいコマに置き直す
+        val old = base.shape as? LayoutShape.Tree ?: return Layout(LayoutShape.Tree(root))
+        return Layout(old.copy(root = root, clock = old.clock.copy(panel = null), text = old.text.copy(mastheadPanel = null)))
     }
 
     /** `p` + 番号の id のうち最大の番号 + 1。モックアップの採番と同じ形にする。 */

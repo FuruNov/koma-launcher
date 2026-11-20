@@ -23,6 +23,8 @@ sealed interface LayoutState {
         val images: Map<String, String>,
         override val error: String? = null,
         val revision: Long = 0,
+        /** 画像の id → 人物の切り抜きのファイルの絶対パス（切り抜きがある画像だけ）。 */
+        val masks: Map<String, String> = emptyMap(),
     ) : LayoutState
 
     /**
@@ -78,6 +80,12 @@ interface LayoutStore : LayoutSource {
      * 長辺 2048 以下に縮めるので、IO のスレッドで時間がかかる。
      */
     suspend fun addImage(uri: String): PanelArt?
+
+    /**
+     * 画像 [image] の人物を端末の中で切り抜き（ML Kit）、文字を人物の後ろに置けるようにする。
+     * 失敗したら利用者に見せる理由を返す。
+     */
+    suspend fun cutOutPerson(image: String): String?
 
     /** どのコマも使っていない画像を消す。元に戻す履歴が要らなくなってから（編集画面を閉じたときに）呼ぶ。 */
     fun pruneImages()

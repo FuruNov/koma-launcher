@@ -5,7 +5,8 @@
 #
 # 使い方: scripts/import-mockup.sh <state.json> <画像のディレクトリ> [layout.json の保存先]
 #   state.json: Artifact の db の editor/current（{ "state": {...} } でも、state の中身だけでもよい）
-#   画像のディレクトリ: モックアップのカードの名前（pic-a-5 など）の .jpg / .jpeg / .png / .webp を置いた場所
+#   画像のディレクトリ: モックアップのカードの名前（pic-a-5 など）の .jpg / .jpeg / .png / .webp を置いた場所。
+#     人物の切り抜きがあれば inv/<名前>.webp（白が人物以外）か mask/<名前>.png（白が人物）に置く
 # 画像は版権があるので、リポジトリには入れない。
 set -euo pipefail
 
@@ -49,6 +50,20 @@ jq '
       strength: ($s.strength // 1),
       inner: ($s.shade.inner // 0),
       sheen: ($s.shade.sheen // 0)
+    },
+    text: {
+      label: ($s.text.label // "none"),
+      lang: ($s.text.lang // "en"),
+      masthead: (if $s.text.masthead then ($s.text.word // "") else "" end),
+      mastheadY: ($s.text.mastheadY // 0.09),
+      mastheadPanel: $s.text.panel
+    },
+    clock: {
+      enabled: (($s.clock.style // "none") != "none"),
+      panel: $s.clock.panel,
+      x: ($s.clock.x // 0.5),
+      y: ($s.clock.y // 0.83),
+      size: ($s.clock.size // 0.78)
     }
   }' "$STATE" >"$OUT"
 echo "layout.json を作りました: $OUT"
@@ -68,6 +83,16 @@ for card in $(jq -r '.. | objects | select(has("art")) | .art.image' "$OUT" | so
   fi
   adb push "$src" "$DEST/art/$card.${src##*.}" >/dev/null
   echo "送りました: $src"
+  # 人物の切り抜き。inv/ は白が人物以外（モックアップの INV）、mask/ は白が人物（アプリが詰めて反転する）
+  for kind in inv mask; do
+    for ext in webp png; do
+      if [ -f "$CARDS/$kind/$card.$ext" ]; then
+        adb push "$CARDS/$kind/$card.$ext" "$DEST/art/$card.$kind.$ext" >/dev/null
+        echo "送りました: $CARDS/$kind/$card.$ext（切り抜き）"
+        break 2
+      fi
+    done
+  done
 done
 # layout.json は最後に送る。届いた時点でアプリが取り込みを始めるので、画像を先に揃えておく
 adb push "$OUT" "$DEST/layout.json" >/dev/null

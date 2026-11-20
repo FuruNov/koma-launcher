@@ -35,6 +35,7 @@ data class EditorUiState(
     /** 画像の id → ファイルの絶対パス。 */
     val images: Map<String, String> = emptyMap(),
     val imagesRevision: Long = 0L,
+    val masks: Map<String, String> = emptyMap(),
     val selected: PanelId? = null,
     val canUndo: Boolean = false,
     /** 画像を取り込んでいる間は true。 */
@@ -67,7 +68,7 @@ class EditorViewModel(
 
     val state: StateFlow<EditorUiState> =
         combine(local, store.state) { s, l ->
-            s.copy(images = (l as? LayoutState.Loaded)?.images.orEmpty(), imagesRevision = (l as? LayoutState.Loaded)?.revision ?: 0L)
+            s.copy(images = (l as? LayoutState.Loaded)?.images.orEmpty(), imagesRevision = (l as? LayoutState.Loaded)?.revision ?: 0L, masks = (l as? LayoutState.Loaded)?.masks.orEmpty())
         }.stateIn(viewModelScope, SharingStarted.Eagerly, local.value)
 
     /** 画面の大きさ（画素）。割る線の位置と、絵を動かせる範囲を決めるのに使う。ホームと同じ大きさを渡す。 */
@@ -178,6 +179,25 @@ class EditorViewModel(
     ) {
         if (record) record()
         commit(LayoutEdits.setLook(local.value.layout, transform))
+    }
+
+    /** 文字と時計の変更。使い方は [setFrame] と同じ。 */
+    fun setTree(
+        record: Boolean = true,
+        transform: (LayoutShape.Tree) -> LayoutShape.Tree,
+    ) {
+        if (record) record()
+        commit(LayoutEdits.setTree(local.value.layout, transform))
+    }
+
+    /** 選んでいるコマの画像の人物を、端末の中で切り抜く。 */
+    fun cutOutPerson() {
+        val image = selectedArt()?.image ?: return
+        local.update { it.copy(busy = true, message = "人物を切り抜いています…") }
+        viewModelScope.launch {
+            val error = store.cutOutPerson(image)
+            local.update { it.copy(busy = false, message = error ?: "切り抜きました。文字と時計が人物の後ろに回ります") }
+        }
     }
 
     fun undo() {

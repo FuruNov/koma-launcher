@@ -45,6 +45,9 @@ scripts/record-animations.sh <出力先>             # アニメーションの�
 - コマ割りは、コマを線で 2 つに割ることを繰り返した木で書く。葉は `panel`、枝は `cut`・`a`・`b`。`ta`・`tb` は線の両端の位置で、親のコマの周に対する割合（左上の頂点から時計回り）。`a` は線の進む向きの左側のコマ。画面の縦横比が変わっても、線の端は縁の同じ割合の位置に来る。
 - 長さ（`margin`・`gutter`・`border.width`）は、画面の幅が `refWidth` のときの画素数で書く。`gutterColor` を省くと設定の「コマの間の色」を使う。枠線（`border`）はコマの内側に引く。
 - `look` はコマの見た目。`tone`（`none`・`soft` の淡い色合い）、`strength`（かかり具合）、`inner`（内側の影）、`sheen`（光の反射）。どれも 0〜1 で、省くと何もしない。
+- `text` は文字。`label`（`vertical`・`horizontal`・`none`）はコマの名前の向き、`lang`（`en`・`ja`）は名前の言語、`masthead` は大見出しの文字（空なら出さない）、`mastheadY` はその高さ（コマに対する割合）、`mastheadPanel` は置くコマ（省くと時計のコマ）。
+- `clock` はランチャーが描く時計。`enabled`、`panel`（省くといちばん大きいコマ）、`x`・`y`（コマに対する中心の位置）、`size`。
+- 人物の切り抜きがあると、名前・大見出し・時計を人物の後ろに描く。取り込み口の `art/<image>.inv.(png|webp)`（白が人物以外）か `art/<image>.mask.(png|webp)`（白が人物。アプリが濃さ 0.35〜0.65 を 0〜1 に詰めて反転する）に置くか、編集画面の「人物を切り抜く」で端末の中で作る。
 - `kind` は `folder`（フォルダ）・`widget`（ウィジェット）・`drawer`（押すと全アプリ一覧を開く）。
 - `art.image` の画像は、取り込み口の `art/<image>.(jpg|jpeg|png|webp)` に置く。アプリは長辺 2048 以下に縮めて内部へ写し、縦横比（`art.aspect`）を書き込む。`zoom`（1〜3）と `dx`・`dy`（コマの外接長方形の幅・高さに対するずらし）は、絵の端がコマに見えない範囲に収めて使う。
 - 画像だけを差し替えるときも、`layout.json` を置き直す（取り込みは `layout.json` が置かれたときに始まる）。
@@ -118,6 +121,8 @@ scripts/record-animations.sh <出力先>             # アニメーションの�
 - **Hilt を使わない**: 公式の `testing-setup` スキルは DI が無ければ Hilt を入れるよう勧めるが、この規模では、Hilt の KSP の設定と生成コードの保守のほうが手間が大きい。実装の組み立ては `AppContainer` の 30 行に収まっている。
 - **Room・DataStore を使わない**: 保存する値は数 KB で、全体をメモリに持って丸ごと書き直せば足りる。
 - **Coil/Glide・Navigation・Material3 を使わない**: アイコンの読み込みは自前の 60 行で済み、画面の切り替えは「重ねるものを 1 つだけ持つ」状態（`Overlay`）で足りる。APK とメモリを小さくするため。
+- **ML Kit の被写体の切り抜きだけは入れる**（`:core:platform`）: 人物の後ろに文字を回すには切り抜きが要り、端末の中で作る方法はほかに無い。モデルは Google Play 開発者サービスが初回に取得するので APK は大きくならない。Play 開発者サービスの無い端末でも、PC で作った切り抜きを取り込めば同じ表示になる。
+- **書体を 2 つ同梱する**: Dela Gothic One（時計と日本語の名前、約 2.5 MB）と Bodoni Moda の斜体（大見出しと英語の名前）。どちらも SIL Open Font License で、全文を `licenses/` に置いた。
 
 ## 動作の軽さ
 

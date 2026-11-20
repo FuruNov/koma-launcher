@@ -14,6 +14,8 @@ class LayoutV2ParserTest {
           "frame": { "refWidth": 1220, "margin": 24, "gutter": 9, "gutterColor": "#ffffff", "bleed": false,
                      "border": { "style": "double", "width": 24, "color": "#111111" } },
           "look": { "tone": "soft", "strength": 0.8, "inner": 0.7, "sheen": 0.15 },
+          "text": { "label": "vertical", "lang": "en", "masthead": "KOMA", "mastheadY": 0.48 },
+          "clock": { "enabled": true, "panel": "p43", "x": 0.52, "y": 0.22, "size": 1 },
           "tree": { "cut": { "ta": 0.3246, "tb": 0.7999 },
                     "a": { "panel": { "id": "p43", "kind": "folder", "label": "よく使う", "apps": ["com.android.chrome"],
                                       "art": { "image": "pic-a-5", "zoom": 1, "dx": -0.067, "dy": 0.0015 } } },
@@ -39,6 +41,8 @@ class LayoutV2ParserTest {
         assertEquals(Border(BorderStyle.DOUBLE, 24f, 0xFF111111), shape.frame.border)
         assertEquals(9f, shape.frame.gutter)
         assertEquals(Look(Tone.SOFT, 0.8f, 0.7f, 0.15f), shape.look)
+        assertEquals(TextSpec(LabelMode.VERTICAL, english = true, masthead = "KOMA", mastheadY = 0.48f), shape.text)
+        assertEquals(ClockSpec(enabled = true, panel = PanelId("p43"), x = 0.52f, y = 0.22f, size = 1f), shape.clock)
     }
 
     @Test

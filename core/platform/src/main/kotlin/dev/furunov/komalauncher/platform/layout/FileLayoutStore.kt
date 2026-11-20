@@ -86,6 +86,12 @@ class FileLayoutStore(
         art.add(ImageDecoder.createSource(context.contentResolver, Uri.parse(uri)), uri)
     }
 
+    private val cutter = PersonCutter(art)
+
+    override suspend fun cutOutPerson(image: String): String? = withContext(Dispatchers.IO) {
+        cutter.cutOut(image).also { if (it == null) revision.value++ }
+    }
+
     override fun pruneImages() {
         val layout = store.value.value ?: return
         scope.launch(Dispatchers.IO) { importLock.withLock { art.prune(layout) } }
@@ -105,7 +111,7 @@ class FileLayoutStore(
             val broken = store.brokenFile?.let { "保存したレイアウトを読めなかったので、見本を表示しています（${it.name} に残してあります）" }
             return LayoutState.Fallback(sample, listOfNotNull(broken, error).joinToString("\n").ifEmpty { null })
         }
-        return LayoutState.Loaded(layout, art.existing(layout), error, rev)
+        return LayoutState.Loaded(layout, art.existing(layout), error, rev, art.existingMasks(layout))
     }
 
     private fun importSoon() {

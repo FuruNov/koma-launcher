@@ -46,6 +46,8 @@ class EditorViewModelTest {
 
         override suspend fun addImage(uri: String): PanelArt? = nextImage
 
+        override suspend fun cutOutPerson(image: String): String? = null
+
         override fun pruneImages() {
             pruned++
         }

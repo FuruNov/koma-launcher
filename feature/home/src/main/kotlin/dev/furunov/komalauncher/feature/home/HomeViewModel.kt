@@ -77,6 +77,8 @@ data class HomeUiState(
     val images: Map<String, String>,
     /** 画像を取り込み直した回数（読み直しの合図）。 */
     val imagesRevision: Long,
+    /** 画像の id → 人物の切り抜きのファイルの絶対パス。 */
+    val masks: Map<String, String> = emptyMap(),
     /** レイアウトの読み込み・取り込みの誤りの内容。画面の上端に示す。 */
     val layoutError: String?,
     val folders: Folders,
@@ -172,6 +174,7 @@ class HomeViewModel(
                 layout = l.layout,
                 images = (l as? LayoutState.Loaded)?.images.orEmpty(),
                 imagesRevision = (l as? LayoutState.Loaded)?.revision ?: 0L,
+                masks = (l as? LayoutState.Loaded)?.masks.orEmpty(),
                 layoutError = l.error,
                 folders = f,
                 overlay = o,

@@ -137,6 +137,14 @@ object LayoutParser {
         dto.look?.let { l ->
             if (listOf(l.strength, l.inner, l.sheen).any { !it.isFinite() || it !in 0f..1f }) return "look の strength・inner・sheen は 0〜1 にしてください"
         }
+        dto.text?.let { t ->
+            if (!t.mastheadY.isFinite() || t.mastheadY !in 0f..1f) return "text.mastheadY は 0〜1 にしてください"
+            if (t.masthead.length > 40) return "text.masthead は 40 文字までにしてください"
+        }
+        dto.clock?.let { c ->
+            if (listOf(c.x, c.y).any { !it.isFinite() || it !in 0f..1f }) return "clock.x・y は 0〜1 にしてください"
+            if (!c.size.isFinite() || c.size !in 0.2f..3f) return "clock.size は 0.2〜3 にしてください"
+        }
         return null
     }
 
@@ -168,9 +176,11 @@ object LayoutParser {
         val frame: FrameDto? = null,
         val tree: NodeDto? = null,
         val look: LookDto? = null,
+        val text: TextDto? = null,
+        val clock: ClockDto? = null,
     ) {
         fun toModel(): Layout = if (version >= 2) {
-            Layout(LayoutShape.Tree(requireNotNull(tree).toModel(), (frame ?: FrameDto()).toModel(), (look ?: LookDto()).toModel()))
+            Layout(LayoutShape.Tree(requireNotNull(tree).toModel(), (frame ?: FrameDto()).toModel(), (look ?: LookDto()).toModel(), (text ?: TextDto()).toModel(), (clock ?: ClockDto()).toModel()))
         } else {
             Layout(
                 LayoutShape.Fixed(
@@ -183,7 +193,7 @@ object LayoutParser {
 
         companion object {
             fun of(layout: Layout): LayoutDto = when (val s = layout.shape) {
-                is LayoutShape.Tree -> LayoutDto(version = 2, frame = FrameDto.of(s.frame), tree = NodeDto.of(s.root), look = LookDto.of(s.look))
+                is LayoutShape.Tree -> LayoutDto(version = 2, frame = FrameDto.of(s.frame), tree = NodeDto.of(s.root), look = LookDto.of(s.look), text = TextDto.of(s.text), clock = ClockDto.of(s.clock))
 
                 is LayoutShape.Fixed ->
                     LayoutDto(
@@ -193,6 +203,70 @@ object LayoutParser {
                         panels = s.panels.map { PanelDto.of(it.panel).copy(polygon = it.polygon.points.map { p -> listOf(p.x, p.y) }) },
                     )
             }
+        }
+    }
+
+    @Serializable
+    private data class TextDto(
+        val label: LabelDto = LabelDto.NONE,
+        val lang: String = "en",
+        val masthead: String = "",
+        val mastheadY: Float = 0.09f,
+        val mastheadPanel: String? = null,
+    ) {
+        fun toModel() = TextSpec(
+            label =
+            when (label) {
+                LabelDto.NONE -> LabelMode.NONE
+                LabelDto.VERTICAL -> LabelMode.VERTICAL
+                LabelDto.HORIZONTAL -> LabelMode.HORIZONTAL
+            },
+            english = lang != "ja",
+            masthead = masthead,
+            mastheadY = mastheadY,
+            mastheadPanel = mastheadPanel?.let(::PanelId),
+        )
+
+        companion object {
+            fun of(t: TextSpec) = TextDto(
+                label =
+                when (t.label) {
+                    LabelMode.NONE -> LabelDto.NONE
+                    LabelMode.VERTICAL -> LabelDto.VERTICAL
+                    LabelMode.HORIZONTAL -> LabelDto.HORIZONTAL
+                },
+                lang = if (t.english) "en" else "ja",
+                masthead = t.masthead,
+                mastheadY = t.mastheadY,
+                mastheadPanel = t.mastheadPanel?.value,
+            )
+        }
+    }
+
+    @Serializable
+    private enum class LabelDto {
+        @SerialName("none")
+        NONE,
+
+        @SerialName("vertical")
+        VERTICAL,
+
+        @SerialName("horizontal")
+        HORIZONTAL,
+    }
+
+    @Serializable
+    private data class ClockDto(
+        val enabled: Boolean = false,
+        val panel: String? = null,
+        val x: Float = 0.5f,
+        val y: Float = 0.83f,
+        val size: Float = 0.78f,
+    ) {
+        fun toModel() = ClockSpec(enabled, panel?.let(::PanelId), x, y, size)
+
+        companion object {
+            fun of(c: ClockSpec) = ClockDto(c.enabled, c.panel?.value, c.x, c.y, c.size)
         }
     }
 

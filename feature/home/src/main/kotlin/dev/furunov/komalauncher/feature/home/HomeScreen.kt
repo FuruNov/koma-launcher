@@ -14,9 +14,11 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -24,12 +26,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,15 +46,23 @@ import dev.furunov.komalauncher.feature.home.anim.PanelAnimations
 import dev.furunov.komalauncher.feature.home.anim.PanelMotion
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.PanelContent
+import dev.furunov.komalauncher.model.layout.ResolvedPanel
 import dev.furunov.komalauncher.model.settings.GestureKind
+import dev.furunov.komalauncher.ui.art.PanelTextSpec
+import dev.furunov.komalauncher.ui.art.buildPanelTexts
+import dev.furunov.komalauncher.ui.art.drawPanelTexts
+import dev.furunov.komalauncher.ui.art.localPlacement
 import dev.furunov.komalauncher.ui.art.rememberArts
+import dev.furunov.komalauncher.ui.art.rememberMasks
 import dev.furunov.komalauncher.ui.dnd.DragDropState
 import dev.furunov.komalauncher.ui.dnd.DragItem
 import dev.furunov.komalauncher.ui.dnd.DragShadow
 import dev.furunov.komalauncher.ui.dnd.DragSource
 import dev.furunov.komalauncher.ui.dnd.LocalDragDrop
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDateTime
 import kotlin.math.roundToInt
 
 /** ホーム画面の外から差し込む部分。機能のモジュールどうしが互いを知らずに済むよう、:app が渡す。 */
@@ -90,6 +103,15 @@ fun HomeScreen(
         val motions = remember(state.layout) { state.layout.panels.associate { it.id to PanelMotion() } }
         val scope = rememberCoroutineScope()
         val arts by rememberArts(state.images, geometry.artSizes, state.imagesRevision)
+        val masks by rememberMasks(state.masks, state.imagesRevision)
+        val folderNames = remember(state.folders) { state.folders.byPanel.mapNotNull { (id, f) -> f.name?.let { id to it } }.toMap() }
+        // 文字の置き場所は、コマの形・文字の指定・切り抜き（人物の地図）が変わったときだけ探し直す
+        val texts =
+            remember(geometry, state.layout, folderNames, masks) {
+                buildPanelTexts(state.layout, geometry.panels.map { ResolvedPanel(it.panel, it.index, it.polygon, it.art) }, wPx, folderNames, masks)
+            }
+        val measurer = rememberTextMeasurer(cacheSize = 16)
+        val now by rememberMinuteClock()
         val anim = state.settings.animation
         val pressAnim = PanelAnimations.press(anim.press)
         val currentState = rememberUpdatedState(state)
@@ -191,6 +213,10 @@ fun HomeScreen(
                         g = g,
                         motion = motions.getValue(g.panel.id),
                         art = g.image?.let(arts::get),
+                        mask = g.image?.let(masks::get)?.bitmap,
+                        texts = texts[g.panel.id],
+                        measurer = measurer,
+                        now = { now },
                         label = state.folders.byPanel[g.panel.id.value]?.name ?: g.panel.label,
                         highlight = if (hovered == g.panel.id) Color(state.settings.appearance.highlightColor) else null,
                     )
@@ -288,6 +314,11 @@ private fun PanelLayer(
     g: PanelGeometry,
     motion: PanelMotion,
     art: ImageBitmap?,
+    mask: ImageBitmap?,
+    texts: PanelTextSpec?,
+    measurer: TextMeasurer,
+    /** 時計の時刻。描画の段階で読む（毎分、そのコマだけを描き直す）。 */
+    now: () -> LocalDateTime,
     label: String?,
     highlight: Color?,
 ) {
@@ -309,7 +340,13 @@ private fun PanelLayer(
                 clip = true
             }.drawBehind {
                 // 絵の長方形はコマの外へはみ出す。はみ出た分は graphicsLayer の shape で切り抜く
-                with(g.face) { drawContent(art) }
+                with(g.face) { drawArt(art) }
+                if (texts != null) {
+                    val r = g.art
+                    val (mo, ms) = r?.let { localPlacement(g.bounds, it) } ?: (null to null)
+                    drawPanelTexts(texts, Size(g.bounds.width, g.bounds.height), measurer, now(), mask, mo, ms)
+                }
+                with(g.face) { drawOverlay() }
                 // 押している間は少し暗くする
                 if (motion.press.value > 0f) drawRect(Color.Black.copy(alpha = 0.18f * motion.press.value))
                 if (highlight != null) drawRect(highlight.copy(alpha = 0.35f))
@@ -322,6 +359,21 @@ private fun PanelLayer(
                 style = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
                 modifier = Modifier.align(Alignment.Center),
             )
+        }
+    }
+}
+
+/** 毎分 0 秒に進む時計。ホームが見えている間だけ進める（裏では描かないので）。 */
+@Composable
+private fun rememberMinuteClock(): State<LocalDateTime> {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    return produceState(LocalDateTime.now(), lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                value = LocalDateTime.now()
+                val next = value.withSecond(0).withNano(0).plusMinutes(1)
+                delay(java.time.Duration.between(LocalDateTime.now(), next).toMillis().coerceAtLeast(100))
+            }
         }
     }
 }
