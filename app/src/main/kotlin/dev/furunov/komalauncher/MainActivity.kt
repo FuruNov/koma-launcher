@@ -25,6 +25,8 @@ import dev.furunov.komalauncher.feature.widgets.WidgetPicker
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.settings.LauncherAction
 import dev.furunov.komalauncher.ui.icons.LocalIconLoader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private val container by lazy { (application as KomaApplication).container }
@@ -43,6 +45,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val state by home.state.collectAsStateWithLifecycle()
             val apps by container.appCatalog.apps.collectAsStateWithLifecycle()
+            val launches by container.launchStore.launches.collectAsStateWithLifecycle()
             val slots =
                 remember {
                     HomeSlots(
@@ -53,10 +56,13 @@ class MainActivity : ComponentActivity() {
                                         apps = apps,
                                         columns = state.settings.drawer.columns,
                                         hidden = state.settings.drawer.hidden,
+                                        launches = remember(launches) { launches.asMap() },
+                                        loadShortcuts = { withContext(Dispatchers.IO) { container.appCatalog.allShortcuts() } },
                                         actions =
                                         DrawerActions(
                                             onLaunch = { home.onEvent(HomeEvent.Launch(it)) },
                                             onDismiss = { home.onEvent(HomeEvent.Dismiss) },
+                                            onLaunchShortcut = { home.onEvent(HomeEvent.LaunchShortcut(it)) },
                                             onOpenSettings = {
                                                 home.onEvent(HomeEvent.Dismiss)
                                                 container.actions.perform(LauncherAction.OpenSettings)
