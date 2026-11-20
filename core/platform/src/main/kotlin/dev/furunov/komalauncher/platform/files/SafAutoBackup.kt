@@ -22,7 +22,7 @@ import java.security.MessageDigest
 import java.time.LocalDate
 
 /**
- * 利用者が ACTION_OPEN_DOCUMENT_TREE で選んだフォルダへ、[SafBackupService.encode] の文を書く。
+ * 利用者が ACTION_OPEN_DOCUMENT_TREE で選んだフォルダへ、[BackupContent.encode] の文を書く。
  * pCloud や Google ドライブのアプリが入っていれば、そのフォルダも選べる。アップロードはそれぞれのアプリが行う。
  *
  * 保存先の URI と最後に書いた内容のハッシュは noBackupFilesDir に置く。
@@ -30,7 +30,7 @@ import java.time.LocalDate
  */
 class SafAutoBackup(
     private val context: Context,
-    private val backup: SafBackupService,
+    private val backup: BackupContent,
 ) : AutoBackup {
     @Serializable
     private data class Saved(

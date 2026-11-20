@@ -28,8 +28,7 @@ class SettingsActivity : ComponentActivity() {
                         .map { it.id.value to (names[it.id.value]?.name ?: it.label ?: it.id.value) }
                 },
                 apps = c.appCatalog.apps,
-                importer = c.importer,
-                backup = c.backup,
+                restore = c.restore,
                 autoBackup = c.autoBackup,
                 openHomeSettings = { startActivity(Intent(Settings.ACTION_HOME_SETTINGS)) },
                 hasMusicAccess = c.media::checkAccess,

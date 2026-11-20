@@ -1,25 +1,17 @@
 package dev.furunov.komalauncher.platform.files
 
-import android.content.Context
-import android.net.Uri
 import dev.furunov.komalauncher.model.apps.LaunchStore
 import dev.furunov.komalauncher.model.apps.Launches
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.folders.Folders
-import dev.furunov.komalauncher.model.layout.LayoutParser
-import dev.furunov.komalauncher.model.layout.LayoutResult
-import dev.furunov.komalauncher.model.ports.BackupService
 import dev.furunov.komalauncher.model.settings.Settings
 import dev.furunov.komalauncher.model.settings.SettingsStore
 import dev.furunov.komalauncher.model.widgets.WidgetStore
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import java.io.File
 
 @Serializable
-private data class BackupFile(
+internal data class BackupFile(
     val version: Int = 1,
     val folders: Folders,
     val settings: Settings,
@@ -30,17 +22,26 @@ private data class BackupFile(
     val launches: Launches? = null,
 )
 
-class SafBackupService(
-    private val context: Context,
-    /** 読み込んだレイアウトを置く取り込み口。置けば FileLayoutStore が取り込む。 */
-    private val importDirectory: File,
+/**
+ * バックアップのファイル（koma-launcher-backup.json）の中身を作り、読み、戻す。
+ * 中身はフォルダの中身・設定・layout.json・ウィジェットの提供元・起動回数。画像は容量が大きいので含めない。
+ */
+class BackupContent(
     /** いまのレイアウトの layout.json の文（見本なら null）。 */
     private val currentLayout: () -> String?,
     private val folders: FolderStore,
     private val settings: SettingsStore,
     private val widgets: WidgetStore,
     private val launches: LaunchStore,
-) : BackupService {
+) {
+    /** 読んだバックアップ。[apply] で戻す。 */
+    class Parsed internal constructor(
+        internal val data: BackupFile,
+    ) {
+        val layout: String? get() = data.layout
+        val widgetCount: Int get() = data.widgets.size
+    }
+
     private val json =
         Json {
             ignoreUnknownKeys = true
@@ -64,35 +65,14 @@ class SafBackupService(
         return json.encodeToString(BackupFile.serializer(), data)
     }
 
-    override suspend fun export(uri: String): String? = withContext(Dispatchers.IO) {
-        context.contentResolver.openOutputStream(Uri.parse(uri), "wt")?.use {
-            it.write(encode().encodeToByteArray())
-        } ?: return@withContext "書き出し先を開けません"
-        null
-    }
+    /** 読めなければ例外を投げる。 */
+    fun parse(text: String): Parsed = Parsed(json.decodeFromString(BackupFile.serializer(), text))
 
-    override suspend fun import(uri: String): String? = withContext(Dispatchers.IO) {
-        val text =
-            context.contentResolver.openForRead(Uri.parse(uri))?.use { it.readBytes().decodeToString() }
-                ?: return@withContext "ファイルを読み込めません"
-        val data =
-            try {
-                json.decodeFromString(BackupFile.serializer(), text)
-            } catch (e: Exception) {
-                return@withContext "バックアップの形式が正しくありません: ${e.message?.lineSequence()?.firstOrNull()}"
-            }
-        data.layout?.let { l ->
-            if (LayoutParser.parse(l) is LayoutResult.Error) return@withContext "バックアップ内の layout.json が破損しています"
-            File(importDirectory, "layout.json").writeText(l)
-        }
+    /** フォルダの中身・設定・起動回数を戻す。コマ割りは呼び出し側が取り込み口に書く（画像と一緒に取り込むため）。 */
+    fun apply(parsed: Parsed) {
+        val data = parsed.data
         folders.update { data.folders }
         settings.update { data.settings }
         data.launches?.let { l -> launches.update { l } }
-        if (data.widgets.isEmpty()) {
-            null
-        } else {
-            // ウィジェットの配置し直しには許可の画面が要るので、ここでは行わず、どのコマに何があったかを知らせる
-            "ウィジェットはコマを長押しして再配置してください（${data.widgets.size} 個）"
-        }
     }
 }

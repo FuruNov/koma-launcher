@@ -45,8 +45,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import dev.furunov.komalauncher.model.apps.AppEntry
 import dev.furunov.komalauncher.model.ports.AutoBackup
 import dev.furunov.komalauncher.model.ports.AutoBackupState
-import dev.furunov.komalauncher.model.ports.BackupService
-import dev.furunov.komalauncher.model.ports.LayoutImporter
+import dev.furunov.komalauncher.model.ports.RestoreService
 import dev.furunov.komalauncher.model.settings.SettingsStore
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -60,8 +59,7 @@ class SettingsDeps(
     /** フォルダのコマ（id と名前）。ジェスチャーで開くフォルダの選択肢に使う。 */
     val folderPanels: () -> List<Pair<String, String>>,
     val apps: StateFlow<List<AppEntry>>,
-    val importer: LayoutImporter,
-    val backup: BackupService,
+    val restore: RestoreService,
     val autoBackup: AutoBackup,
     val openHomeSettings: () -> Unit,
     /** 音楽プレイヤーに要る「通知へのアクセス」が許可されているか。 */
@@ -82,8 +80,8 @@ fun SettingsScreen(deps: SettingsDeps) {
     val apps by deps.apps.collectAsStateWithLifecycle()
     val autoBackup by deps.autoBackup.state.collectAsStateWithLifecycle()
     var autoBackupMenu by remember { mutableStateOf(false) }
-    // 保存先に選んだフォルダ（tree の URI）と、そこにあった既存のバックアップ（ファイルの URI）。復元か上書きかを尋ねる
-    var existingBackup by remember { mutableStateOf<Pair<String, String>?>(null) }
+    // 既存のバックアップがあった保存先のフォルダ（tree の URI）。復元か上書きかを尋ねる
+    var existingBackup by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf<String?>(null) }
     var choosing by remember { mutableStateOf<SettingRow?>(null) }
@@ -121,17 +119,9 @@ fun SettingsScreen(deps: SettingsDeps) {
         }
     }
 
-    val pickArtFolder =
+    val pickRestoreFolder =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-            if (uri != null) scope.launch { message = deps.importer.importFolder(uri.toString()) }
-        }
-    val exportTo =
-        rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-            if (uri != null) scope.launch { message = deps.backup.export(uri.toString()) ?: "エクスポートしました" }
-        }
-    val importFrom =
-        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri != null) scope.launch { message = deps.backup.import(uri.toString()) ?: "復元しました" }
+            if (uri != null) scope.launch { message = deps.restore.restoreFolder(uri.toString()) }
         }
     val pickBackupFolder =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -139,7 +129,7 @@ fun SettingsScreen(deps: SettingsDeps) {
                 scope.launch {
                     val tree = uri.toString()
                     val existing = deps.autoBackup.existingBackup(tree)
-                    if (existing == null) message = deps.autoBackup.setFolder(tree) ?: "バックアップしました" else existingBackup = tree to existing
+                    if (existing == null) message = deps.autoBackup.setFolder(tree) ?: "バックアップしました" else existingBackup = tree
                 }
             }
         }
@@ -148,9 +138,7 @@ fun SettingsScreen(deps: SettingsDeps) {
         when (key) {
             ActionKey.EditLayout -> deps.openEditor()
             ActionKey.MusicAccess -> deps.openMusicAccess()
-            ActionKey.ImportArt -> pickArtFolder.launch(null)
-            ActionKey.ExportBackup -> exportTo.launch("koma-launcher-backup.json")
-            ActionKey.ImportBackup -> importFrom.launch(arrayOf("application/json", "*/*"))
+            ActionKey.RestoreFolder -> pickRestoreFolder.launch(null)
             ActionKey.AutoBackup -> if (autoBackup.folder == null) pickBackupFolder.launch(null) else autoBackupMenu = true
             ActionKey.HomeApp -> deps.openHomeSettings()
         }
@@ -160,7 +148,7 @@ fun SettingsScreen(deps: SettingsDeps) {
         LazyColumn(Modifier.fillMaxSize().safeDrawingPadding(), contentPadding = PaddingValues(bottom = 32.dp)) {
             item {
                 BasicText(
-                    "コマランチャーの設定",
+                    "Koma Launcher の設定",
                     style = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
                     modifier = Modifier.padding(20.dp),
                 )
@@ -260,15 +248,15 @@ fun SettingsScreen(deps: SettingsDeps) {
             ) { autoBackupMenu = false }
         }
 
-        existingBackup?.let { (tree, file) ->
+        existingBackup?.let { tree ->
             ChoiceDialog(
                 "このフォルダには既存のバックアップがあります",
                 listOf(
                     "このバックアップから復元" to {
                         scope.launch {
-                            val restored = deps.backup.import(file)
+                            val restored = deps.restore.restoreFolder(tree)
                             // 復元したコマ割りは少し後に反映されるので、すぐには書かず、次にホームを離れたときに書く
-                            message = deps.autoBackup.setFolder(tree, writeNow = false) ?: restored ?: "復元しました"
+                            message = deps.autoBackup.setFolder(tree, writeNow = false) ?: restored
                         }
                     },
                     "上書き" to { scope.launch { message = deps.autoBackup.setFolder(tree) ?: "バックアップしました。以前の内容は日付付きのファイルに保存しました" } },

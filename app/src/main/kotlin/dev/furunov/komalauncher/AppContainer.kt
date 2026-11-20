@@ -8,18 +8,17 @@ import dev.furunov.komalauncher.model.apps.LaunchStore
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.ports.ActionPerformer
 import dev.furunov.komalauncher.model.ports.AutoBackup
-import dev.furunov.komalauncher.model.ports.BackupService
-import dev.furunov.komalauncher.model.ports.LayoutImporter
 import dev.furunov.komalauncher.model.ports.LayoutSource
 import dev.furunov.komalauncher.model.ports.LayoutState
 import dev.furunov.komalauncher.model.ports.LayoutStore
+import dev.furunov.komalauncher.model.ports.RestoreService
 import dev.furunov.komalauncher.model.settings.SettingsStore
 import dev.furunov.komalauncher.model.widgets.WidgetStore
 import dev.furunov.komalauncher.platform.apps.LauncherAppsCatalog
 import dev.furunov.komalauncher.platform.apps.LauncherIconLoader
+import dev.furunov.komalauncher.platform.files.BackupContent
 import dev.furunov.komalauncher.platform.files.SafAutoBackup
-import dev.furunov.komalauncher.platform.files.SafBackupService
-import dev.furunov.komalauncher.platform.files.SafFolderImporter
+import dev.furunov.komalauncher.platform.files.SafFolderRestorer
 import dev.furunov.komalauncher.platform.layout.FileLayoutStore
 import dev.furunov.komalauncher.platform.media.MediaSessionWatcher
 import dev.furunov.komalauncher.platform.sensor.SensorTiltSource
@@ -70,10 +69,9 @@ class AppContainer(
 
     /** Activity が作り直されてもウィジェットのビューを持ち続けるよう、アプリの寿命で持つ。 */
     val widgets = WidgetHostController(context.applicationContext, widgetStore)
-    val importer: LayoutImporter = SafFolderImporter(context, fileLayout.importDirectory, fileLayout::currentText)
-    private val safBackup = SafBackupService(context, fileLayout.importDirectory, fileLayout::currentText, folderStore, settingsStore, widgetStore, launchStore)
-    val backup: BackupService = safBackup
-    val autoBackup: AutoBackup = SafAutoBackup(context, safBackup)
+    private val backupContent = BackupContent(fileLayout::currentText, folderStore, settingsStore, widgetStore, launchStore)
+    val restore: RestoreService = SafFolderRestorer(context, fileLayout.importDirectory, backupContent, fileLayout::currentText)
+    val autoBackup: AutoBackup = SafAutoBackup(context, backupContent)
 
     /** 読めずに既定値で始めた保存ファイルがあれば、その知らせ。ホームの上端に出す。 */
     val storeNotice: String? =

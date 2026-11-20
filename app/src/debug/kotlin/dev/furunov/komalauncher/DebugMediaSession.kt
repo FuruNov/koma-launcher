@@ -80,7 +80,7 @@ object DebugMediaSession {
         session?.setMetadata(
             MediaMetadata.Builder()
                 .putString(MediaMetadata.METADATA_KEY_TITLE, "テストの曲 ${track + 1}")
-                .putString(MediaMetadata.METADATA_KEY_ARTIST, "コマランチャー")
+                .putString(MediaMetadata.METADATA_KEY_ARTIST, "Koma Launcher")
                 .putBitmap(MediaMetadata.METADATA_KEY_ART, bitmap)
                 .build(),
         )

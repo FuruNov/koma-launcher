@@ -3,24 +3,15 @@ package dev.furunov.komalauncher.model.ports
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * 設定画面から使う、ファイルの取り込みと書き出し。uri は Storage Access Framework で利用者が選んだもの。
+ * 設定画面の「フォルダから復元」。tree の URI は Storage Access Framework で利用者が選んだもの。
  * 文字列で受け渡し、Android の Uri 型を設定画面のモジュールに出さない。
  */
-interface LayoutImporter {
+interface RestoreService {
     /**
-     * 利用者が選んだフォルダ（tree の URI）から、layout.json・画像・切り抜きを取り込む。
-     * layout.json があればコマ割りごと置き換え、無ければ今のコマ割りが参照する画像と切り抜きだけを補充する。
-     * 利用者に見せる文（結果か失敗の理由）を返す。
+     * フォルダにあるもの（koma-launcher-backup.json・layout.json・画像・切り抜き）をすべて取り込む。
+     * layout.json があれば、バックアップのコマ割りより優先する。利用者に見せる文（結果か失敗の理由）を返す。
      */
-    suspend fun importFolder(treeUri: String): String
-}
-
-interface BackupService {
-    /** フォルダの中身・設定・layout.json・ウィジェットの提供元・起動回数を 1 つのファイルに書き出す。 */
-    suspend fun export(uri: String): String?
-
-    /** 書き出したファイルを読み込む。利用者に見せる文（失敗の理由や、ウィジェットの置き直しの案内）を返す。 */
-    suspend fun import(uri: String): String?
+    suspend fun restoreFolder(treeUri: String): String
 }
 
 /**
