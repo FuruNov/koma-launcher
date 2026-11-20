@@ -5,8 +5,11 @@ import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.Panel
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.layout.PanelId
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 
 class FolderEditsTest {
@@ -123,4 +126,19 @@ class SampleFolderTest {
 
     @Test
     fun setDirectLaunchCreatesFolder() = assertEquals(true, FolderEdits.setDirectLaunch(Folders(), "new", true).byPanel.getValue("new").directLaunch)
+
+    @Test
+    fun musicPlayerIsOnlyOnePanel() {
+        val a = FolderEdits.setMusicPlayer(Folders(), "p1", true)
+        val b = FolderEdits.setMusicPlayer(a, "p2", true)
+        assertEquals("p2", b.musicPanel())
+        assertFalse(b.byPanel.getValue("p1").musicPlayer)
+        assertNull(FolderEdits.setMusicPlayer(b, "p2", false).musicPanel())
+    }
+
+    @Test
+    fun oldFoldersJsonHasNoMusicPlayer() {
+        val f = Json { ignoreUnknownKeys = true }.decodeFromString(Folders.serializer(), """{"byPanel":{"p1":{"apps":[]}}}""")
+        assertNull(f.musicPanel())
+    }
 }

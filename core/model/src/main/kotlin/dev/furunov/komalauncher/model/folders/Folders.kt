@@ -13,6 +13,8 @@ data class Folder(
     val name: String? = null,
     /** true なら、コマを押したときにフォルダを開かず、先頭のアプリを起動する。 */
     val directLaunch: Boolean = false,
+    /** true なら、音楽の再生中と一時停止中に、このコマをプレイヤーの表示にする。オンにできるのは 1 つのコマだけ。 */
+    val musicPlayer: Boolean = false,
 )
 
 /** フォルダの中身の全体。保存の単位でもある。キーは PanelId の文字列（JSON のキーにするため）。 */
@@ -26,6 +28,9 @@ data class Folders(
     val seeded: Set<String> = emptySet(),
 ) {
     fun appsOf(panelId: String): List<AppKey> = byPanel[panelId]?.apps.orEmpty()
+
+    /** 音楽プレイヤーにしたコマの id。どれもオフなら null。 */
+    fun musicPanel(): String? = byPanel.entries.firstOrNull { it.value.musicPlayer }?.key
 }
 
 interface FolderStore {
@@ -110,6 +115,17 @@ object FolderEdits {
     ): Folders {
         val folder = f.byPanel[panelId] ?: Folder()
         return f.copy(byPanel = f.byPanel + (panelId to folder.copy(directLaunch = on)))
+    }
+
+    /** 音楽プレイヤーのコマを切り替える。オンにしたら、ほかのコマはオフにする（プレイヤーは 1 つだけ）。 */
+    fun setMusicPlayer(
+        f: Folders,
+        panelId: String,
+        on: Boolean,
+    ): Folders {
+        val others = if (on) f.byPanel.mapValues { (_, v) -> if (v.musicPlayer) v.copy(musicPlayer = false) else v } else f.byPanel
+        val folder = others[panelId] ?: Folder()
+        return f.copy(byPanel = others + (panelId to folder.copy(musicPlayer = on)))
     }
 
     /**

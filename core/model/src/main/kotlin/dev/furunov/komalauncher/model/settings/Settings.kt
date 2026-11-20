@@ -94,6 +94,14 @@ data class AnimationSettings(
 )
 
 @Serializable
+data class MusicSettings(
+    /** 一時停止からこの分数が過ぎたら、プレイヤーの表示をやめて、いつものコマに戻す。 */
+    val pauseTimeoutMinutes: Int = 30,
+    /** true なら、ビジュアライザーを実際の音（Visualizer）に合わせて動かす。マイクの権限が要る。 */
+    val reactToAudio: Boolean = false,
+)
+
+@Serializable
 data class DrawerSettings(
     val columns: Int = 5,
     val hidden: Set<AppKey> = emptySet(),
@@ -106,6 +114,7 @@ data class Settings(
     val appearance: Appearance = Appearance(),
     val animation: AnimationSettings = AnimationSettings(),
     val drawer: DrawerSettings = DrawerSettings(),
+    val music: MusicSettings = MusicSettings(),
 ) {
     fun actionFor(g: GestureKind): LauncherAction = gestures[g] ?: DEFAULT_GESTURES[g] ?: LauncherAction.None
 

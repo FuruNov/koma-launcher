@@ -36,4 +36,10 @@ class SettingsTest {
         val s = json.decodeFromString(Settings.serializer(), """{"version":1}""")
         assertEquals(Settings(), s)
     }
+
+    @Test
+    fun oldFileWithoutMusicUsesDefaults() {
+        val s = json.decodeFromString(Settings.serializer(), """{"version":1,"drawer":{"columns":4}}""")
+        assertEquals(MusicSettings(pauseTimeoutMinutes = 30, reactToAudio = false), s.music)
+    }
 }
