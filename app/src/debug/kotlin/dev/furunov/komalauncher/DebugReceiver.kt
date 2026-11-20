@@ -18,5 +18,9 @@ class DebugReceiver : BroadcastReceiver() {
         if (intent.action == "dev.furunov.komalauncher.DEBUG_TILT") {
             (context.applicationContext as KomaApplication).container.tilt.simulate(Tilt(intent.getFloatExtra("x", 0f), intent.getFloatExtra("y", 0f)))
         }
+        // 音楽アプリにログインできない Waydroid で、再生中のコマを確かめる。例: am broadcast -a dev.furunov.komalauncher.DEBUG_MEDIA --es state play
+        if (intent.action == "dev.furunov.komalauncher.DEBUG_MEDIA") {
+            DebugMediaSession.handle(context, intent.getStringExtra("state"))
+        }
     }
 }
