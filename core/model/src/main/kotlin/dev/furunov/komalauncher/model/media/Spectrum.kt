@@ -16,9 +16,10 @@ import kotlin.math.sin
  * ホームが前面にあって再生中の間だけ [start] する。
  */
 interface AudioSpectrum {
-    /** 作れなければ false（権限が無い、端末が対応していないなど）。 */
+    /** 作れなければ false（権限が無い、端末が対応していないなど）。true を返した呼び出しごとに、[stop] を 1 回呼ぶ。 */
     fun start(): Boolean
 
+    /** [start] と対にして呼ぶ。複数の呼び出し元が使っている間は、最後の 1 つが呼んだときに解放する。 */
     fun stop()
 
     /** Visualizer.getFft の形式で [out] に書く。取得できなければ false。 */

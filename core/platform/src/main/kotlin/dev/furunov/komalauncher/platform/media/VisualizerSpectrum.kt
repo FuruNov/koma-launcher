@@ -10,8 +10,19 @@ import dev.furunov.komalauncher.model.media.AudioSpectrum
 class VisualizerSpectrum : AudioSpectrum {
     private var visualizer: Visualizer? = null
 
+    /**
+     * [start] に成功して、まだ [stop] していない呼び出し元の数。0 になったときだけ解放する。
+     * 一時停止から再生に戻ると、画面側の新しい処理が [start] した後で、止まりきっていなかった古い処理が [stop] を呼ぶ。
+     * 数えずに解放すると、新しい処理が解放済みの Visualizer を読み続け、棒が音に反応しなくなる。
+     * 画面のスレッドからだけ呼ぶ。
+     */
+    private var users = 0
+
     override fun start(): Boolean {
-        if (visualizer != null) return true
+        if (visualizer != null) {
+            users++
+            return true
+        }
         return try {
             // 画面側の計算は 1024 の FFT を前提にする。それより小さい端末では使わない
             if (Visualizer.getCaptureSizeRange()[1] < CAPTURE_SIZE) return false
@@ -19,6 +30,7 @@ class VisualizerSpectrum : AudioSpectrum {
             v.captureSize = CAPTURE_SIZE
             v.enabled = true
             visualizer = v
+            users = 1
             true
         } catch (e: Exception) {
             // 権限が無い（SecurityException）、端末が対応していない（RuntimeException）など
@@ -27,6 +39,8 @@ class VisualizerSpectrum : AudioSpectrum {
     }
 
     override fun stop() {
+        if (users > 0) users--
+        if (users > 0) return
         visualizer?.let {
             it.enabled = false
             it.release()

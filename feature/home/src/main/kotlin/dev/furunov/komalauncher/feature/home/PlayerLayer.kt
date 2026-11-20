@@ -173,8 +173,12 @@ internal fun PlayerLayer(
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             val target = FloatArray(bars.count)
             val fft = ByteArray(FFT_SIZE)
-            var real = playing && spectrum?.start() == true
+            var started = playing && spectrum?.start() == true
             var silentSince = -1L
+            var lastRestart = 0L
+            // 取得できない間（失敗・無音が 5 秒続く）は、それらしい動きを見せる。取得は止めず、音が届いたらすぐ実際の音に戻す。
+            // 曲の静かな出だしや、音の出力先が変わって Visualizer が使えなくなったときに、再生中ずっと戻らなくなるのを避ける
+            var simulate = !started
             try {
                 var last = withFrameNanosCompat()
                 while (true) {
@@ -184,20 +188,24 @@ internal fun PlayerLayer(
                     if (!playing) {
                         target.fill(0f)
                     } else {
-                        if (real && spectrum != null && spectrum.read(fft)) {
-                            // 再生中なのに 5 秒続けて無音なら、この端末やアプリでは取得できないとみなす
-                            if (Spectrum.isSilent(fft)) {
-                                if (silentSince < 0) silentSince = t
-                                if (t - silentSince > SILENCE_NANOS) {
-                                    spectrum.stop()
-                                    real = false
-                                }
-                            } else {
-                                silentSince = -1L
-                            }
+                        val ok = started && spectrum != null && spectrum.read(fft)
+                        if (ok && !Spectrum.isSilent(fft)) {
+                            silentSince = -1L
+                            simulate = false
                             Spectrum.bands(fft, bars.count, target)
+                        } else {
+                            if (silentSince < 0) silentSince = t
+                            if (!ok || t - silentSince > SILENCE_NANOS) simulate = true
+                            // 取得できないときは、作り直して試す（間隔を空ける）
+                            if (spectrum != null && simulate && t - lastRestart > RESTART_NANOS) {
+                                lastRestart = t
+                                // start に成功した分だけ stop する（ほかの処理が使っている分まで数を減らさないように）
+                                if (started) spectrum.stop()
+                                started = spectrum.start()
+                            }
+                            if (!simulate) Spectrum.bands(fft, bars.count, target)
                         }
-                        if (!real) Spectrum.simulated(bars.count, t / 1e9f, 1f, target)
+                        if (simulate) Spectrum.simulated(bars.count, t / 1e9f, 1f, target)
                     }
                     Spectrum.smooth(values, target, dt)
                     frame = t
@@ -205,7 +213,7 @@ internal fun PlayerLayer(
                     if (!playing && values.all { it < 0.001f }) break
                 }
             } finally {
-                if (real) spectrum?.stop()
+                if (started) spectrum?.stop()
             }
         }
     }
@@ -332,3 +340,4 @@ private suspend fun withFrameNanosCompat(): Long = androidx.compose.runtime.with
 // Visualizer の FFT の大きさ（取得できる最大の 1024 に合わせる。実装側で短ければ詰めて書く）
 private const val FFT_SIZE = 1024
 private const val SILENCE_NANOS = 5_000_000_000L
+private const val RESTART_NANOS = 3_000_000_000L
