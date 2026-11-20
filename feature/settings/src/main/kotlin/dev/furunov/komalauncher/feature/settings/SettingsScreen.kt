@@ -52,6 +52,7 @@ class SettingsDeps(
     val importer: LayoutImporter,
     val backup: BackupService,
     val openHomeSettings: () -> Unit,
+    val openEditor: () -> Unit,
     val onClose: () -> Unit,
 )
 
@@ -74,7 +75,7 @@ fun SettingsScreen(deps: SettingsDeps) {
     val pickImage =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             scope.launch {
-                message = deps.importer.import(uri?.toString(), pendingLayout) ?: "コマの絵を取り込みました"
+                message = deps.importer.import(uri?.toString(), pendingLayout) ?: "コマ画像をインポートしました"
                 pendingLayout = null
             }
         }
@@ -87,15 +88,16 @@ fun SettingsScreen(deps: SettingsDeps) {
         }
     val exportTo =
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-            if (uri != null) scope.launch { message = deps.backup.export(uri.toString()) ?: "書き出しました" }
+            if (uri != null) scope.launch { message = deps.backup.export(uri.toString()) ?: "エクスポートしました" }
         }
     val importFrom =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri != null) scope.launch { message = deps.backup.import(uri.toString()) ?: "読み込みました" }
+            if (uri != null) scope.launch { message = deps.backup.import(uri.toString()) ?: "復元しました" }
         }
 
     fun onAction(key: ActionKey) {
         when (key) {
+            ActionKey.EditLayout -> deps.openEditor()
             ActionKey.ImportArt -> pickLayout.launch(arrayOf("application/json", "text/plain", "*/*"))
             ActionKey.ExportBackup -> exportTo.launch("koma-launcher-backup.json")
             ActionKey.ImportBackup -> importFrom.launch(arrayOf("application/json", "*/*"))

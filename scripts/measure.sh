@@ -68,7 +68,7 @@ trap '[ -n "$prev_home" ] && adb shell cmd package set-home-activity "$prev_home
     sleep 1.5
     tap_at "$(center_of 'content-desc="コマ割りの図"' 0.5 0.2)"
     sleep 0.5
-    tap_at "$(center_of 'text="横に割る"')"
+    tap_at "$(center_of 'text="横に分割"')"
     sleep 0.5
     tap_at "$(center_of 'text="元に戻す"')"
     sleep 0.5

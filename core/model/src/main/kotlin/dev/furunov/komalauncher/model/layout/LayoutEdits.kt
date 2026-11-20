@@ -174,7 +174,7 @@ object LayoutEdits {
                             0.1477f,
                             0.6503f,
                             LayoutNode.Split(0.9004f, 0.3905f, leaf("ウィジェット", PanelContent.Widget), leaf("連絡")),
-                            LayoutNode.Split(0.8774f, 0.3196f, leaf("道具"), leaf("その他", PanelContent.Drawer)),
+                            LayoutNode.Split(0.8774f, 0.3196f, leaf("ツール"), leaf("その他", PanelContent.Drawer)),
                         ),
                     )
             }

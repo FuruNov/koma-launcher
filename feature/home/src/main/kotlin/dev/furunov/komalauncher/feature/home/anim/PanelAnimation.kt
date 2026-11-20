@@ -86,7 +86,7 @@ private fun outward(c: MotionContext): Pair<Float, Float> {
 /** 外側から少し縮んだ状態で滑り込み、少し行き過ぎて戻る。 */
 object SlideOvershoot : PanelAnimation {
     override val id = "slide-overshoot"
-    override val label = "にゅっと滑り込む"
+    override val label = "スライドイン"
 
     override suspend fun enter(m: PanelMotion, c: MotionContext) {
         val (ox, oy) = outward(c)
@@ -112,7 +112,7 @@ object SlideOvershoot : PanelAnimation {
 /** その場でふくらんで現れる。動きを控えめにしたいとき用。 */
 object PopIn : PanelAnimation {
     override val id = "pop-in"
-    override val label = "ぽんと現れる"
+    override val label = "ポップ"
 
     override suspend fun enter(m: PanelMotion, c: MotionContext) {
         m.scale.snapTo(0.4f)
@@ -132,7 +132,7 @@ object PopIn : PanelAnimation {
 /** ページをめくるように、上から順に落ちてくる。 */
 object Drop : PanelAnimation {
     override val id = "drop"
-    override val label = "上から落ちてくる"
+    override val label = "ドロップ"
     private val easeOutBack = CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f)
 
     override suspend fun enter(m: PanelMotion, c: MotionContext) {
@@ -150,7 +150,7 @@ object Drop : PanelAnimation {
 /** タップ: 押すと沈み、離すと弾んで戻る。 */
 object Squash : PanelAnimation {
     override val id = "squash"
-    override val label = "沈んで弾む"
+    override val label = "バウンス"
 
     override suspend fun enter(m: PanelMotion, c: MotionContext) = SlideOvershoot.enter(m, c)
 
@@ -169,7 +169,7 @@ object Squash : PanelAnimation {
 /** タップ: 押すとわずかに傾いて持ち上がる。 */
 object Lift : PanelAnimation {
     override val id = "lift"
-    override val label = "持ち上がる"
+    override val label = "リフト"
 
     override suspend fun enter(m: PanelMotion, c: MotionContext) = SlideOvershoot.enter(m, c)
 

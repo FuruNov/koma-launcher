@@ -64,7 +64,7 @@ sealed interface DropTarget {
         val index: Int? = null,
     ) : DropTarget
 
-    /** 「フォルダから外す」の場所。 */
+    /** 「フォルダから削除」の場所。 */
     data object Remove : DropTarget
 
     data object Nowhere : DropTarget
@@ -313,7 +313,7 @@ class HomeViewModel(
     }
 
     /**
-     * 「押したら直接起動」のフォルダなら、起動するアプリ（入っているアプリのうち先頭）。
+     * 「直接起動」のフォルダなら、起動するアプリ（入っているアプリのうち先頭）。
      * 切り替えがオフか、起動できるアプリが 1 つも無ければ null（フォルダを開く）。
      */
     private fun directLaunchTarget(panelId: PanelId): AppKey? {

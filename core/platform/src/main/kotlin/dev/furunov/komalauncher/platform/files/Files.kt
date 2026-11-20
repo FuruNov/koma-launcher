@@ -49,10 +49,10 @@ class SafLayoutImporter(
             // 1 枚の絵を選ぶ取り込みは version 1 のためのもの。version 2 のコマごとの画像は、編集画面（段階 2）か adb で art/ に置く
             val name =
                 (layout?.shape as? LayoutShape.Fixed)?.image
-                    ?: return@withContext "画像の名前を決める version 1 の layout.json がありません。コマごとの画像は adb で art/ に置いてください"
+                    ?: return@withContext "画像の名前を決める version 1 の layout.json がありません。コマごとの画像は adb で art/ に配置してください"
             resolver.openInputStream(Uri.parse(imageUri))?.use { input ->
                 File(importDirectory, name).outputStream().use { input.copyTo(it) }
-            } ?: return@withContext "画像を読めません"
+            } ?: return@withContext "画像を読み込めません"
         }
         // layout.json は最後に書く。書き終えたときに取り込みが始まり、そのとき画像が揃っているように
         val text = layoutText ?: layout?.let(LayoutParser::encode)
@@ -106,15 +106,15 @@ class SafBackupService(
     override suspend fun import(uri: String): String? = withContext(Dispatchers.IO) {
         val text =
             context.contentResolver.openInputStream(Uri.parse(uri))?.use { it.readBytes().decodeToString() }
-                ?: return@withContext "ファイルを読めません"
+                ?: return@withContext "ファイルを読み込めません"
         val data =
             try {
                 json.decodeFromString(BackupFile.serializer(), text)
             } catch (e: Exception) {
-                return@withContext "バックアップの形式が違います: ${e.message?.lineSequence()?.firstOrNull()}"
+                return@withContext "バックアップの形式が正しくありません: ${e.message?.lineSequence()?.firstOrNull()}"
             }
         data.layout?.let { l ->
-            if (LayoutParser.parse(l) is LayoutResult.Error) return@withContext "バックアップの中の layout.json が壊れています"
+            if (LayoutParser.parse(l) is LayoutResult.Error) return@withContext "バックアップ内の layout.json が破損しています"
             File(importDirectory, "layout.json").writeText(l)
         }
         folders.update { data.folders }
@@ -123,7 +123,7 @@ class SafBackupService(
             null
         } else {
             // ウィジェットの配置し直しには許可の画面が要るので、ここでは行わず、どのコマに何があったかを知らせる
-            "ウィジェットはコマを長押しして置き直してください（${data.widgets.size} 個）"
+            "ウィジェットはコマを長押しして再配置してください（${data.widgets.size} 個）"
         }
     }
 }

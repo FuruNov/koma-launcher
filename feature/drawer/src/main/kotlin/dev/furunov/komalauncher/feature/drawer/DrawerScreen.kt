@@ -85,7 +85,7 @@ private const val MAX_SHORTCUTS = 8
  * 一番上で下へ引くと閉じる。
  *
  * [launches] は起動回数（「よく使う」と検索の並べ替え）。[loadShortcuts] は検索のためのショートカットで、
- * 開いたときに 1 回だけ呼ぶ（IO のスレッドで呼ぶのは呼び出し側）。
+ * 開いたときと、アプリ一覧の読み込みが済んだときに呼ぶ（読み込み前に開くと、インストール済みのアプリが分からず空になるため）。IO のスレッドで呼ぶのは呼び出し側。
  */
 @Composable
 fun DrawerScreen(
@@ -103,7 +103,7 @@ fun DrawerScreen(
     val visible = remember(apps, hidden) { apps.filter { it.key !in hidden } }
     val frequent = remember(visible, launches, columns) { DrawerList.frequent(visible, hidden, launches, columns) }
     val ranked = remember(visible, launches, q) { if (q.isEmpty()) emptyList() else AppSearch.rank(q, visible, launches) }
-    val shortcuts by produceState(emptyList<AppShortcut>()) { value = loadShortcuts() }
+    val shortcuts by produceState(emptyList<AppShortcut>(), apps.isEmpty()) { value = loadShortcuts() }
     val visiblePackages = remember(visible) { visible.mapTo(HashSet()) { it.key.packageName } }
     val rankedShortcuts =
         remember(shortcuts, visiblePackages, q) {

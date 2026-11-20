@@ -117,7 +117,7 @@ has Contacts
 [ $? -ne 0 ]
 check "戻るボタンでフォルダが閉じる" $?
 
-# ウィジェットのコマと道具のコマの間の余白
+# ウィジェットのコマとツールのコマの間の余白
 adb shell input tap 300 1454
 sleep 1
 has Contacts
@@ -186,7 +186,7 @@ dragto() { # x1 y1 x2 y2
   adb shell "input motionevent DOWN $1 $2; sleep 0.9; input motionevent MOVE $(( ($1 * 3 + $3) / 4 )) $(( ($2 * 3 + $4) / 4 )); sleep 0.1; input motionevent MOVE $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 )); sleep 0.1; input motionevent MOVE $3 $4; sleep 0.4; input motionevent UP $3 $4"
   sleep 1.2
 }
-labels_in_folder() { texts | grep -vxE '連絡|よく使う|道具|メディア|その他|フォルダを変更しました|元に戻す' | tr '\n' ' '; }
+labels_in_folder() { texts | grep -vxE '連絡|よく使う|道具|ツール|メディア|その他|フォルダを変更しました|元に戻す' | tr '\n' ' '; }
 
 # 連絡のフォルダの中で、Contacts を Messages の位置へ（並べ替え）
 adb shell input tap 850 1200
@@ -201,7 +201,7 @@ echo "     並べ替え後: $order"
 check "フォルダの中で並べ替えられる" $?
 home
 
-# 全アプリ一覧の Music を道具のコマへ
+# 全アプリ一覧の Music をツールのコマへ
 adb shell input swipe 540 1500 540 700 200
 sleep 1.5
 # 「よく使う」の行の有無でアイコンの位置が変わるので、名前から位置を求める
@@ -212,7 +212,7 @@ sleep 1
 waitfor 'has Music'
 check "一覧からコマへ運ぶとフォルダに加わる" $?
 
-# 道具のフォルダの Music をよく使うのコマへ（コマ間の移動）
+# ツールのフォルダの Music をよく使うのコマへ（コマ間の移動）
 read -r mx my <<<"$(center_of Music 40)"
 dragto "$mx" "$my" 540 500
 adb shell input tap 540 500
@@ -257,7 +257,7 @@ home
 # 連絡のコマを長押しして切り替え、押すとフォルダを開かずに先頭のアプリが起動する
 adb shell input swipe 850 1200 850 1200 1000
 sleep 1
-tap_text '押したら直接起動: オフ'
+tap_text '直接起動: オフ'
 sleep 1
 adb shell input tap 850 1200
 sleep 2
@@ -275,7 +275,7 @@ check "直接起動のコマもメニューからフォルダを開ける" $?
 home
 adb shell input swipe 850 1200 850 1200 1000
 sleep 1
-tap_text '押したら直接起動: オン'
+tap_text '直接起動: オン'
 sleep 1
 home
 
@@ -301,7 +301,7 @@ check "ホームのメニューから編集画面が開く" $?
 # 元に戻す履歴は編集画面を開いている間だけ持つので、割って戻すまでを 1 回の中で行う
 tap_preview 0.5 0.2
 sleep 1
-tap_text 横に割る
+tap_text 横に分割
 sleep 1
 tap_text 元に戻す
 sleep 1
@@ -312,7 +312,7 @@ check "元に戻すで割る前に戻る" $?
 open_editor
 tap_preview 0.5 0.2
 sleep 1
-tap_text 横に割る
+tap_text 横に分割
 sleep 1
 tap_text 閉じる
 sleep 1.5

@@ -17,7 +17,7 @@
       },
       "b": {
         "cut": { "ta": 0.8774, "tb": 0.3196 },
-        "a": { "panel": { "id": "sample-4", "kind": "folder", "label": "道具",
+        "a": { "panel": { "id": "sample-4", "kind": "folder", "label": "ツール",
                           "apps": ["com.android.calculator2", "com.android.deskclock", "com.android.calendar", "com.google.android.calculator",
                                    "com.google.android.deskclock", "com.android.gallery3d", "com.android.music", "com.google.android.youtube"] } },
         "b": { "panel": { "id": "sample-5", "kind": "drawer", "label": "その他" } }

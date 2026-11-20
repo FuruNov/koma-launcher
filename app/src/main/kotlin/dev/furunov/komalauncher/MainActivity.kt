@@ -101,9 +101,9 @@ class MainActivity : ComponentActivity() {
                                 emptyList()
                             } else {
                                 buildList {
-                                    add(PanelMenuItem("ウィジェットを選ぶ") { container.widgets.pickerFor.value = id })
+                                    add(PanelMenuItem("ウィジェットを選択") { container.widgets.pickerFor.value = id })
                                     if (container.widgetStore.assignments.value.byPanel.containsKey(id)) {
-                                        add(PanelMenuItem("ウィジェットを外す") { container.widgets.remove(id) })
+                                        add(PanelMenuItem("ウィジェットを削除") { container.widgets.remove(id) })
                                     }
                                 }
                             }

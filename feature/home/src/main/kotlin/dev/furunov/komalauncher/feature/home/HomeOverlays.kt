@@ -57,7 +57,7 @@ internal fun RemoveZone(
             .height(REMOVE_ZONE_HEIGHT),
         contentAlignment = Alignment.Center,
     ) {
-        BasicText("フォルダから外す", style = TextStyle(color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold))
+        BasicText("フォルダから削除", style = TextStyle(color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold))
     }
 }
 
@@ -125,7 +125,7 @@ internal fun AppMenuSheet(
             if (menu.shortcuts.isNotEmpty()) Divider()
             MenuRow("アプリ情報") { onEvent(HomeEvent.AppInfo(menu.app)) }
             menu.fromPanel?.let { panel ->
-                MenuRow("フォルダから外す") { onEvent(HomeEvent.Drop(menu.app, panel, DropTarget.Remove)) }
+                MenuRow("フォルダから削除") { onEvent(HomeEvent.Drop(menu.app, panel, DropTarget.Remove)) }
             }
             MenuRow("アンインストール", color = Color(0xFFEF9A9A)) { onEvent(HomeEvent.Uninstall(menu.app)) }
         }
@@ -173,7 +173,7 @@ internal fun PanelMenuSheet(
             val id = panel.panel.id
             // 直接起動にしたフォルダは押しても開かないので、中身を並べ替える入口をここに置く
             if (directLaunch) MenuRow("フォルダを開く") { onEvent(HomeEvent.OpenOverlay(Overlay.Folder(id))) }
-            MenuRow(if (directLaunch) "押したら直接起動: オン" else "押したら直接起動: オフ") {
+            MenuRow(if (directLaunch) "直接起動: オン" else "直接起動: オフ") {
                 onEvent(HomeEvent.EditFolders { FolderEdits.setDirectLaunch(it, id.value, !directLaunch) })
                 onEvent(HomeEvent.Dismiss)
             }
@@ -201,7 +201,7 @@ internal fun RenameSheet(
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     Sheet(onDismiss = { onEvent(HomeEvent.Dismiss) }, modifier = Modifier.imePadding()) {
-        BasicText("フォルダの名前", style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(16.dp))
+        BasicText("フォルダ名", style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(16.dp))
         BasicTextField(
             value = text,
             onValueChange = { text = it },
@@ -218,7 +218,7 @@ internal fun RenameSheet(
         )
         Row(Modifier.fillMaxWidth().padding(8.dp)) {
             Spacer(Modifier.weight(1f))
-            MenuRow("取り消す", modifier = Modifier.width(110.dp)) { onEvent(HomeEvent.Dismiss) }
+            MenuRow("キャンセル", modifier = Modifier.width(110.dp)) { onEvent(HomeEvent.Dismiss) }
             MenuRow("保存", color = Color(0xFFFFD54F), modifier = Modifier.width(80.dp)) { onEvent(HomeEvent.Rename(panelId, text)) }
         }
     }

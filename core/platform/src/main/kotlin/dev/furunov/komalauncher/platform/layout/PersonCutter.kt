@@ -30,7 +30,7 @@ class PersonCutter(
                     decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
                 }
             } catch (e: Exception) {
-                return "画像を読めません: ${e.message}"
+                return "画像を読み込めません: ${e.message}"
             }
         // Google Play 開発者サービスが無い端末では、作る時点で例外になることがある
         val segmenter =
@@ -38,7 +38,7 @@ class PersonCutter(
                 SubjectSegmentation.getClient(SubjectSegmenterOptions.Builder().enableForegroundConfidenceMask().build())
             } catch (e: Exception) {
                 bitmap.recycle()
-                return "端末の中で切り抜けません（${e.message ?: e::class.simpleName}）。PC で作った切り抜きを取り込んでください"
+                return "この端末では切り抜きを実行できません（${e.message ?: e::class.simpleName}）。PC で作成した切り抜き画像をインポートしてください"
             }
         try {
             val result =
@@ -47,8 +47,8 @@ class PersonCutter(
                         .process(InputImage.fromBitmap(bitmap, 0))
                         .addOnSuccessListener { cont.resume(Result.success(it)) }
                         .addOnFailureListener { cont.resume(Result.failure(it)) }
-                }.getOrElse { return "切り抜けませんでした（${it.message ?: it::class.simpleName}）。Google Play 開発者サービスがモデルを取得し終えていない場合は、少し待ってからやり直してください" }
-            val buffer = result.foregroundConfidenceMask ?: return "切り抜きの結果がありません"
+                }.getOrElse { return "切り抜きに失敗しました（${it.message ?: it::class.simpleName}）。Google Play 開発者サービスがモデルをダウンロード中の可能性があります。しばらくしてから再試行してください" }
+            val buffer = result.foregroundConfidenceMask ?: return "切り抜きの結果を取得できませんでした"
             val w = bitmap.width
             val h = bitmap.height
             val person = FloatArray(w * h)

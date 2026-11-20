@@ -47,7 +47,7 @@ fun WidgetPanel(
     val ref = assignments.byPanel[panelId]
     if (ref == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            BasicText("長押しでウィジェットを置く", style = TextStyle(color = Color(0x99FFFFFF), fontSize = 13.sp))
+            BasicText("長押しでウィジェットを配置", style = TextStyle(color = Color(0x99FFFFFF), fontSize = 13.sp))
         }
         return
     }
@@ -79,7 +79,7 @@ fun WidgetPicker(
     Box(Modifier.fillMaxSize().background(Color(0xF2121216))) {
         Column(Modifier.fillMaxSize().safeDrawingPadding()) {
             BasicText(
-                "ウィジェットを選ぶ",
+                "ウィジェットを選択",
                 style = TextStyle(color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold),
                 modifier = Modifier.padding(20.dp),
             )

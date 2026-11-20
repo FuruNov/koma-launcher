@@ -72,7 +72,7 @@ class AppContainer(
         // レイアウトを読めなかったときは、FileLayoutStore が LayoutState の error で知らせる
         listOfNotNull(fileFolders.brokenFile, fileSettings.brokenFile, fileWidgets.brokenFile, fileLaunches.brokenFile)
             .takeIf { it.isNotEmpty() }
-            ?.let { files -> "保存ファイルを読めなかったので、初期の状態で始めました。元のファイルは ${files.joinToString { it.name }} に残してあります" }
+            ?.let { files -> "保存ファイルを読み込めなかったため、初期状態で起動しました。元のファイルは ${files.joinToString { it.name }} に保存されています" }
 
     init {
         // 利用者の layout.json を正しく読めたときだけ、消えたコマのウィジェットを外す（見本に戻ったときは何もしない）

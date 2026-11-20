@@ -116,41 +116,41 @@ fun EditorScreen(
             state.message?.let {
                 BasicText(it, style = TextStyle(color = Color(0xFFFFD54F), fontSize = 13.sp), modifier = Modifier.padding(vertical = 4.dp).clickable(onClick = vm::dismissMessage))
             }
-            ChipRow("型") {
+            ChipRow("テンプレート") {
                 LayoutEdits.Template.entries.forEach { t -> Chip(t.label) { vm.applyTemplate(t) } }
             }
             if (state.editable) {
                 if (selectedPanel == null) {
-                    Hint("コマを押して選ぶと、割る・線を消す・画像を選ぶができます")
+                    Hint("コマをタップして選択すると、分割・結合・画像の設定ができます")
                 } else {
                     ChipRow("コマ") {
-                        Chip("横に割る") { vm.split(SplitDirection.HORIZONTAL) }
-                        Chip("縦に割る") { vm.split(SplitDirection.VERTICAL) }
-                        Chip("線を消す", enabled = vm.selectedCutPath() != null, onClick = vm::merge)
+                        Chip("横に分割") { vm.split(SplitDirection.HORIZONTAL) }
+                        Chip("縦に分割") { vm.split(SplitDirection.VERTICAL) }
+                        Chip("結合", enabled = vm.selectedCutPath() != null, onClick = vm::merge)
                         Chip("種類: ${kindLabel(selectedPanel.content)}", onClick = vm::cycleKind)
                     }
                     ChipRow("画像") {
-                        Chip(if (state.busy) "取り込み中…" else "画像を選ぶ", enabled = !state.busy) {
+                        Chip(if (state.busy) "読み込み中…" else "画像を選択", enabled = !state.busy) {
                             picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                         }
-                        Chip("画像を外す", enabled = selectedPanel.art != null, onClick = vm::removeImage)
-                        Chip("人物を切り抜く", enabled = selectedPanel.art != null && !state.busy, onClick = vm::cutOutPerson)
+                        Chip("画像を削除", enabled = selectedPanel.art != null, onClick = vm::removeImage)
+                        Chip("人物の切り抜き", enabled = selectedPanel.art != null && !state.busy, onClick = vm::cutOutPerson)
                     }
                     selectedPanel.art?.let { art ->
-                        Hint("画像はドラッグで動かし、2 本の指で広げると大きくなります。絵の端は見えない範囲で止まります")
+                        Hint("ドラッグで移動、ピンチで拡大・縮小")
                         // 透過させたウィジェットや名前を、明るい絵の上でも読めるようにする
                         SliderRow("暗さ", art.dim * 100f, 0f..100f) { v -> vm.setDim(v / 100f) }
                     }
                 }
                 if (frame != null) {
-                    SliderRow("コマの間", frame.gutter, 0f..60f) { v -> vm.setFrame(record = false) { it.copy(gutter = v) } }
-                    ChipRow("間の色") {
+                    SliderRow("間隔", frame.gutter, 0f..60f) { v -> vm.setFrame(record = false) { it.copy(gutter = v) } }
+                    ChipRow("間隔の色") {
                         Chip("黒", selected = frame.gutterColor == BLACK) { vm.setFrame { it.copy(gutterColor = BLACK) } }
                         Chip("白", selected = frame.gutterColor == WHITE) { vm.setFrame { it.copy(gutterColor = WHITE) } }
-                        Chip("設定の色", selected = frame.gutterColor == null) { vm.setFrame { it.copy(gutterColor = null) } }
+                        Chip("設定に従う", selected = frame.gutterColor == null) { vm.setFrame { it.copy(gutterColor = null) } }
                     }
                     ChipRow("枠") {
-                        listOf(BorderStyle.NONE to "なし", BorderStyle.SINGLE to "1 本線", BorderStyle.DOUBLE to "二重").forEach { (s, label) ->
+                        listOf(BorderStyle.NONE to "なし", BorderStyle.SINGLE to "一重", BorderStyle.DOUBLE to "二重").forEach { (s, label) ->
                             Chip(label, selected = frame.border.style == s) { vm.setFrame { it.copy(border = it.border.copy(style = s)) } }
                         }
                         Chip("裁ち落とし", selected = frame.bleed) { vm.setFrame { it.copy(bleed = !it.bleed) } }
@@ -160,15 +160,15 @@ fun EditorScreen(
                     if (tree != null) TextAndClockControls(vm, tree, state.selected)
                     val look = (state.layout.shape as? LayoutShape.Tree)?.look
                     if (look != null) {
-                        ChipRow("色合い") {
-                            Chip("変換しない", selected = look.tone == Tone.NONE) { vm.setLook { it.copy(tone = Tone.NONE) } }
-                            Chip("淡い色合い", selected = look.tone == Tone.SOFT) { vm.setLook { it.copy(tone = Tone.SOFT) } }
+                        ChipRow("色調") {
+                            Chip("なし", selected = look.tone == Tone.NONE) { vm.setLook { it.copy(tone = Tone.NONE) } }
+                            Chip("パステル", selected = look.tone == Tone.SOFT) { vm.setLook { it.copy(tone = Tone.SOFT) } }
                         }
                         if (look.tone != Tone.NONE) {
-                            SliderRow("かかり具合", look.strength * 100f, 0f..100f) { v -> vm.setLook(record = false) { it.copy(strength = v / 100f) } }
+                            SliderRow("強さ", look.strength * 100f, 0f..100f) { v -> vm.setLook(record = false) { it.copy(strength = v / 100f) } }
                         }
                         SliderRow("内側の影", look.inner * 100f, 0f..100f) { v -> vm.setLook(record = false) { it.copy(inner = v / 100f) } }
-                        SliderRow("光の反射", look.sheen * 100f, 0f..100f) { v -> vm.setLook(record = false) { it.copy(sheen = v / 100f) } }
+                        SliderRow("光沢", look.sheen * 100f, 0f..100f) { v -> vm.setLook(record = false) { it.copy(sheen = v / 100f) } }
                     }
                 }
             }
@@ -178,6 +178,9 @@ fun EditorScreen(
 
 private const val BLACK = 0xFF111111
 private const val WHITE = 0xFFFFFFFF
+
+/** 行の見出しの幅。「テンプレート」「見出しの位置」が 1 行に収まる幅。 */
+private val LABEL_WIDTH = 84.dp
 
 internal fun kindLabel(c: PanelContent): String = when (c) {
     is PanelContent.Folder -> "フォルダ"
@@ -363,7 +366,7 @@ private fun ChipRow(
     content: @Composable () -> Unit,
 ) {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        BasicText(title, style = TextStyle(color = Color(0xFF9E9EA8), fontSize = 13.sp), modifier = Modifier.width(64.dp))
+        BasicText(title, style = TextStyle(color = Color(0xFF9E9EA8), fontSize = 13.sp), modifier = Modifier.width(LABEL_WIDTH))
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { content() }
     }
 }
@@ -416,7 +419,7 @@ private fun SliderRow(
     val currentChange by rememberUpdatedState(onChange)
     val currentStart by rememberUpdatedState(onStart)
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        BasicText(title, style = TextStyle(color = Color(0xFF9E9EA8), fontSize = 13.sp), modifier = Modifier.width(64.dp))
+        BasicText(title, style = TextStyle(color = Color(0xFF9E9EA8), fontSize = 13.sp), modifier = Modifier.width(LABEL_WIDTH))
         BoxWithConstraints(
             Modifier
                 .weight(1f)
@@ -459,14 +462,14 @@ private fun TextAndClockControls(
     val text = tree.text
     val clock = tree.clock
     ChipRow("名前") {
-        listOf(LabelMode.VERTICAL to "縦書き", LabelMode.HORIZONTAL to "横書き", LabelMode.NONE to "出さない").forEach { (m, label) ->
+        listOf(LabelMode.VERTICAL to "縦書き", LabelMode.HORIZONTAL to "横書き", LabelMode.NONE to "非表示").forEach { (m, label) ->
             Chip(label, selected = text.label == m) { vm.setTree { it.copy(text = it.text.copy(label = m)) } }
         }
         Chip("英語", selected = text.english) { vm.setTree { it.copy(text = it.text.copy(english = true)) } }
         Chip("日本語", selected = !text.english) { vm.setTree { it.copy(text = it.text.copy(english = false)) } }
     }
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        BasicText("大見出し", style = TextStyle(color = Color(0xFF9E9EA8), fontSize = 13.sp), modifier = Modifier.width(64.dp))
+        BasicText("大見出し", style = TextStyle(color = Color(0xFF9E9EA8), fontSize = 13.sp), modifier = Modifier.width(LABEL_WIDTH))
         // 1 文字ごとに履歴を積むと「元に戻す」が細かすぎるので、入力の間は記録しない
         BasicTextField(
             value = text.masthead,
@@ -476,7 +479,7 @@ private fun TextAndClockControls(
             cursorBrush = SolidColor(Color.White),
             decorationBox = { inner ->
                 Box(Modifier.fillMaxWidth().background(Color(0xFF2A2A32), RoundedCornerShape(8.dp)).padding(10.dp)) {
-                    if (text.masthead.isEmpty()) BasicText("（空なら出さない）", style = TextStyle(color = Color(0xFF6A6A74), fontSize = 15.sp))
+                    if (text.masthead.isEmpty()) BasicText("（空欄で非表示）", style = TextStyle(color = Color(0xFF6A6A74), fontSize = 15.sp))
                     inner()
                 }
             },
@@ -484,23 +487,23 @@ private fun TextAndClockControls(
         )
     }
     if (text.masthead.isNotBlank()) {
-        SliderRow("見出しの高さ", text.mastheadY * 100f, 0f..100f) { v -> vm.setTree(record = false) { it.copy(text = it.text.copy(mastheadY = v / 100f)) } }
-        if (selected != null) ChipRow("") { Chip("選んだコマに見出しを置く") { vm.setTree { it.copy(text = it.text.copy(mastheadPanel = selected)) } } }
+        SliderRow("見出しの位置", text.mastheadY * 100f, 0f..100f) { v -> vm.setTree(record = false) { it.copy(text = it.text.copy(mastheadY = v / 100f)) } }
+        if (selected != null) ChipRow("") { Chip("見出しを選択中のコマへ移動") { vm.setTree { it.copy(text = it.text.copy(mastheadPanel = selected)) } } }
     }
     ChipRow("時計") {
-        Chip("出さない", selected = !clock.enabled) { vm.setTree { it.copy(clock = it.clock.copy(enabled = false)) } }
-        Chip("人物の後ろ", selected = clock.enabled) { vm.setTree { it.copy(clock = it.clock.copy(enabled = true)) } }
-        if (selected != null) Chip("選んだコマに置く") { vm.setTree { it.copy(clock = it.clock.copy(enabled = true, panel = selected)) } }
+        Chip("非表示", selected = !clock.enabled) { vm.setTree { it.copy(clock = it.clock.copy(enabled = false)) } }
+        Chip("表示", selected = clock.enabled) { vm.setTree { it.copy(clock = it.clock.copy(enabled = true)) } }
+        if (selected != null) Chip("選択中のコマへ移動") { vm.setTree { it.copy(clock = it.clock.copy(enabled = true, panel = selected)) } }
     }
     if (clock.enabled) {
-        SliderRow("大きさ", clock.size * 100f, 50f..160f) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(size = v / 100f)) } }
-        SliderRow("横の位置", clock.x * 100f, 0f..100f) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(x = v / 100f)) } }
-        SliderRow("縦の位置", clock.y * 100f, 0f..100f) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(y = v / 100f)) } }
+        SliderRow("サイズ", clock.size * 100f, 50f..160f) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(size = v / 100f)) } }
+        SliderRow("横位置", clock.x * 100f, 0f..100f) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(x = v / 100f)) } }
+        SliderRow("縦位置", clock.y * 100f, 0f..100f) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(y = v / 100f)) } }
     }
     ChipRow("視差") {
-        Chip("傾けると奥行き", selected = tree.fx.parallax) { vm.setTree { it.copy(fx = it.fx.copy(parallax = !it.fx.parallax)) } }
+        Chip("オン", selected = tree.fx.parallax) { vm.setTree { it.copy(fx = it.fx.copy(parallax = !it.fx.parallax)) } }
     }
     if (tree.fx.parallax) {
-        SliderRow("視差の強さ", tree.fx.strength * 100f, 30f..200f) { v -> vm.setTree(record = false) { it.copy(fx = it.fx.copy(strength = v / 100f)) } }
+        SliderRow("強さ", tree.fx.strength * 100f, 30f..200f) { v -> vm.setTree(record = false) { it.copy(fx = it.fx.copy(strength = v / 100f)) } }
     }
 }

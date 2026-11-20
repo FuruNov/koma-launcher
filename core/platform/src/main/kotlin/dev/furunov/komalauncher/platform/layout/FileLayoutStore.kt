@@ -117,7 +117,7 @@ class FileLayoutStore(
         rev: Long,
     ): LayoutState {
         if (layout == null) {
-            val broken = store.brokenFile?.let { "保存したレイアウトを読めなかったので、見本を表示しています（${it.name} に残してあります）" }
+            val broken = store.brokenFile?.let { "保存済みのレイアウトを読み込めなかったため、サンプルを表示しています（元のファイルは ${it.name} に保存されています）" }
             return LayoutState.Fallback(sample, listOfNotNull(broken, error).joinToString("\n").ifEmpty { null })
         }
         return LayoutState.Loaded(layout, art.existing(layout), error, rev, art.existingMasks(layout))
@@ -146,7 +146,7 @@ class FileLayoutStore(
 
                 is LayoutResult.Error -> {
                     // 内部のレイアウトはそのまま。直した layout.json を置き直せば取り込み直す
-                    importError.value = "layout.json を取り込めませんでした。前のレイアウトのままです: ${r.message}"
+                    importError.value = "layout.json のインポートに失敗しました。以前のレイアウトを維持します: ${r.message}"
                     return
                 }
             }
@@ -157,7 +157,7 @@ class FileLayoutStore(
         // 写し終えた元の画像は消す。取り込みのために置いたもので、大きいため
         result.consumed.forEach { it.delete() }
         revision.value++
-        importError.value = result.missing.takeIf { it.isNotEmpty() }?.let { "画像が見つかりません: ${it.joinToString()}（art/ に置いてください）" }
+        importError.value = result.missing.takeIf { it.isNotEmpty() }?.let { "画像が見つかりません: ${it.joinToString()}（art/ に配置してください）" }
     }
 
     /**

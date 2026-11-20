@@ -122,7 +122,7 @@ internal fun FolderPopup(
             }
             if (apps.isEmpty()) {
                 BasicText(
-                    "空のフォルダです。全アプリ一覧からアイコンを長押しして、ここへ運べます",
+                    "フォルダは空です。アプリ一覧でアイコンを長押しし、ここへドラッグして追加できます",
                     style = TextStyle(color = Color(0xFFBBBBBB), fontSize = 13.sp),
                     modifier = Modifier.width(220.dp),
                 )

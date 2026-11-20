@@ -139,13 +139,13 @@ object AnimationCatalog {
 
     val enter =
         listOf(
-            Entry("slide-overshoot", "にゅっと滑り込む"),
-            Entry("pop-in", "ぽんと現れる"),
-            Entry("drop", "上から落ちてくる"),
+            Entry("slide-overshoot", "スライドイン"),
+            Entry("pop-in", "ポップ"),
+            Entry("drop", "ドロップ"),
         )
     val press =
         listOf(
-            Entry("squash", "沈んで弾む"),
-            Entry("lift", "持ち上がる"),
+            Entry("squash", "バウンス"),
+            Entry("lift", "リフト"),
         )
 }

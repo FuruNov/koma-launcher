@@ -16,6 +16,7 @@ object PanelText {
             "よく使う" to "FAVORITES",
             "連絡" to "MESSAGES",
             "道具" to "TOOLS",
+            "ツール" to "TOOLS",
             "その他" to "OTHERS",
             "メディア" to "MEDIA",
             "新しいコマ" to "NEW",

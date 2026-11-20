@@ -62,7 +62,7 @@ class EditorViewModel(
         MutableStateFlow(
             EditorUiState(
                 layout = store.state.value.layout,
-                message = if (store.state.value.layout.shape is LayoutShape.Fixed) "一晩目の形式のレイアウトです。型を選ぶと、線で割る編集を始められます" else null,
+                message = if (store.state.value.layout.shape is LayoutShape.Fixed) "旧形式のレイアウトです。テンプレートを選ぶと編集を開始できます" else null,
             ),
         )
 
@@ -121,7 +121,7 @@ class EditorViewModel(
         val id = local.value.selected ?: return
         val after = LayoutEdits.merge(local.value.layout, id)
         if (after === local.value.layout) {
-            local.update { it.copy(message = "隣のコマがさらに割られているので消せません。先に隣のコマの線を消してください") }
+            local.update { it.copy(message = "隣のコマが分割されているため結合できません。先に隣のコマを結合してください") }
             return
         }
         record()
@@ -169,7 +169,7 @@ class EditorViewModel(
             val before = local.value.layout
             // 保存側が画像を写してコマに置くところまでを済ませる。ここでは同じ変更を手元の状態に写し、元に戻せるようにする
             val art = store.addImage(uri, id)
-            local.update { it.copy(busy = false, message = if (art == null) "画像を読めませんでした" else null) }
+            local.update { it.copy(busy = false, message = if (art == null) "画像を読み込めませんでした" else null) }
             if (art != null) {
                 committed = true
                 history.push(before)
@@ -178,7 +178,7 @@ class EditorViewModel(
         }
     }
 
-    /** 選んでいるコマの絵の暗さ（0〜1）。スライダーから呼ぶ（始まりで [beginGesture]）。 */
+    /** 選んでいるコマの絵の暗さ（0〜1）。スライダーから呼ぶ。スライダーの変更は「元に戻す」の履歴に積まない。 */
     fun setDim(value: Float) {
         val id = local.value.selected ?: return
         commit(LayoutEdits.setDim(local.value.layout, id, value))
@@ -189,7 +189,7 @@ class EditorViewModel(
         edit { l -> LayoutEdits.updatePanel(l, id) { it.copy(art = null) } }
     }
 
-    /** フチとコマの間の変更。スライダーのドラッグ中は [record] を false にし、始まりで [beginGesture] を呼ぶ。 */
+    /** フチとコマの間の変更。スライダーからは [record] を false にして呼び、履歴に積まない。 */
     fun setFrame(
         record: Boolean = true,
         transform: (Frame) -> Frame,
@@ -219,10 +219,10 @@ class EditorViewModel(
     /** 選んでいるコマの画像の人物を、端末の中で切り抜く。 */
     fun cutOutPerson() {
         val image = selectedArt()?.image ?: return
-        local.update { it.copy(busy = true, message = "人物を切り抜いています…") }
+        local.update { it.copy(busy = true, message = "人物を切り抜き中…") }
         viewModelScope.launch {
             val error = store.cutOutPerson(image)
-            local.update { it.copy(busy = false, message = error ?: "切り抜きました。文字と時計が人物の後ろに回ります") }
+            local.update { it.copy(busy = false, message = error ?: "切り抜きが完了しました。文字と時計は人物の背後に表示されます") }
         }
     }
 

@@ -43,14 +43,14 @@ object Kana {
                     i++
                 }
 
-                // 撥音: n の後が母音・y でない（nn も ん）
+                // 撥音: n の後が母音・y でない。nn は ん だが、後に母音が続けば 2 つ目の n を次の仮名に回す（konnichiha → こんにちは）
                 c == 'n' && i + 1 < s.length && s[i + 1] !in VOWELS && s[i + 1] != 'y' -> {
                     out += setOf('ん')
-                    i += if (s[i + 1] == 'n') 2 else 1
+                    i += if (s[i + 1] == 'n' && (i + 2 >= s.length || s[i + 2] !in VOWELS)) 2 else 1
                 }
 
                 else -> {
-                    val key = (3 downTo 1).firstNotNullOfOrNull { n -> s.substring(i, minOf(s.length, i + n)).takeIf { it.length == n && it in TABLE } }
+                    val key = (4 downTo 1).firstNotNullOfOrNull { n -> s.substring(i, minOf(s.length, i + n)).takeIf { it.length == n && it in TABLE } }
                     if (key != null) {
                         TABLE.getValue(key).forEach { out += setOf(it) }
                         i += key.length
@@ -91,6 +91,17 @@ object Kana {
             put("fu", "ふ")
             put("ji", "じ")
             put("vu", "ゔ")
+            put("wi", "うぃ")
+            put("we", "うぇ")
+            put("ye", "いぇ")
+            for (x in listOf("x", "l")) {
+                put(x + "tu", "っ")
+                put(x + "tsu", "っ")
+                put(x + "ya", "ゃ")
+                put(x + "yu", "ゅ")
+                put(x + "yo", "ょ")
+                put(x + "wa", "ゎ")
+            }
             // 拗音
             val youon =
                 listOf(
@@ -109,8 +120,8 @@ object Kana {
             put("fi", "ふぃ")
             put("fe", "ふぇ")
             put("fo", "ふぉ")
-            put("ti", "てぃ")
-            put("di", "でぃ")
+            put("thi", "てぃ")
+            put("dhi", "でぃ")
             put("va", "ゔぁ")
             put("vi", "ゔぃ")
             put("ve", "ゔぇ")

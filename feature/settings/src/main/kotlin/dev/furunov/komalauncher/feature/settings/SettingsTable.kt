@@ -54,7 +54,7 @@ data class Option(
     val label: String,
 )
 
-enum class ActionKey { ImportArt, ExportBackup, ImportBackup, HomeApp }
+enum class ActionKey { EditLayout, ImportArt, ExportBackup, ImportBackup, HomeApp }
 
 data class SettingSection(
     val title: String,
@@ -68,11 +68,15 @@ val gestureTitles: Map<GestureKind, String> =
         GestureKind.TwoFingerSwipeUp to "2 本指で上へスワイプ",
         GestureKind.TwoFingerSwipeDown to "2 本指で下へスワイプ",
         GestureKind.PinchIn to "ピンチイン",
-        GestureKind.DoubleTapGutter to "コマの間をダブルタップ",
-        GestureKind.LongPressGutter to "コマの間を長押し",
+        GestureKind.DoubleTapGutter to "余白をダブルタップ",
+        GestureKind.LongPressGutter to "余白を長押し",
     )
 
 fun settingsSections(): List<SettingSection> = listOf(
+    SettingSection(
+        "コマ割り",
+        listOf(SettingRow.Action("コマ割りを編集", "分割・画像・枠などを変更", ActionKey.EditLayout)),
+    ),
     SettingSection(
         "ジェスチャー",
         GestureKind.entries.map { SettingRow.Gesture(gestureTitles[it] ?: it.name, it) },
@@ -86,7 +90,7 @@ fun settingsSections(): List<SettingSection> = listOf(
             SettingRow.Stepper("アイコンの大きさ", 36..72, step = 4, unit = "dp", get = { it.appearance.iconSizeDp }) { s, v ->
                 s.copy(appearance = s.appearance.copy(iconSizeDp = v))
             },
-            SettingRow.Toggle("アイコンの名前を表示", { it.appearance.showLabels }) { s, v ->
+            SettingRow.Toggle("アプリ名を表示", { it.appearance.showLabels }) { s, v ->
                 s.copy(appearance = s.appearance.copy(showLabels = v))
             },
             SettingRow.Stepper(
@@ -97,18 +101,18 @@ fun settingsSections(): List<SettingSection> = listOf(
                 get = { (it.appearance.folderOpacity * 100).toInt() },
             ) { s, v -> s.copy(appearance = s.appearance.copy(folderOpacity = v / 100f)) },
             SettingRow.Choice(
-                "運ぶときに光る色",
+                "ドラッグ時の強調色",
                 listOf(
                     Option("FFFFD54F", "黄"),
                     Option("FF4FC3F7", "水色"),
-                    Option("FFF48FB1", "桃"),
+                    Option("FFF48FB1", "ピンク"),
                     Option("FFFFFFFF", "白"),
                 ),
                 get = { it.appearance.highlightColor.toString(16).uppercase() },
             ) { s, v -> s.copy(appearance = s.appearance.copy(highlightColor = v.toLong(16))) },
             SettingRow.Choice(
-                "コマの間の色",
-                listOf(Option("FF111111", "黒"), Option("FFFFFFFF", "白"), Option("FF2B2B33", "濃い灰")),
+                "間隔の色",
+                listOf(Option("FF111111", "黒"), Option("FFFFFFFF", "白"), Option("FF2B2B33", "ダークグレー")),
                 get = { it.appearance.gutterColor.toString(16).uppercase() },
             ) { s, v -> s.copy(appearance = s.appearance.copy(gutterColor = v.toLong(16))) },
         ),
@@ -118,19 +122,19 @@ fun settingsSections(): List<SettingSection> = listOf(
         listOf(
             SettingRow.Toggle("アニメーションを使う", { it.animation.enabled }) { s, v -> s.copy(animation = s.animation.copy(enabled = v)) },
             SettingRow.Choice(
-                "ロック解除のとき",
+                "ロック解除時",
                 AnimationCatalog.enter.map { Option(it.id, it.label) },
                 get = { it.animation.enter },
             ) { s, v -> s.copy(animation = s.animation.copy(enter = v)) },
             SettingRow.Choice(
-                "コマを押したとき",
+                "コマのタップ時",
                 AnimationCatalog.press.map { Option(it.id, it.label) },
                 get = { it.animation.press },
             ) { s, v -> s.copy(animation = s.animation.copy(press = v)) },
-            SettingRow.Stepper("速さ（小さいほど速い）", 50..200, step = 25, unit = "%", get = { (it.animation.speed * 100).toInt() }) { s, v ->
+            SettingRow.Stepper("所要時間", 50..200, step = 25, unit = "%", get = { (it.animation.speed * 100).toInt() }) { s, v ->
                 s.copy(animation = s.animation.copy(speed = v / 100f))
             },
-            SettingRow.Stepper("コマごとの間隔", 0..150, step = 10, unit = "ms", get = { it.animation.staggerMs }) { s, v ->
+            SettingRow.Stepper("コマごとの遅延", 0..150, step = 10, unit = "ms", get = { it.animation.staggerMs }) { s, v ->
                 s.copy(animation = s.animation.copy(staggerMs = v))
             },
         ),
@@ -142,11 +146,11 @@ fun settingsSections(): List<SettingSection> = listOf(
         ),
     ),
     SettingSection(
-        "コマの絵とバックアップ",
+        "画像とバックアップ",
         listOf(
-            SettingRow.Action("コマの絵を取り込む", "layout.json と画像を選ぶ", ActionKey.ImportArt),
-            SettingRow.Action("バックアップを書き出す", "フォルダ・設定・layout.json を 1 つのファイルに", ActionKey.ExportBackup),
-            SettingRow.Action("バックアップを読み込む", "ウィジェットは置き直しが要ります", ActionKey.ImportBackup),
+            SettingRow.Action("コマ画像をインポート", "layout.json と画像を選択", ActionKey.ImportArt),
+            SettingRow.Action("バックアップをエクスポート", "フォルダ・設定・layout.json を 1 ファイルに保存", ActionKey.ExportBackup),
+            SettingRow.Action("バックアップから復元", "ウィジェットは再配置が必要です", ActionKey.ImportBackup),
             SettingRow.Action("既定のホームアプリ", "Android の設定を開く", ActionKey.HomeApp),
         ),
     ),
@@ -165,13 +169,13 @@ fun actionLabel(
     folderLabel: (String) -> String = { it },
     appLabel: (LauncherAction.LaunchApp) -> String = { it.app.packageName },
 ): String = when (a) {
-    LauncherAction.None -> "何もしない"
+    LauncherAction.None -> "なし"
     LauncherAction.OpenDrawer -> "全アプリ一覧"
     LauncherAction.ExpandNotifications -> "通知センター"
     LauncherAction.ExpandQuickSettings -> "クイック設定"
     LauncherAction.OpenHomeMenu -> "ホームのメニュー"
     LauncherAction.OpenSettings -> "ランチャーの設定"
-    LauncherAction.LockScreen -> "画面ロック（ユーザー補助の許可が要る）"
+    LauncherAction.LockScreen -> "画面ロック（ユーザー補助の権限が必要）"
     is LauncherAction.OpenFolder -> "フォルダを開く: ${folderLabel(a.panelId)}"
     is LauncherAction.LaunchApp -> "アプリを起動: ${appLabel(a)}"
 }
