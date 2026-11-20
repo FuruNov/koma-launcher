@@ -54,9 +54,21 @@ focus() { adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'; }
 # HOME キーでこのランチャーが開くよう、確かめる間だけ既定のホームにする。終わったら元のホームに戻す
 prev_home=$(adb shell cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN | tail -1 | tr -d "\r")
 adb shell cmd package set-home-activity "$PKG/.MainActivity" >/dev/null
-trap '[ -n "$prev_home" ] && adb shell cmd package set-home-activity "$prev_home" >/dev/null' EXIT
+# 利用者のレイアウト・絵・フォルダは、確かめる前に退避し、終わったら戻す（見本で確かめると上書きされるため）
+BACKUP=/data/local/tmp/koma-e2e-files
+restore() {
+  adb shell am force-stop "$PKG"
+  adb shell su -c "'rm -rf /data/data/$PKG/files && cp -a $BACKUP /data/data/$PKG/files && restorecon -R /data/data/$PKG/files'"
+  [ -n "$prev_home" ] && adb shell cmd package set-home-activity "$prev_home" >/dev/null
+}
 adb shell am force-stop "$PKG"
-adb shell su -c "rm -rf /data/data/$PKG/files/layout.json /data/data/$PKG/files/art"
+adb shell su -c "'rm -rf $BACKUP && cp -a /data/data/$PKG/files $BACKUP'" || {
+  echo "アプリのファイルを退避できないので中止する"
+  exit 1
+}
+trap restore EXIT
+# 起動の記録があると、全アプリ一覧の上に「よく使う」の行が加わり、アイコンの位置が変わる
+adb shell su -c "rm -rf /data/data/$PKG/files/layout.json /data/data/$PKG/files/art /data/data/$PKG/files/launches.json"
 adb shell am start -n "$PKG/.MainActivity" >/dev/null
 sleep 2
 home
@@ -93,6 +105,8 @@ sleep 1.2
 shot drawer
 waitfor 'has Calculator'
 check "上スワイプで全アプリ一覧が開く" $?
+# 一覧を開くとキーボードが現れるので、1 回目の戻るはキーボードを閉じる
+adb shell input keyevent BACK
 adb shell input keyevent BACK
 sleep 1
 
@@ -120,6 +134,7 @@ adb shell input tap 810 1680
 sleep 1.2
 waitfor 'has Calculator'
 check "全アプリ一覧のコマを押すと一覧が開く" $?
+adb shell input keyevent BACK
 adb shell input keyevent BACK
 sleep 1
 
@@ -158,7 +173,9 @@ home
 # 全アプリ一覧の Music を道具のコマへ
 adb shell input swipe 540 1500 540 700 200
 sleep 1.5
-dragto 753 360 300 1650
+# 「よく使う」の行の有無でアイコンの位置が変わるので、名前から位置を求める
+read -r ux uy <<<"$(center_of Music 40)"
+dragto "$ux" "$uy" 300 1650
 adb shell input tap 300 1650
 sleep 1
 waitfor 'has Music'
@@ -188,6 +205,47 @@ adb shell input tap 540 500
 sleep 1
 waitfor 'has Music'
 check "元に戻すで戻る" $?
+home
+
+# --- 検索 ---
+adb shell input swipe 540 1500 540 700 200
+sleep 1.5
+waitfor "adb shell dumpsys input_method | grep -q 'mInputShown=true'"
+check "全アプリ一覧を開くとキーボードが現れる" $?
+adb shell input text calc
+sleep 1
+shot search
+adb shell input keyevent ENTER
+sleep 2
+waitfor 'focus | grep -qi calculator'
+check "名前の一部を打って Enter で先頭のアプリが起動する" $?
+home
+home
+
+# --- 押したら直接起動 ---
+# 連絡のコマを長押しして切り替え、押すとフォルダを開かずに先頭のアプリが起動する
+adb shell input swipe 850 1200 850 1200 1000
+sleep 1
+tap_text '押したら直接起動: オフ'
+sleep 1
+adb shell input tap 850 1200
+sleep 2
+waitfor "focus | grep -qiE 'contacts|messaging|permissioncontroller'"
+check "直接起動のコマを押すと先頭のアプリが起動する" $?
+adb shell input keyevent BACK
+adb shell input keyevent BACK
+home
+adb shell input swipe 850 1200 850 1200 1000
+sleep 1
+tap_text フォルダを開く
+sleep 1
+waitfor 'has Contacts'
+check "直接起動のコマもメニューからフォルダを開ける" $?
+home
+adb shell input swipe 850 1200 850 1200 1000
+sleep 1
+tap_text '押したら直接起動: オン'
+sleep 1
 home
 
 # --- コマ割りの編集 ---
