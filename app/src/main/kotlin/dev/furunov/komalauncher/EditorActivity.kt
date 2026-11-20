@@ -5,10 +5,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import dev.furunov.komalauncher.feature.editor.EditorFolders
 import dev.furunov.komalauncher.feature.editor.EditorScreen
 import dev.furunov.komalauncher.feature.editor.EditorViewModel
+import dev.furunov.komalauncher.ui.icons.LocalIconLoader
 
 /** コマ割りの編集画面の入れ物。中身は :feature:editor が作る。 */
 class EditorActivity : ComponentActivity() {
@@ -25,14 +28,24 @@ class EditorActivity : ComponentActivity() {
         val bounds = windowManager.currentWindowMetrics.bounds
         // 設定の色は編集の間に変わらないので、開いたときの値を使う
         val gutterColor = container.settingsStore.settings.value.appearance.gutterColor
-        setContent {
-            EditorScreen(
-                vm = vm,
-                screenWidth = bounds.width().toFloat(),
-                screenHeight = bounds.height().toFloat(),
-                defaultGutterColor = gutterColor,
-                onClose = ::finish,
+        val folders =
+            EditorFolders(
+                store = container.folderStore,
+                apps = container.appCatalog.apps,
+                hasMusicAccess = container.media::checkAccess,
+                openMusicAccess = container.media::openAccessSettings,
             )
+        setContent {
+            CompositionLocalProvider(LocalIconLoader provides container.iconLoader) {
+                EditorScreen(
+                    vm = vm,
+                    screenWidth = bounds.width().toFloat(),
+                    screenHeight = bounds.height().toFloat(),
+                    defaultGutterColor = gutterColor,
+                    folderDeps = folders,
+                    onClose = ::finish,
+                )
+            }
         }
     }
 

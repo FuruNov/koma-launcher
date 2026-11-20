@@ -176,6 +176,7 @@ internal fun PanelMenuSheet(
             // 直接起動のフォルダと再生中のコマは押しても開かないので、中身を並べ替える入口をここに置く
             if (directLaunch || showingPlayer) MenuRow("フォルダを開く") { onEvent(HomeEvent.OpenOverlay(Overlay.Folder(id))) }
             if (showingPlayer) MenuRow("再生中のアプリを開く") { onEvent(HomeEvent.OpenPlayerApp) }
+            MenuRow("アプリを追加") { onEvent(HomeEvent.OpenOverlay(Overlay.AddApps(id))) }
             MenuRow(if (directLaunch) "直接起動: オン" else "直接起動: オフ") {
                 onEvent(HomeEvent.EditFolders { FolderEdits.setDirectLaunch(it, id.value, !directLaunch) })
                 onEvent(HomeEvent.Dismiss)

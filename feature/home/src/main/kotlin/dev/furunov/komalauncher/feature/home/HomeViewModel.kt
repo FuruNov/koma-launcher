@@ -67,6 +67,11 @@ sealed interface Overlay {
 
     /** 音楽プレイヤーに必要な「通知へのアクセス」の説明。 */
     data object MusicAccess : Overlay
+
+    /** フォルダに入れるアプリを選ぶ画面。全アプリの一覧が要るので、中身はホームの外（MainActivity）が作る。 */
+    data class AddApps(
+        val panelId: PanelId,
+    ) : Overlay
 }
 
 /** プレイヤーの表示にしているコマ。表示していなければ HomeUiState.player は null。 */

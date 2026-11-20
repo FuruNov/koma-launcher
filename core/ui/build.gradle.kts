@@ -14,6 +14,7 @@ kotlin { jvmToolchain(21) }
 
 dependencies {
     api(project(":core:model"))
+    implementation(libs.activity.compose)
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.foundation)
     implementation(libs.compose.ui)

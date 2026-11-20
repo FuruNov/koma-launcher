@@ -34,6 +34,13 @@ class FolderEditsTest {
     }
 
     @Test
+    fun toggleAddsThenRemoves() {
+        val added = FolderEdits.toggle(base, "p1", c)
+        assertEquals(listOf(a, b, c), added.appsOf("p1"))
+        assertEquals(listOf(a, b), FolderEdits.toggle(added, "p1", c).appsOf("p1"))
+    }
+
+    @Test
     fun removeMissingIsNoop() {
         assertSame(base, FolderEdits.remove(base, "p1", c))
         assertSame(base, FolderEdits.remove(base, "nope", a))

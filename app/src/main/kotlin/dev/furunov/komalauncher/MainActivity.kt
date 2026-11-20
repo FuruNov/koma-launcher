@@ -25,9 +25,11 @@ import dev.furunov.komalauncher.feature.home.Overlay
 import dev.furunov.komalauncher.feature.home.PanelMenuItem
 import dev.furunov.komalauncher.feature.widgets.WidgetPanel
 import dev.furunov.komalauncher.feature.widgets.WidgetPicker
+import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.settings.LauncherAction
 import dev.furunov.komalauncher.platform.media.VisualizerSpectrum
+import dev.furunov.komalauncher.ui.apps.AppPicker
 import dev.furunov.komalauncher.ui.icons.LocalIconLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -86,6 +88,18 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onDismiss = { home.onEvent(HomeEvent.Dismiss) },
                                     )
+
+                                is Overlay.AddApps -> {
+                                    val id = overlay.panelId.value
+                                    val folder = state.folders.byPanel[id]
+                                    AppPicker(
+                                        title = folder?.name ?: state.layout.panel(overlay.panelId)?.label ?: "アプリを追加",
+                                        apps = apps,
+                                        checked = folder?.apps.orEmpty().toSet(),
+                                        onToggle = { app -> home.onEvent(HomeEvent.EditFolders { FolderEdits.toggle(it, id, app) }) },
+                                        onDone = { home.onEvent(HomeEvent.Dismiss) },
+                                    )
+                                }
 
                                 else -> Unit
                             }

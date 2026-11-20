@@ -84,7 +84,7 @@ val gestureTitles: Map<GestureKind, String> =
 fun settingsSections(): List<SettingSection> = listOf(
     SettingSection(
         "コマ割り",
-        listOf(SettingRow.Action("コマ割りを編集", "分割・画像・枠などを変更", ActionKey.EditLayout)),
+        listOf(SettingRow.Action("コマ割りを編集", "コマごとの設定と、間隔・枠などの全体の設定", ActionKey.EditLayout)),
     ),
     SettingSection(
         "ジェスチャー",
@@ -119,11 +119,8 @@ fun settingsSections(): List<SettingSection> = listOf(
                 ),
                 get = { it.appearance.highlightColor.toString(16).uppercase() },
             ) { s, v -> s.copy(appearance = s.appearance.copy(highlightColor = v.toLong(16))) },
-            SettingRow.Choice(
-                "間隔の色",
-                listOf(Option("FF111111", "黒"), Option("FFFFFFFF", "白"), Option("FF2B2B33", "ダークグレー")),
-                get = { it.appearance.gutterColor.toString(16).uppercase() },
-            ) { s, v -> s.copy(appearance = s.appearance.copy(gutterColor = v.toLong(16))) },
+            // 間隔の色はコマ割りの編集画面の「全体」で変える。レイアウトの色が設定の色より優先され、
+            // 見本から書き出したレイアウトはいつも色を持つので、ここで変えても反映されなかった
         ),
     ),
     SettingSection(

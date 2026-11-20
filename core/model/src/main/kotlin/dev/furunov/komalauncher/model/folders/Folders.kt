@@ -68,6 +68,13 @@ object FolderEdits {
         return f.copy(byPanel = f.byPanel + (panelId to folder.copy(apps = folder.apps - app)))
     }
 
+    /** 入っていれば外し、無ければ末尾に入れる。アプリを選ぶ画面から呼ぶ。 */
+    fun toggle(
+        f: Folders,
+        panelId: String,
+        app: AppKey,
+    ): Folders = if (app in f.appsOf(panelId)) remove(f, panelId, app) else add(f, panelId, app)
+
     fun reorder(
         f: Folders,
         panelId: String,

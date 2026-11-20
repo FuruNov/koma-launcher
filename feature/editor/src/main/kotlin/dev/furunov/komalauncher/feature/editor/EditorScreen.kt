@@ -30,9 +30,13 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -57,16 +61,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.furunov.komalauncher.model.folders.FolderEdits
+import dev.furunov.komalauncher.model.folders.Folders
 import dev.furunov.komalauncher.model.geometry.Point
 import dev.furunov.komalauncher.model.layout.BorderStyle
 import dev.furunov.komalauncher.model.layout.CutEnd
 import dev.furunov.komalauncher.model.layout.LabelMode
 import dev.furunov.komalauncher.model.layout.LayoutEdits
 import dev.furunov.komalauncher.model.layout.LayoutShape
+import dev.furunov.komalauncher.model.layout.Panel
 import dev.furunov.komalauncher.model.layout.PanelContent
-import dev.furunov.komalauncher.model.layout.PanelId
 import dev.furunov.komalauncher.model.layout.SplitDirection
 import dev.furunov.komalauncher.model.layout.Tone
+import dev.furunov.komalauncher.ui.apps.AppPicker
 import dev.furunov.komalauncher.ui.art.PanelFace
 import dev.furunov.komalauncher.ui.art.PanelStyle
 import dev.furunov.komalauncher.ui.art.buildPanelTexts
@@ -90,96 +97,157 @@ fun EditorScreen(
     screenHeight: Float,
     /** 設定の「コマの間の色」。レイアウトに色が無いときに使う。 */
     defaultGutterColor: Long,
+    folderDeps: EditorFolders,
     onClose: () -> Unit,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val folders by folderDeps.store.folders.collectAsStateWithLifecycle()
     vm.setScreen(screenWidth, screenHeight)
+    var tab by rememberSaveable { mutableStateOf(EditorTab.Panel) }
+    var addingApps by rememberSaveable { mutableStateOf(false) }
     BackHandler(onBack = onClose)
     val picker =
         rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
             uri?.let { vm.setImage(it.toString()) }
         }
-    val frame = (state.layout.shape as? LayoutShape.Tree)?.frame
+    val tree = state.layout.shape as? LayoutShape.Tree
     val selectedPanel = state.selected?.let { state.layout.panel(it) }
+    // コマを押して選んだら、そのコマの設定を見せる
+    LaunchedEffect(state.selected) { if (state.selected != null) tab = EditorTab.Panel }
+    val names = remember(folders) { folders.byPanel.mapNotNull { (id, f) -> f.name?.let { id to it } }.toMap() }
 
-    Column(Modifier.fillMaxSize().background(Color(0xFF121216)).safeDrawingPadding()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            BasicText("コマ割りを編集", style = TextStyle(color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold))
-            Spacer(Modifier.weight(1f))
-            Chip("元に戻す", enabled = state.canUndo, onClick = vm::undo)
-            Spacer(Modifier.width(8.dp))
-            Chip("閉じる", onClick = onClose)
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().background(Color(0xFF121216)).safeDrawingPadding()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                BasicText("コマ割りを編集", style = TextStyle(color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold))
+                Spacer(Modifier.weight(1f))
+                Chip("元に戻す", enabled = state.canUndo, onClick = vm::undo)
+                Spacer(Modifier.width(8.dp))
+                Chip("閉じる", onClick = onClose)
+            }
+            Preview(vm, state, names, screenWidth, screenHeight, Color(tree?.frame?.gutterColor ?: defaultGutterColor), Modifier.weight(1.3f).fillMaxWidth())
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip("選択中のコマ", selected = tab == EditorTab.Panel) { tab = EditorTab.Panel }
+                Chip("全体", selected = tab == EditorTab.Whole) { tab = EditorTab.Whole }
+            }
+            // 操作の欄が伸びても縮小図が潰れないよう、高さを分け合う（操作の欄は中でスクロールする）
+            Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp)) {
+                state.message?.let {
+                    BasicText(it, style = TextStyle(color = Color(0xFFFFD54F), fontSize = 13.sp), modifier = Modifier.padding(vertical = 4.dp).clickable(onClick = vm::dismissMessage))
+                }
+                when (tab) {
+                    EditorTab.Panel ->
+                        when {
+                            tree == null -> Hint("旧形式のレイアウトは「全体」のテンプレートを選ぶと編集できます")
+
+                            selectedPanel == null -> Hint("縮小図のコマをタップして選択してください")
+
+                            else -> PanelControls(vm, state, tree, selectedPanel, folderDeps, folders, onPickImage = {
+                                picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            }, onAddApps = { addingApps = true })
+                        }
+
+                    EditorTab.Whole -> WholeControls(vm, tree, defaultGutterColor)
+                }
+            }
         }
-        Preview(vm, state, screenWidth, screenHeight, Color(frame?.gutterColor ?: defaultGutterColor), Modifier.weight(1.3f).fillMaxWidth())
-        // 操作の欄が伸びても縮小図が潰れないよう、高さを分け合う（操作の欄は中でスクロールする）
-        Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp)) {
-            state.message?.let {
-                BasicText(it, style = TextStyle(color = Color(0xFFFFD54F), fontSize = 13.sp), modifier = Modifier.padding(vertical = 4.dp).clickable(onClick = vm::dismissMessage))
-            }
-            ChipRow("テンプレート") {
-                LayoutEdits.Template.entries.forEach { t -> Chip(t.label) { vm.applyTemplate(t) } }
-            }
-            if (state.editable) {
-                if (selectedPanel == null) {
-                    Hint("コマをタップして選択すると、分割・結合・画像の設定ができます")
-                } else {
-                    ChipRow("コマ") {
-                        Chip("横に分割") { vm.split(SplitDirection.HORIZONTAL) }
-                        Chip("縦に分割") { vm.split(SplitDirection.VERTICAL) }
-                        Chip("結合", enabled = vm.selectedCutPath() != null, onClick = vm::merge)
-                        Chip("種類: ${kindLabel(selectedPanel.content)}", onClick = vm::cycleKind)
-                    }
-                    ChipRow("画像") {
-                        Chip(if (state.busy) "読み込み中…" else "画像を選択", enabled = !state.busy) {
-                            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                        }
-                        Chip("画像を削除", enabled = selectedPanel.art != null, onClick = vm::removeImage)
-                    }
-                    selectedPanel.art?.let { art ->
-                        Hint("ドラッグで移動、ピンチで拡大・縮小")
-                        // 透過させたウィジェットや名前を、明るい絵の上でも読めるようにする
-                        SliderRow("暗さ", art.dim * 100f, 0f..100f) { v -> vm.setDim(v / 100f) }
-                    }
-                }
-                if (frame != null) {
-                    SliderRow("間隔", frame.gutter, 0f..60f) { v -> vm.setFrame(record = false) { it.copy(gutter = v) } }
-                    ChipRow("間隔の色") {
-                        Chip("黒", selected = frame.gutterColor == BLACK) { vm.setFrame { it.copy(gutterColor = BLACK) } }
-                        Chip("白", selected = frame.gutterColor == WHITE) { vm.setFrame { it.copy(gutterColor = WHITE) } }
-                        Chip("設定に従う", selected = frame.gutterColor == null) { vm.setFrame { it.copy(gutterColor = null) } }
-                    }
-                    ChipRow("枠") {
-                        listOf(BorderStyle.NONE to "なし", BorderStyle.SINGLE to "一重", BorderStyle.DOUBLE to "二重").forEach { (s, label) ->
-                            Chip(label, selected = frame.border.style == s) { vm.setFrame { it.copy(border = it.border.copy(style = s)) } }
-                        }
-                        Chip("裁ち落とし", selected = frame.bleed) { vm.setFrame { it.copy(bleed = !it.bleed) } }
-                    }
-                    SliderRow("枠の太さ", frame.border.width, 0f..40f) { v -> vm.setFrame(record = false) { it.copy(border = it.border.copy(width = v)) } }
-                    val tree = state.layout.shape as? LayoutShape.Tree
-                    if (tree != null) TextAndClockControls(vm, tree, state.selected)
-                    val look = (state.layout.shape as? LayoutShape.Tree)?.look
-                    if (look != null) {
-                        ChipRow("色調") {
-                            Chip("なし", selected = look.tone == Tone.NONE) { vm.setLook { it.copy(tone = Tone.NONE) } }
-                            Chip("パステル", selected = look.tone == Tone.SOFT) { vm.setLook { it.copy(tone = Tone.SOFT) } }
-                        }
-                        if (look.tone != Tone.NONE) {
-                            SliderRow("強さ", look.strength * 100f, 0f..100f) { v -> vm.setLook(record = false) { it.copy(strength = v / 100f) } }
-                        }
-                        SliderRow("内側の影", look.inner * 100f, 0f..100f) { v -> vm.setLook(record = false) { it.copy(inner = v / 100f) } }
-                        SliderRow("光沢", look.sheen * 100f, 0f..100f) { v -> vm.setLook(record = false) { it.copy(sheen = v / 100f) } }
-                    }
-                }
-            }
+        val folderPanel = selectedPanel?.takeIf { it.content is PanelContent.Folder }
+        if (addingApps && folderPanel != null) {
+            val apps by folderDeps.apps.collectAsStateWithLifecycle()
+            val id = folderPanel.id.value
+            AppPicker(
+                title = folders.byPanel[id]?.name ?: folderPanel.label ?: "アプリを追加",
+                apps = apps,
+                checked = folders.appsOf(id).toSet(),
+                onToggle = { app -> folderDeps.store.update { FolderEdits.toggle(it, id, app) } },
+                onDone = { addingApps = false },
+            )
         }
     }
 }
 
+private enum class EditorTab { Panel, Whole }
+
+/** 「選択中のコマ」の欄。分割・種類・画像と、フォルダのコマならフォルダの設定。 */
+@Composable
+private fun PanelControls(
+    vm: EditorViewModel,
+    state: EditorUiState,
+    tree: LayoutShape.Tree,
+    panel: Panel,
+    folderDeps: EditorFolders,
+    folders: Folders,
+    onPickImage: () -> Unit,
+    onAddApps: () -> Unit,
+) {
+    ChipRow("分割") {
+        Chip("横に分割") { vm.split(SplitDirection.HORIZONTAL) }
+        Chip("縦に分割") { vm.split(SplitDirection.VERTICAL) }
+        Chip("結合", enabled = vm.selectedCutPath() != null, onClick = vm::merge)
+    }
+    ChipRow("種類") { Chip(kindLabel(panel.content), onClick = vm::cycleKind) }
+    if (panel.content is PanelContent.Folder) FolderControls(folderDeps, folders, panel, onAddApps)
+    ChipRow("画像") {
+        Chip(if (state.busy) "読み込み中…" else "画像を選択", enabled = !state.busy, onClick = onPickImage)
+        Chip("画像を削除", enabled = panel.art != null, onClick = vm::removeImage)
+    }
+    panel.art?.let { art ->
+        Hint("ドラッグで移動、ピンチで拡大・縮小")
+        // 透過させたウィジェットや名前を、明るい絵の上でも読めるようにする
+        SliderRow("暗さ", art.dim * 100f, 0f..100f) { v -> vm.setDim(v / 100f) }
+    }
+    ChipRow("このコマに") {
+        if (tree.text.masthead.isNotBlank()) Chip("大見出しを表示") { vm.setTree { it.copy(text = it.text.copy(mastheadPanel = panel.id)) } }
+        Chip("時計を表示") { vm.setTree { it.copy(clock = it.clock.copy(enabled = true, panel = panel.id)) } }
+    }
+}
+
+/** 「全体」の欄。テンプレート・間隔・枠・文字と時計・見た目。 */
+@Composable
+private fun WholeControls(
+    vm: EditorViewModel,
+    tree: LayoutShape.Tree?,
+    defaultGutterColor: Long,
+) {
+    ChipRow("テンプレート") {
+        LayoutEdits.Template.entries.forEach { t -> Chip(t.label) { vm.applyTemplate(t) } }
+    }
+    if (tree == null) return
+    val frame = tree.frame
+    SliderRow("間隔", frame.gutter, 0f..60f) { v -> vm.setFrame(record = false) { it.copy(gutter = v) } }
+    ChipRow("間隔の色") {
+        // 色の無い古いレイアウトは、設定画面にあった色を使う
+        val current = frame.gutterColor ?: defaultGutterColor
+        listOf(BLACK to "黒", WHITE to "白", DARK_GRAY to "ダークグレー").forEach { (c, label) ->
+            Chip(label, selected = current == c) { vm.setFrame { it.copy(gutterColor = c) } }
+        }
+    }
+    ChipRow("枠") {
+        listOf(BorderStyle.NONE to "なし", BorderStyle.SINGLE to "一重", BorderStyle.DOUBLE to "二重").forEach { (s, label) ->
+            Chip(label, selected = frame.border.style == s) { vm.setFrame { it.copy(border = it.border.copy(style = s)) } }
+        }
+        Chip("裁ち落とし", selected = frame.bleed) { vm.setFrame { it.copy(bleed = !it.bleed) } }
+    }
+    SliderRow("枠の太さ", frame.border.width, 0f..40f) { v -> vm.setFrame(record = false) { it.copy(border = it.border.copy(width = v)) } }
+    TextAndClockControls(vm, tree)
+    val look = tree.look
+    ChipRow("色調") {
+        Chip("なし", selected = look.tone == Tone.NONE) { vm.setLook { it.copy(tone = Tone.NONE) } }
+        Chip("パステル", selected = look.tone == Tone.SOFT) { vm.setLook { it.copy(tone = Tone.SOFT) } }
+    }
+    if (look.tone != Tone.NONE) {
+        SliderRow("強さ", look.strength * 100f, 0f..100f) { v -> vm.setLook(record = false) { it.copy(strength = v / 100f) } }
+    }
+    SliderRow("内側の影", look.inner * 100f, 0f..100f) { v -> vm.setLook(record = false) { it.copy(inner = v / 100f) } }
+    SliderRow("光沢", look.sheen * 100f, 0f..100f) { v -> vm.setLook(record = false) { it.copy(sheen = v / 100f) } }
+}
+
 private const val BLACK = 0xFF111111
 private const val WHITE = 0xFFFFFFFF
+private const val DARK_GRAY = 0xFF2B2B33
 
 /** 行の見出しの幅。「テンプレート」「見出しの位置」が 1 行に収まる幅。 */
-private val LABEL_WIDTH = 84.dp
+internal val LABEL_WIDTH = 84.dp
 
 internal fun kindLabel(c: PanelContent): String = when (c) {
     is PanelContent.Folder -> "フォルダ"
@@ -192,6 +260,8 @@ internal fun kindLabel(c: PanelContent): String = when (c) {
 private fun Preview(
     vm: EditorViewModel,
     state: EditorUiState,
+    /** フォルダに付けた名前（コマの id → 名前）。ホームと同じ名前を縮小図に表示する。 */
+    names: Map<String, String>,
     screenWidth: Float,
     screenHeight: Float,
     gutter: Color,
@@ -212,7 +282,7 @@ private fun Preview(
     val measurer = rememberTextMeasurer(cacheSize = 16)
     val masks by rememberMasks(state.masks, state.imagesRevision)
     val texts =
-        remember(resolved, state.layout, masks) { buildPanelTexts(state.layout, resolved.panels, screenWidth, emptyMap(), masks) }
+        remember(resolved, state.layout, masks, names) { buildPanelTexts(state.layout, resolved.panels, screenWidth, names, masks) }
     val now = remember { LocalDateTime.now() }
     val density = LocalDensity.current
     val handleRadius = with(density) { 22.dp.toPx() }
@@ -360,7 +430,7 @@ private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.wai
 }
 
 @Composable
-private fun ChipRow(
+internal fun ChipRow(
     title: String,
     content: @Composable () -> Unit,
 ) {
@@ -371,7 +441,7 @@ private fun ChipRow(
 }
 
 @Composable
-private fun Hint(text: String) {
+internal fun Hint(text: String) {
     BasicText(text, style = TextStyle(color = Color(0xFF9E9EA8), fontSize = 12.sp), modifier = Modifier.padding(vertical = 4.dp))
 }
 
@@ -456,7 +526,6 @@ private fun SliderRow(
 private fun TextAndClockControls(
     vm: EditorViewModel,
     tree: LayoutShape.Tree,
-    selected: PanelId?,
 ) {
     val text = tree.text
     val clock = tree.clock
@@ -487,12 +556,10 @@ private fun TextAndClockControls(
     }
     if (text.masthead.isNotBlank()) {
         SliderRow("見出しの位置", text.mastheadY * 100f, 0f..100f) { v -> vm.setTree(record = false) { it.copy(text = it.text.copy(mastheadY = v / 100f)) } }
-        if (selected != null) ChipRow("") { Chip("見出しを選択中のコマへ移動") { vm.setTree { it.copy(text = it.text.copy(mastheadPanel = selected)) } } }
     }
     ChipRow("時計") {
         Chip("非表示", selected = !clock.enabled) { vm.setTree { it.copy(clock = it.clock.copy(enabled = false)) } }
         Chip("表示", selected = clock.enabled) { vm.setTree { it.copy(clock = it.clock.copy(enabled = true)) } }
-        if (selected != null) Chip("選択中のコマへ移動") { vm.setTree { it.copy(clock = it.clock.copy(enabled = true, panel = selected)) } }
     }
     if (clock.enabled) {
         SliderRow("サイズ", clock.size * 100f, 50f..160f) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(size = v / 100f)) } }
