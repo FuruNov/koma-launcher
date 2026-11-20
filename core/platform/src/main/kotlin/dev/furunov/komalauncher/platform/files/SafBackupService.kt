@@ -2,14 +2,13 @@ package dev.furunov.komalauncher.platform.files
 
 import android.content.Context
 import android.net.Uri
+import dev.furunov.komalauncher.model.apps.LaunchStore
+import dev.furunov.komalauncher.model.apps.Launches
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.folders.Folders
-import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutParser
 import dev.furunov.komalauncher.model.layout.LayoutResult
-import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.ports.BackupService
-import dev.furunov.komalauncher.model.ports.LayoutImporter
 import dev.furunov.komalauncher.model.settings.Settings
 import dev.furunov.komalauncher.model.settings.SettingsStore
 import dev.furunov.komalauncher.model.widgets.WidgetStore
@@ -19,48 +18,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 
-/**
- * 利用者が選んだ画像と layout.json を、取り込み口（外部ファイル領域）へ写す。写した後の取り込みは FileLayoutStore が行う。
- * 写す前に layout.json を読んで確かめ、壊れていれば写さない。
- */
-class SafLayoutImporter(
-    private val context: Context,
-    private val importDirectory: File,
-    /** いま表示しているレイアウト。画像だけを取り込むとき、置き換える絵の名前を決めるのに使う。 */
-    private val current: () -> Layout?,
-) : LayoutImporter {
-    override suspend fun import(
-        imageUri: String?,
-        layoutUri: String?,
-    ): String? = withContext(Dispatchers.IO) {
-        val resolver = context.contentResolver
-        val layoutText = layoutUri?.let { u -> resolver.openInputStream(Uri.parse(u))?.use { it.readBytes().decodeToString() } }
-        val layout =
-            when {
-                layoutText != null ->
-                    when (val r = LayoutParser.parse(layoutText)) {
-                        is LayoutResult.Ok -> r.layout
-                        is LayoutResult.Error -> return@withContext r.message
-                    }
-
-                else -> current()
-            }
-        if (imageUri != null) {
-            // 1 枚の絵を選ぶ取り込みは version 1 のためのもの。version 2 のコマごとの画像は、編集画面（段階 2）か adb で art/ に置く
-            val name =
-                (layout?.shape as? LayoutShape.Fixed)?.image
-                    ?: return@withContext "画像の名前を決める version 1 の layout.json がありません。コマごとの画像は adb で art/ に配置してください"
-            resolver.openInputStream(Uri.parse(imageUri))?.use { input ->
-                File(importDirectory, name).outputStream().use { input.copyTo(it) }
-            } ?: return@withContext "画像を読み込めません"
-        }
-        // layout.json は最後に書く。書き終えたときに取り込みが始まり、そのとき画像が揃っているように
-        val text = layoutText ?: layout?.let(LayoutParser::encode)
-        text?.let { File(importDirectory, "layout.json").writeText(it) }
-        null
-    }
-}
-
 @Serializable
 private data class BackupFile(
     val version: Int = 1,
@@ -69,6 +26,8 @@ private data class BackupFile(
     val layout: String? = null,
     /** コマ → ウィジェットの提供元。appWidgetId は端末ごとに違うので書かない。 */
     val widgets: Map<String, String> = emptyMap(),
+    /** アプリごとの起動回数（全アプリ一覧の「よく使う」）。古いバックアップには無い。 */
+    val launches: Launches? = null,
 )
 
 class SafBackupService(
@@ -80,6 +39,7 @@ class SafBackupService(
     private val folders: FolderStore,
     private val settings: SettingsStore,
     private val widgets: WidgetStore,
+    private val launches: LaunchStore,
 ) : BackupService {
     private val json =
         Json {
@@ -88,14 +48,18 @@ class SafBackupService(
             encodeDefaults = true
         }
 
-    /** バックアップのファイルの中身。同じ状態からは同じ文ができるので、自動バックアップが変化の有無を比べるのに使う。 */
-    fun encode(): String {
+    /**
+     * バックアップのファイルの中身。同じ状態からは同じ文ができるので、自動バックアップが変化の有無を比べるのに使う。
+     * [withLaunches] が false なら起動回数を除く。起動のたびに変わるので、自動バックアップはそれ以外の変化と分けて扱う。
+     */
+    fun encode(withLaunches: Boolean = true): String {
         val data =
             BackupFile(
                 folders = folders.folders.value,
                 settings = settings.settings.value,
                 layout = currentLayout(),
                 widgets = widgets.assignments.value.byPanel.mapValues { it.value.provider },
+                launches = launches.launches.value.takeIf { withLaunches },
             )
         return json.encodeToString(BackupFile.serializer(), data)
     }
@@ -109,7 +73,7 @@ class SafBackupService(
 
     override suspend fun import(uri: String): String? = withContext(Dispatchers.IO) {
         val text =
-            context.contentResolver.openInputStream(Uri.parse(uri))?.use { it.readBytes().decodeToString() }
+            context.contentResolver.openForRead(Uri.parse(uri))?.use { it.readBytes().decodeToString() }
                 ?: return@withContext "ファイルを読み込めません"
         val data =
             try {
@@ -123,6 +87,7 @@ class SafBackupService(
         }
         folders.update { data.folders }
         settings.update { data.settings }
+        data.launches?.let { l -> launches.update { l } }
         if (data.widgets.isEmpty()) {
             null
         } else {

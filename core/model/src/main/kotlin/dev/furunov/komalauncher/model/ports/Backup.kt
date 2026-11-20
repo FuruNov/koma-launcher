@@ -7,15 +7,16 @@ import kotlinx.coroutines.flow.StateFlow
  * 文字列で受け渡し、Android の Uri 型を設定画面のモジュールに出さない。
  */
 interface LayoutImporter {
-    /** 画像と layout.json を取り込む。どちらかだけでもよい。利用者に見せる文（失敗の理由）を返し、何もなければ null。 */
-    suspend fun import(
-        imageUri: String?,
-        layoutUri: String?,
-    ): String?
+    /**
+     * 利用者が選んだフォルダ（tree の URI）から、layout.json・画像・切り抜きを取り込む。
+     * layout.json があればコマ割りごと置き換え、無ければ今のコマ割りが参照する画像と切り抜きだけを補充する。
+     * 利用者に見せる文（結果か失敗の理由）を返す。
+     */
+    suspend fun importFolder(treeUri: String): String
 }
 
 interface BackupService {
-    /** フォルダの中身・設定・layout.json・ウィジェットの提供元を 1 つのファイルに書き出す。 */
+    /** フォルダの中身・設定・layout.json・ウィジェットの提供元・起動回数を 1 つのファイルに書き出す。 */
     suspend fun export(uri: String): String?
 
     /** 書き出したファイルを読み込む。利用者に見せる文（失敗の理由や、ウィジェットの置き直しの案内）を返す。 */
@@ -24,13 +25,23 @@ interface BackupService {
 
 /**
  * 利用者が選んだフォルダ（pCloud などのクラウドのフォルダも選べる）へ、バックアップを自動で書く。
- * 書くのはホームが裏に回ったときで、前回から内容が変わったときだけ。
+ * 書くのはホームが裏に回ったときで、前回から内容が変わったときだけ。起動回数だけの変化は 1 日に 1 回にまとめる。
  */
 interface AutoBackup {
     val state: StateFlow<AutoBackupState>
 
-    /** 保存先のフォルダを決め、すぐに 1 回書く。null でオフにする。利用者に見せる文（失敗の理由）を返す。 */
-    suspend fun setFolder(treeUri: String?): String?
+    /** フォルダ [treeUri] に既存のバックアップがあれば、その URI。設定画面が、上書きする前に復元するかを尋ねるのに使う。 */
+    suspend fun existingBackup(treeUri: String): String?
+
+    /**
+     * 保存先のフォルダを決める。null でオフにする。利用者に見せる文（失敗の理由）を返す。
+     * [writeNow] が true ならすぐに 1 回書く。false なら、次にホームが裏に回ったときに書く（復元した直後に使う）。
+     * 上書きの前の内容は、日付ごとの世代として 7 つまで残す。
+     */
+    suspend fun setFolder(
+        treeUri: String?,
+        writeNow: Boolean = true,
+    ): String?
 
     /** 内容が変わっていなくても、いま書く。 */
     suspend fun backupNow(): String?

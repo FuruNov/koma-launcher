@@ -82,6 +82,8 @@ fun SettingsScreen(deps: SettingsDeps) {
     val apps by deps.apps.collectAsStateWithLifecycle()
     val autoBackup by deps.autoBackup.state.collectAsStateWithLifecycle()
     var autoBackupMenu by remember { mutableStateOf(false) }
+    // 保存先に選んだフォルダ（tree の URI）と、そこにあった既存のバックアップ（ファイルの URI）。復元か上書きかを尋ねる
+    var existingBackup by remember { mutableStateOf<Pair<String, String>?>(null) }
     val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf<String?>(null) }
     var choosing by remember { mutableStateOf<SettingRow?>(null) }
@@ -119,21 +121,9 @@ fun SettingsScreen(deps: SettingsDeps) {
         }
     }
 
-    // 絵の取り込みは、layout.json → 画像の順に選んでもらう
-    var pendingLayout by remember { mutableStateOf<String?>(null) }
-    val pickImage =
-        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            scope.launch {
-                message = deps.importer.import(uri?.toString(), pendingLayout) ?: "コマ画像をインポートしました"
-                pendingLayout = null
-            }
-        }
-    val pickLayout =
-        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri != null) {
-                pendingLayout = uri.toString()
-                pickImage.launch(arrayOf("image/*"))
-            }
+    val pickArtFolder =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            if (uri != null) scope.launch { message = deps.importer.importFolder(uri.toString()) }
         }
     val exportTo =
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -145,14 +135,20 @@ fun SettingsScreen(deps: SettingsDeps) {
         }
     val pickBackupFolder =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-            if (uri != null) scope.launch { message = deps.autoBackup.setFolder(uri.toString()) ?: "バックアップしました" }
+            if (uri != null) {
+                scope.launch {
+                    val tree = uri.toString()
+                    val existing = deps.autoBackup.existingBackup(tree)
+                    if (existing == null) message = deps.autoBackup.setFolder(tree) ?: "バックアップしました" else existingBackup = tree to existing
+                }
+            }
         }
 
     fun onAction(key: ActionKey) {
         when (key) {
             ActionKey.EditLayout -> deps.openEditor()
             ActionKey.MusicAccess -> deps.openMusicAccess()
-            ActionKey.ImportArt -> pickLayout.launch(arrayOf("application/json", "text/plain", "*/*"))
+            ActionKey.ImportArt -> pickArtFolder.launch(null)
             ActionKey.ExportBackup -> exportTo.launch("koma-launcher-backup.json")
             ActionKey.ImportBackup -> importFrom.launch(arrayOf("application/json", "*/*"))
             ActionKey.AutoBackup -> if (autoBackup.folder == null) pickBackupFolder.launch(null) else autoBackupMenu = true
@@ -264,6 +260,23 @@ fun SettingsScreen(deps: SettingsDeps) {
             ) { autoBackupMenu = false }
         }
 
+        existingBackup?.let { (tree, file) ->
+            ChoiceDialog(
+                "このフォルダには既存のバックアップがあります",
+                listOf(
+                    "このバックアップから復元" to {
+                        scope.launch {
+                            val restored = deps.backup.import(file)
+                            // 復元したコマ割りは少し後に反映されるので、すぐには書かず、次にホームを離れたときに書く
+                            message = deps.autoBackup.setFolder(tree, writeNow = false) ?: restored ?: "復元しました"
+                        }
+                    },
+                    "上書き" to { scope.launch { message = deps.autoBackup.setFolder(tree) ?: "バックアップしました。以前の内容は日付付きのファイルに保存しました" } },
+                    "キャンセル" to {},
+                ),
+            ) { existingBackup = null }
+        }
+
         message?.let {
             Box(Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(16.dp)) {
                 BasicText(
@@ -278,7 +291,7 @@ fun SettingsScreen(deps: SettingsDeps) {
             }
         }
     }
-    BackHandler(enabled = choosing == null && !autoBackupMenu) { deps.onClose() }
+    BackHandler(enabled = choosing == null && !autoBackupMenu && existingBackup == null) { deps.onClose() }
 }
 
 @Composable

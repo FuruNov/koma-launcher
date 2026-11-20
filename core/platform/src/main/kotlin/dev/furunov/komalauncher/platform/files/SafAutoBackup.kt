@@ -19,6 +19,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.security.MessageDigest
+import java.time.LocalDate
 
 /**
  * 利用者が ACTION_OPEN_DOCUMENT_TREE で選んだフォルダへ、[SafBackupService.encode] の文を書く。
@@ -39,6 +40,8 @@ class SafAutoBackup(
         val error: String? = null,
         /** 最後に書けた内容の SHA-256。同じなら書かない。 */
         val hash: String? = null,
+        /** 起動回数を除いた内容の SHA-256。起動回数だけの変化と、それ以外の変化を見分ける。 */
+        val coreHash: String? = null,
     )
 
     private val file = AtomicFile(File(context.noBackupFilesDir, "auto-backup.json"))
@@ -50,7 +53,19 @@ class SafAutoBackup(
     // 設定画面の操作と、ホームが裏に回ったときの書き込みが重ならないようにする
     private val mutex = Mutex()
 
-    override suspend fun setFolder(treeUri: String?): String? = mutex.withLock {
+    override suspend fun existingBackup(treeUri: String): String? = withContext(Dispatchers.IO) {
+        try {
+            list(Uri.parse(treeUri))[FILE_NAME]?.toString()
+        } catch (e: Exception) {
+            Log.w(TAG, "$treeUri の中を読めない", e)
+            null
+        }
+    }
+
+    override suspend fun setFolder(
+        treeUri: String?,
+        writeNow: Boolean,
+    ): String? = mutex.withLock {
         withContext(Dispatchers.IO) {
             val old = saved.treeUri
             if (treeUri == null) {
@@ -66,14 +81,15 @@ class SafAutoBackup(
                 return@withContext "このフォルダの権限を保持できません"
             }
             if (old != null && old != treeUri) release(old)
+            // hash が空なので、すぐに書かなくても、次にホームが裏に回ったときに書く
             save(Saved(treeUri = treeUri, folder = folderName(uri) ?: "選択したフォルダ"))
-            write(backup.encode())
+            if (writeNow) writeCurrent() else null
         }
     }
 
     override suspend fun backupNow(): String? = mutex.withLock {
         withContext(Dispatchers.IO) {
-            if (saved.treeUri == null) "保存先のフォルダが未設定です" else write(backup.encode())
+            if (saved.treeUri == null) "保存先のフォルダが未設定です" else writeCurrent()
         }
     }
 
@@ -82,19 +98,29 @@ class SafAutoBackup(
             withContext(Dispatchers.IO) {
                 if (saved.treeUri == null) return@withContext
                 val text = backup.encode()
+                val core = backup.encode(withLaunches = false)
+                // 起動回数はアプリを起動するたびに変わる。それだけの変化なら、書くのは 1 日に 1 回にする
+                val launchesDue = sha256(text) != saved.hash && System.currentTimeMillis() - (saved.lastBackupAt ?: 0L) > DAY_MS
                 // 前回失敗していれば、内容が同じでも書き直す
-                if (saved.error == null && sha256(text) == saved.hash) return@withContext
-                write(text)
+                if (saved.error == null && sha256(core) == saved.coreHash && !launchesDue) return@withContext
+                write(text, core)
             }
         }
     }
 
-    /** 失敗の理由を返す。結果は [saved] に記録する。 */
-    private fun write(text: String): String? {
+    private fun writeCurrent(): String? = write(backup.encode(), backup.encode(withLaunches = false))
+
+    /** [text] を書く。[core] は起動回数を除いた内容。失敗の理由を返す。結果は [saved] に記録する。 */
+    private fun write(
+        text: String,
+        core: String,
+    ): String? {
         val tree = Uri.parse(saved.treeUri ?: return null)
         val error =
             try {
-                val out = findOrCreate(tree)?.let { context.contentResolver.openOutputStream(it, "wt") }
+                val files = list(tree)
+                files[FILE_NAME]?.let { keepGeneration(tree, it, files) }
+                val out = (files[FILE_NAME] ?: create(tree, FILE_NAME))?.let { context.contentResolver.openOutputStream(it, "wt") }
                 if (out == null) {
                     "保存先のファイルを作成できません"
                 } else {
@@ -108,7 +134,7 @@ class SafAutoBackup(
             }
         save(
             if (error == null) {
-                saved.copy(lastBackupAt = System.currentTimeMillis(), error = null, hash = sha256(text))
+                saved.copy(lastBackupAt = System.currentTimeMillis(), error = null, hash = sha256(text), coreHash = sha256(core))
             } else {
                 saved.copy(error = error)
             },
@@ -116,20 +142,52 @@ class SafAutoBackup(
         return error
     }
 
-    /** フォルダの直下の [FILE_NAME] を探し、無ければ作る。 */
-    private fun findOrCreate(tree: Uri): Uri? {
+    /**
+     * 上書きの前の内容を、その日の世代（koma-launcher-backup-<日付>.json）に写す。その日の世代が既にあれば写さない。
+     * 誤って消した状態を書いてしまっても、前日までの内容を戻せるように。世代は新しい [GENERATIONS] 個を残す。
+     * 世代を書けなくても、本体の書き込みは続ける。
+     */
+    private fun keepGeneration(
+        tree: Uri,
+        current: Uri,
+        files: Map<String, Uri>,
+    ) {
         val resolver = context.contentResolver
+        val name = "koma-launcher-backup-${LocalDate.now()}.json"
+        try {
+            if (name !in files) {
+                val bytes = resolver.openForRead(current)?.use { it.readBytes() } ?: return
+                create(tree, name)?.let { doc -> resolver.openOutputStream(doc, "wt")?.use { it.write(bytes) } }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "$name を書けない", e)
+            return
+        }
+        (files.keys + name).filter { GENERATION.matches(it) }.sortedDescending().drop(GENERATIONS).forEach { old ->
+            try {
+                files[old]?.let { DocumentsContract.deleteDocument(resolver, it) }
+            } catch (e: Exception) {
+                Log.w(TAG, "$old を消せない", e)
+            }
+        }
+    }
+
+    /** フォルダの直下のファイルの名前 → URI。多くのプロバイダは selection を無視するので、すべての子を読む。 */
+    private fun list(tree: Uri): Map<String, Uri> {
         val parentId = DocumentsContract.getTreeDocumentId(tree)
         val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, parentId)
         val columns = arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-        // 多くのプロバイダは selection を無視するので、すべての子を読んで名前で比べる
-        resolver.query(children, columns, null, null, null)?.use { c ->
-            while (c.moveToNext()) {
-                if (c.getString(1) == FILE_NAME) return DocumentsContract.buildDocumentUriUsingTree(tree, c.getString(0))
-            }
-        }
-        val parent = DocumentsContract.buildDocumentUriUsingTree(tree, parentId)
-        return DocumentsContract.createDocument(resolver, parent, "application/json", FILE_NAME)
+        return context.contentResolver.query(children, columns, null, null, null)?.use { c ->
+            buildMap { while (c.moveToNext()) put(c.getString(1), DocumentsContract.buildDocumentUriUsingTree(tree, c.getString(0))) }
+        }.orEmpty()
+    }
+
+    private fun create(
+        tree: Uri,
+        name: String,
+    ): Uri? {
+        val parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+        return DocumentsContract.createDocument(context.contentResolver, parent, "application/json", name)
     }
 
     private fun folderName(tree: Uri): String? = try {
@@ -176,6 +234,9 @@ class SafAutoBackup(
     private companion object {
         const val TAG = "SafAutoBackup"
         const val FILE_NAME = "koma-launcher-backup.json"
+        const val GENERATIONS = 7
+        const val DAY_MS = 24 * 60 * 60 * 1000L
+        val GENERATION = Regex("""koma-launcher-backup-\d{4}-\d{2}-\d{2}\.json""")
         const val FLAGS = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
 
         fun sha256(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.encodeToByteArray()).joinToString("") { "%02x".format(it) }

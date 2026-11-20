@@ -173,8 +173,8 @@ fun settingsSections(): List<SettingSection> = listOf(
     SettingSection(
         "画像とバックアップ",
         listOf(
-            SettingRow.Action("コマ画像をインポート", "layout.json と画像を選択", ActionKey.ImportArt),
-            SettingRow.Action("バックアップをエクスポート", "フォルダ・設定・layout.json を 1 ファイルに保存", ActionKey.ExportBackup),
+            SettingRow.Action("コマ画像をインポート", "layout.json・画像・切り抜きのフォルダを選択", ActionKey.ImportArt),
+            SettingRow.Action("バックアップをエクスポート", "フォルダ・設定・layout.json・起動回数を 1 ファイルに保存", ActionKey.ExportBackup),
             SettingRow.Action("バックアップから復元", "ウィジェットは再配置が必要です", ActionKey.ImportBackup),
             SettingRow.Action("自動バックアップ", "", ActionKey.AutoBackup),
             SettingRow.Action("既定のホームアプリ", "Android の設定を開く", ActionKey.HomeApp),

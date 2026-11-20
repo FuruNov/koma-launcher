@@ -33,9 +33,26 @@ scripts/record-animations.sh <出力先>             # アニメーションの�
 
 ## コマの絵を入れる
 
-レイアウトはアプリの内部（`files/layout.json` と `files/art/`）に持つ。外から入れるときは、`/sdcard/Android/data/dev.furunov.komalauncher/files/` を取り込み口に使う。ここに `layout.json` を置くと、アプリは中身を確かめ、参照する画像を内部へ写してから、ホームをその形に変える。取り込んだ `layout.json` は `layout.json.imported` に名前が変わり、写し終えた画像は消える。設定画面の「コマ画像をインポート」とバックアップの読み込みも、同じ取り込み口を通る。
+レイアウトはアプリの内部（`files/layout.json` と `files/art/`）に持つ。外から入れるときは、`/sdcard/Android/data/dev.furunov.komalauncher/files/` を取り込み口に使う。ここに `layout.json` を置くと、アプリは中身を確かめ、参照する画像を内部へ写してから、ホームをその形に変える。取り込んだ `layout.json` は `layout.json.imported` に名前が変わり、写し終えた画像は消える。設定画面の「コマ画像をインポート」とバックアップの復元も、同じ取り込み口を通る。
 
 モックアップ（`docs/mockups/`）で作ったコマ割りは、`scripts/import-mockup.sh <state.json> <画像のディレクトリ>` で送れる。`state.json` は Artifact の db の `editor/current`。画像はページに埋め込まれているので、`scripts/extract-mockup-images.sh <ページの HTML>` で書き出す。Claude に頼むときの手順と、新しいモックアップが守る保存の形は `.claude/skills/export-mockup/SKILL.md` にある。
+
+adb を使わないときは、設定画面の「コマ画像をインポート」でフォルダを選ぶ。pCloud などのクラウドのアプリが入っていれば、そのフォルダも選べる。フォルダの形は `import-mockup.sh` の画像のディレクトリと同じで、`<名前>.(webp|jpg|jpeg|png)` が画像、`mask/<名前>.(png|webp)` が白が人物の切り抜き（BiRefNet の出力）、`inv/<名前>.(png|webp)` が白が人物以外の切り抜き。`layout.json` があればコマ割りごと置き換える。無ければコマ割りは変えず、今のコマ割りが参照する画像と切り抜きだけを補充する。
+
+### バックアップと機種変更
+
+設定画面の「自動バックアップ」でフォルダを選ぶと、ホームが裏に回ったときに `koma-launcher-backup.json`（フォルダの中身・設定・`layout.json`・ウィジェットの提供元・起動回数）をそのフォルダに上書きする。書くのは内容が変わったときだけで、起動回数だけの変化は 1 日に 1 回にまとめる。上書きの前の内容は、日付ごとに `koma-launcher-backup-<日付>.json` として 7 世代残す。画像は容量が大きいので含めない。選んだフォルダに既存のバックアップがあれば、すぐには上書きせず、復元するか上書きするかを尋ねる。
+
+機種変更のときは、次の順に戻す。
+
+1. APK を入れ、既定のホームアプリにする
+2. 「自動バックアップ」で前の端末と同じフォルダを選び、「このバックアップから復元」を選ぶ（フォルダ・設定・コマ割り・起動回数が戻る）
+3. 「コマ画像をインポート」で画像のフォルダを選ぶ（`layout.json` を置かないフォルダなら、戻したコマ割りに画像と切り抜きを補充する）
+4. ウィジェットを置いたコマを長押しして置き直し、音楽プレイヤーのコマを使うなら通知へのアクセスを許可し直す
+
+編集画面で端末のギャラリーから選んだ画像（`img-` で始まる名前）は、画像のフォルダにもバックアップにも無いので戻らない。
+
+Waydroid（Android 13）では、選んだフォルダが端末内の共有ストレージにあると、ファイルを読み取り専用で開く処理が MediaProvider の中で NullPointerException になる。読み取りに失敗したときだけ読み書きのモードで開き直す（`platform/files/Documents.kt`）。
 
 ### version 2（線の木とコマごとの画像）
 

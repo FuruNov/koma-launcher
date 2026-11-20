@@ -19,7 +19,7 @@ import dev.furunov.komalauncher.platform.apps.LauncherAppsCatalog
 import dev.furunov.komalauncher.platform.apps.LauncherIconLoader
 import dev.furunov.komalauncher.platform.files.SafAutoBackup
 import dev.furunov.komalauncher.platform.files.SafBackupService
-import dev.furunov.komalauncher.platform.files.SafLayoutImporter
+import dev.furunov.komalauncher.platform.files.SafFolderImporter
 import dev.furunov.komalauncher.platform.layout.FileLayoutStore
 import dev.furunov.komalauncher.platform.media.MediaSessionWatcher
 import dev.furunov.komalauncher.platform.sensor.SensorTiltSource
@@ -70,8 +70,8 @@ class AppContainer(
 
     /** Activity が作り直されてもウィジェットのビューを持ち続けるよう、アプリの寿命で持つ。 */
     val widgets = WidgetHostController(context.applicationContext, widgetStore)
-    val importer: LayoutImporter = SafLayoutImporter(context, fileLayout.importDirectory) { layoutSource.state.value.takeIf { it is LayoutState.Loaded }?.layout }
-    private val safBackup = SafBackupService(context, fileLayout.importDirectory, fileLayout::currentText, folderStore, settingsStore, widgetStore)
+    val importer: LayoutImporter = SafFolderImporter(context, fileLayout.importDirectory, fileLayout::currentText)
+    private val safBackup = SafBackupService(context, fileLayout.importDirectory, fileLayout::currentText, folderStore, settingsStore, widgetStore, launchStore)
     val backup: BackupService = safBackup
     val autoBackup: AutoBackup = SafAutoBackup(context, safBackup)
 
