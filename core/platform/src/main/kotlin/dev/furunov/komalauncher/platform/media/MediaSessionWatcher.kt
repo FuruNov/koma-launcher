@@ -1,5 +1,6 @@
 package dev.furunov.komalauncher.platform.media
 
+import android.app.ActivityOptions
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -9,6 +10,8 @@ import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.net.Uri
+import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -18,7 +21,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import dev.furunov.komalauncher.model.media.MediaSessions
 import dev.furunov.komalauncher.model.media.NowPlaying
+import dev.furunov.komalauncher.model.media.PauseTracker
 import dev.furunov.komalauncher.model.media.PlaybackStatus
+import dev.furunov.komalauncher.model.media.PlayerRules
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -56,7 +61,7 @@ class MediaSessionWatcher(
     private var current: MediaController? = null
 
     /** セッションごとの、一時停止になった時刻（壁時計）。一時停止の期限に使う。 */
-    private val pausedAt = HashMap<MediaSessionTokenKey, Long>()
+    private val paused = PauseTracker()
     private var artKey: String? = null
     private var artJob: Job? = null
 
@@ -106,6 +111,8 @@ class MediaSessionWatcher(
         }
         controllers.forEach { it.unregisterCallback(callback) }
         controllers = emptyList()
+        // 離れている間の再生・一時停止は届かないので、戻ったときに PlaybackState の更新時刻から数え直す
+        paused.reset()
     }
 
     private fun watch(list: List<MediaController>) {
@@ -118,32 +125,29 @@ class MediaSessionWatcher(
 
     private fun refresh() {
         val now = System.currentTimeMillis()
-        val live = HashSet<MediaSessionTokenKey>()
-        var chosen: Pair<MediaController, PlaybackStatus>? = null
+        val live = HashSet<String>()
+        var chosen: Triple<MediaController, PlaybackStatus, Long?>? = null
         for (c in controllers) {
-            val key = MediaSessionTokenKey(c.sessionToken.hashCode(), c.packageName)
+            val key = keyOf(c)
             live += key
             val state = c.playbackState
             val status = statusOf(state?.state)
-            if (status == PlaybackStatus.PAUSED) {
-                if (key !in pausedAt) pausedAt[key] = pausedSince(state, now)
-            } else {
-                pausedAt.remove(key)
-            }
-            if (chosen == null && status != PlaybackStatus.STOPPED) chosen = c to status
+            val pausedAt = paused.update(key, status) { pausedSince(state, now) }
+            if (chosen == null && status != PlaybackStatus.STOPPED) chosen = Triple(c, status, pausedAt)
         }
-        pausedAt.keys.retainAll(live)
-        val (c, status) = chosen ?: run {
+        paused.retain(live)
+        val (c, status, pausedAt) = chosen ?: run {
             clear()
             return
         }
         current = c
         val meta = c.metadata
         val trackKey = listOfNotNull(meta?.getString(MediaMetadata.METADATA_KEY_TITLE), meta?.getString(MediaMetadata.METADATA_KEY_ARTIST)).joinToString("\u0000")
-        val key = MediaSessionTokenKey(c.sessionToken.hashCode(), c.packageName)
-        nowPlayingFlow.value = NowPlaying(c.packageName, status, trackKey, pausedAt[key])
-        loadArt(c.packageName + "\u0000" + trackKey, meta)
+        nowPlayingFlow.value = NowPlaying(c.packageName, status, trackKey, pausedAt)
+        loadArt(c.packageName, trackKey, meta)
     }
+
+    private fun keyOf(c: MediaController): String = c.packageName + "\u0000" + c.sessionToken.hashCode()
 
     private fun clear() {
         current = null
@@ -164,14 +168,17 @@ class MediaSessionWatcher(
     }
 
     private fun loadArt(
-        key: String,
+        packageName: String,
+        trackKey: String,
         meta: MediaMetadata?,
     ) {
+        val bitmap = meta?.getBitmap(MediaMetadata.METADATA_KEY_ART) ?: meta?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+        val uri = meta?.getString(MediaMetadata.METADATA_KEY_ART_URI) ?: meta?.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
+        val identity = bitmap?.let { "bmp:${it.width}x${it.height}:${it.generationId}" } ?: uri?.let { "uri:$it" }
+        val key = PlayerRules.artKey(packageName, trackKey, identity)
         if (key == artKey) return
         artKey = key
         artJob?.cancel()
-        val bitmap = meta?.getBitmap(MediaMetadata.METADATA_KEY_ART) ?: meta?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-        val uri = meta?.getString(MediaMetadata.METADATA_KEY_ART_URI) ?: meta?.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
         artJob =
             scope.launch {
                 val loaded =
@@ -222,13 +229,26 @@ class MediaSessionWatcher(
         try {
             val pending = c.sessionActivity
             if (pending != null) {
-                pending.send()
+                // Android 14 以降は、送る側（前面のランチャー）が起動を許すと明示しないと、裏にいる音楽アプリの画面を開けない
+                pending.send(app, 0, null, null, null, null, backgroundStartOptions())
                 return
             }
         } catch (e: Exception) {
             // 取り消された PendingIntent なら、アプリの起動に切り替える
         }
         app.packageManager.getLaunchIntentForPackage(c.packageName)?.let { app.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
+
+    private fun backgroundStartOptions(): Bundle? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return null
+        val mode =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE
+            } else {
+                @Suppress("DEPRECATION")
+                ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+            }
+        return ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(mode).toBundle()
     }
 
     override fun openAccessSettings() {
@@ -250,11 +270,6 @@ class MediaSessionWatcher(
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
     }
-
-    private data class MediaSessionTokenKey(
-        val token: Int,
-        val packageName: String,
-    )
 
     private companion object {
         const val ART_SIDE = 512

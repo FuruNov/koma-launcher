@@ -47,7 +47,45 @@ interface MediaSessions {
     fun openAppInfo()
 }
 
+/**
+ * セッションごとの、一時停止になった時刻。一時停止の期限に使う。
+ * 監視をやめたら [reset] する。離れている間の再生・一時停止は届かないので、戻ったときに数え直すため。
+ */
+class PauseTracker {
+    private val pausedAt = HashMap<String, Long>()
+
+    /** 一時停止中なら、一時停止になった時刻（初めて見たときだけ [since] で決める）。それ以外は null。 */
+    fun update(
+        key: String,
+        status: PlaybackStatus,
+        since: () -> Long,
+    ): Long? {
+        if (status != PlaybackStatus.PAUSED) {
+            pausedAt.remove(key)
+            return null
+        }
+        return pausedAt.getOrPut(key, since)
+    }
+
+    /** 終わったセッションの記録を消す。 */
+    fun retain(keys: Set<String>) {
+        pausedAt.keys.retainAll(keys)
+    }
+
+    fun reset() = pausedAt.clear()
+}
+
 object PlayerRules {
+    /**
+     * ジャケットを読み直すかを決める合図。曲（[trackKey]）に加えて画像の識別（[art]、無ければ null）も含める。
+     * 先に画像なしで、後から同じ題で画像つきのメタデータを出すアプリがあるため。
+     */
+    fun artKey(
+        packageName: String,
+        trackKey: String,
+        art: String?,
+    ): String = listOf(packageName, trackKey, art ?: "none").joinToString("\u0000")
+
     /** コマをプレイヤーの表示にするか。一時停止は [pauseTimeoutMinutes] 分まで表示する。 */
     fun showsPlayer(
         np: NowPlaying?,
