@@ -97,4 +97,11 @@ class AppSearchTest {
         val s = listOf(AppShortcut("p", "1", "新規作成"), AppShortcut("p", "2", "Compose"))
         assertEquals(listOf("Compose"), AppSearch.rankShortcuts("comp", s).map { it.shortcut.label })
     }
+
+    @Test
+    fun packageSkipsGenericSegments() {
+        val twitter = AppEntry(AppKey("com.twitter.android", "T"), "Ｘ")
+        assertEquals(listOf(twitter), AppSearch.rank("twitter", listOf(twitter), emptyMap()).map { it.app })
+        assertTrue(AppSearch.rank("android", listOf(twitter), emptyMap()).isEmpty())
+    }
 }

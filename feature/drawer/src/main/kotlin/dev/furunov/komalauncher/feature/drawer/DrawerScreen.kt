@@ -122,6 +122,8 @@ fun DrawerScreen(
         keyboard?.show()
         slide.animateTo(0f, tween(220))
     }
+    // アイコンを運び始めたらキーボードを閉じる。一覧が透明になって見えるホームの下側のコマを、キーボードが隠すため
+    LaunchedEffect(dnd.isDragging) { if (dnd.isDragging) keyboard?.hide() }
     // 入力が変わったら先頭へ戻す（先頭の候補が見えるように）
     LaunchedEffect(q) { grid.scrollToItem(0) }
 

@@ -55,11 +55,19 @@ object AppSearch {
         .mapNotNull { s -> match(query, s.label)?.let { RankedShortcut(s, it) } }
         .sortedByDescending { it.match.score }
 
-    /** パッケージ名の最後の部分（com.android.settings の settings）で照合する。名前での一致より下に並べ、太字にはしない。 */
+    /**
+     * パッケージ名の最後の部分（com.android.settings の settings）で照合する。名前での一致より下に並べ、太字にはしない。
+     * 最後が android・app のような汎用の語なら、その前の部分を使う（com.twitter.android の twitter）。
+     */
     private fun matchPackage(
         query: String,
         packageName: String,
-    ): Match? = match(query, packageName.substringAfterLast('.'))?.let { Match(it.score / 2, emptyList()) }
+    ): Match? {
+        val segment = packageName.split('.').lastOrNull { it.isNotEmpty() && it !in GENERIC_SEGMENTS } ?: return null
+        return match(query, segment)?.let { Match(it.score / 2, emptyList()) }
+    }
+
+    private val GENERIC_SEGMENTS = setOf("android", "app", "apps", "mobile", "client", "main", "free", "pro", "lite")
 
     /**
      * [pattern] の各文字を [norm] のどこに当てるかを、点数が最大になるように選ぶ（動的計画法）。

@@ -53,22 +53,53 @@ focus() { adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'; }
 
 # HOME キーでこのランチャーが開くよう、確かめる間だけ既定のホームにする。終わったら元のホームに戻す
 prev_home=$(adb shell cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN | tail -1 | tr -d "\r")
-adb shell cmd package set-home-activity "$PKG/.MainActivity" >/dev/null
-# 利用者のレイアウト・絵・フォルダは、確かめる前に退避し、終わったら戻す（見本で確かめると上書きされるため）
+# ファイルを差し替える間の既定のホーム。このランチャーが再起動して、差し替えの途中のファイルを読み書きしないようにする
+other_home=$(adb shell cmd package query-activities --brief -c android.intent.category.HOME -a android.intent.action.MAIN | tr -d "\r" | grep / | grep -v "^$PKG/" | head -1)
+FILES=/data/data/$PKG/files
+# 利用者のレイアウト・絵・フォルダは、確かめる前に退避し、終わったら戻す（見本で確かめると上書きされるため）。
+# 端末の中の退避に加え、PC にも控えを置く。戻せなかったときに、次の実行で退避を上書きして失わないように
 BACKUP=/data/local/tmp/koma-e2e-files
-restore() {
+HOST_BACKUP="$OUT/files-backup-$(date +%Y%m%d-%H%M%S).tar"
+su_sh() { adb shell su -c "'$1'"; }
+park() {
+  [ -n "$other_home" ] && adb shell cmd package set-home-activity "$other_home" >/dev/null
+  adb shell input keyevent HOME
+  sleep 1
   adb shell am force-stop "$PKG"
-  adb shell su -c "'rm -rf /data/data/$PKG/files && cp -a $BACKUP /data/data/$PKG/files && restorecon -R /data/data/$PKG/files'"
-  [ -n "$prev_home" ] && adb shell cmd package set-home-activity "$prev_home" >/dev/null
 }
-adb shell am force-stop "$PKG"
-adb shell su -c "'rm -rf $BACKUP && cp -a /data/data/$PKG/files $BACKUP'" || {
-  echo "アプリのファイルを退避できないので中止する"
+if su_sh "test -e $BACKUP"; then
+  echo "前回の退避 $BACKUP が残っている。前回はファイルを戻せなかったので、確かめてから消すこと（PC の控えは $OUT/files-backup-*.tar）"
   exit 1
+fi
+[ -z "$other_home" ] && {
+  echo "ほかのホームアプリが無いので、ファイルを安全に差し替えられない。中止する"
+  exit 1
+}
+park
+su_sh "mkdir -p $FILES"
+su_sh "tar -C /data/data/$PKG -cf $BACKUP.tar files && chmod 644 $BACKUP.tar" &&
+  adb pull "$BACKUP.tar" "$HOST_BACKUP" >/dev/null && tar -tf "$HOST_BACKUP" | grep -q '^files/' &&
+  su_sh "rm -f $BACKUP.tar && cp -a $FILES $BACKUP" || {
+  echo "アプリのファイルを退避できないので中止する"
+  [ -n "$prev_home" ] && adb shell cmd package set-home-activity "$prev_home" >/dev/null
+  exit 1
+}
+restore() {
+  park
+  # 一時ディレクトリへ写してから差し替える。元と一致したときだけ端末の退避を消す
+  if su_sh "rm -rf $FILES.restore && cp -a $BACKUP $FILES.restore && rm -rf $FILES && mv $FILES.restore $FILES && restorecon -R $FILES && diff -r $BACKUP $FILES >/dev/null"; then
+    adb shell am force-stop "$PKG"
+    su_sh "rm -rf $BACKUP"
+    echo "アプリのファイルを戻した（PC の控え: $HOST_BACKUP）"
+  else
+    echo "アプリのファイルを戻せなかった。端末の $BACKUP と PC の $HOST_BACKUP に残してある"
+  fi
+  [ -n "$prev_home" ] && adb shell cmd package set-home-activity "$prev_home" >/dev/null
 }
 trap restore EXIT
 # 起動の記録があると、全アプリ一覧の上に「よく使う」の行が加わり、アイコンの位置が変わる
-adb shell su -c "rm -rf /data/data/$PKG/files/layout.json /data/data/$PKG/files/art /data/data/$PKG/files/launches.json"
+su_sh "rm -rf $FILES/layout.json $FILES/art $FILES/launches.json"
+adb shell cmd package set-home-activity "$PKG/.MainActivity" >/dev/null
 adb shell am start -n "$PKG/.MainActivity" >/dev/null
 sleep 2
 home
