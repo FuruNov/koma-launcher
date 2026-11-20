@@ -43,11 +43,16 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import dev.furunov.komalauncher.model.apps.AppEntry
+import dev.furunov.komalauncher.model.ports.AutoBackup
+import dev.furunov.komalauncher.model.ports.AutoBackupState
 import dev.furunov.komalauncher.model.ports.BackupService
 import dev.furunov.komalauncher.model.ports.LayoutImporter
 import dev.furunov.komalauncher.model.settings.SettingsStore
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /** 設定画面が外から受け取るもの。実装は :app が渡す。 */
 class SettingsDeps(
@@ -57,6 +62,7 @@ class SettingsDeps(
     val apps: StateFlow<List<AppEntry>>,
     val importer: LayoutImporter,
     val backup: BackupService,
+    val autoBackup: AutoBackup,
     val openHomeSettings: () -> Unit,
     /** 音楽プレイヤーに要る「通知へのアクセス」が許可されているか。 */
     val hasMusicAccess: () -> Boolean,
@@ -74,6 +80,8 @@ private val Accent = Color(0xFFFFD54F)
 fun SettingsScreen(deps: SettingsDeps) {
     val settings by deps.store.settings.collectAsStateWithLifecycle()
     val apps by deps.apps.collectAsStateWithLifecycle()
+    val autoBackup by deps.autoBackup.state.collectAsStateWithLifecycle()
+    var autoBackupMenu by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf<String?>(null) }
     var choosing by remember { mutableStateOf<SettingRow?>(null) }
@@ -135,6 +143,10 @@ fun SettingsScreen(deps: SettingsDeps) {
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) scope.launch { message = deps.backup.import(uri.toString()) ?: "復元しました" }
         }
+    val pickBackupFolder =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            if (uri != null) scope.launch { message = deps.autoBackup.setFolder(uri.toString()) ?: "バックアップしました" }
+        }
 
     fun onAction(key: ActionKey) {
         when (key) {
@@ -143,6 +155,7 @@ fun SettingsScreen(deps: SettingsDeps) {
             ActionKey.ImportArt -> pickLayout.launch(arrayOf("application/json", "text/plain", "*/*"))
             ActionKey.ExportBackup -> exportTo.launch("koma-launcher-backup.json")
             ActionKey.ImportBackup -> importFrom.launch(arrayOf("application/json", "*/*"))
+            ActionKey.AutoBackup -> if (autoBackup.folder == null) pickBackupFolder.launch(null) else autoBackupMenu = true
             ActionKey.HomeApp -> deps.openHomeSettings()
         }
     }
@@ -196,6 +209,8 @@ fun SettingsScreen(deps: SettingsDeps) {
                                     is SettingRow.Action ->
                                         if (row.key == ActionKey.MusicAccess) {
                                             if (musicAccess) "許可済み" else "未許可"
+                                        } else if (row.key == ActionKey.AutoBackup) {
+                                            autoBackupSummary(autoBackup)
                                         } else {
                                             row.subtitle
                                         }
@@ -238,6 +253,17 @@ fun SettingsScreen(deps: SettingsDeps) {
             ChoiceDialog(row.title, options) { choosing = null }
         }
 
+        if (autoBackupMenu) {
+            ChoiceDialog(
+                "自動バックアップ",
+                listOf(
+                    "今すぐバックアップ" to { scope.launch { message = deps.autoBackup.backupNow() ?: "バックアップしました" } },
+                    "保存先を変更" to { pickBackupFolder.launch(null) },
+                    "オフにする" to { scope.launch { deps.autoBackup.setFolder(null) } },
+                ),
+            ) { autoBackupMenu = false }
+        }
+
         message?.let {
             Box(Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(16.dp)) {
                 BasicText(
@@ -252,7 +278,7 @@ fun SettingsScreen(deps: SettingsDeps) {
             }
         }
     }
-    BackHandler(enabled = choosing == null) { deps.onClose() }
+    BackHandler(enabled = choosing == null && !autoBackupMenu) { deps.onClose() }
 }
 
 @Composable
@@ -326,4 +352,16 @@ private fun StepButton(
         Modifier.size(36.dp).background(Card, CircleShape).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { BasicText(text, style = TextStyle(color = Color.White, fontSize = 18.sp)) }
+}
+
+private val backupTime = DateTimeFormatter.ofPattern("M/d HH:mm")
+
+private fun autoBackupSummary(s: AutoBackupState): String {
+    val at = s.lastBackupAt
+    return when {
+        s.folder == null -> "オフ（pCloud などのフォルダに保存）"
+        s.error != null -> "エラー: ${s.error}"
+        at != null -> "保存先: ${s.folder}・最終: ${backupTime.format(Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()))}"
+        else -> "保存先: ${s.folder}"
+    }
 }

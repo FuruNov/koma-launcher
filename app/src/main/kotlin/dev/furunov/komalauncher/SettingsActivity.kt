@@ -30,6 +30,7 @@ class SettingsActivity : ComponentActivity() {
                 apps = c.appCatalog.apps,
                 importer = c.importer,
                 backup = c.backup,
+                autoBackup = c.autoBackup,
                 openHomeSettings = { startActivity(Intent(Settings.ACTION_HOME_SETTINGS)) },
                 hasMusicAccess = c.media::checkAccess,
                 openMusicAccess = c.media::openAccessSettings,

@@ -7,6 +7,7 @@ import dev.furunov.komalauncher.model.apps.CountingAppCatalog
 import dev.furunov.komalauncher.model.apps.LaunchStore
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.ports.ActionPerformer
+import dev.furunov.komalauncher.model.ports.AutoBackup
 import dev.furunov.komalauncher.model.ports.BackupService
 import dev.furunov.komalauncher.model.ports.LayoutImporter
 import dev.furunov.komalauncher.model.ports.LayoutSource
@@ -16,6 +17,7 @@ import dev.furunov.komalauncher.model.settings.SettingsStore
 import dev.furunov.komalauncher.model.widgets.WidgetStore
 import dev.furunov.komalauncher.platform.apps.LauncherAppsCatalog
 import dev.furunov.komalauncher.platform.apps.LauncherIconLoader
+import dev.furunov.komalauncher.platform.files.SafAutoBackup
 import dev.furunov.komalauncher.platform.files.SafBackupService
 import dev.furunov.komalauncher.platform.files.SafLayoutImporter
 import dev.furunov.komalauncher.platform.layout.FileLayoutStore
@@ -69,7 +71,9 @@ class AppContainer(
     /** Activity が作り直されてもウィジェットのビューを持ち続けるよう、アプリの寿命で持つ。 */
     val widgets = WidgetHostController(context.applicationContext, widgetStore)
     val importer: LayoutImporter = SafLayoutImporter(context, fileLayout.importDirectory) { layoutSource.state.value.takeIf { it is LayoutState.Loaded }?.layout }
-    val backup: BackupService = SafBackupService(context, fileLayout.importDirectory, fileLayout::currentText, folderStore, settingsStore, widgetStore)
+    private val safBackup = SafBackupService(context, fileLayout.importDirectory, fileLayout::currentText, folderStore, settingsStore, widgetStore)
+    val backup: BackupService = safBackup
+    val autoBackup: AutoBackup = SafAutoBackup(context, safBackup)
 
     /** 読めずに既定値で始めた保存ファイルがあれば、その知らせ。ホームの上端に出す。 */
     val storeNotice: String? =
@@ -85,12 +89,13 @@ class AppContainer(
         }
     }
 
-    /** まとめて書く途中の保存を、いま書く。ホームが裏に回ったときに呼ぶ。 */
+    /** まとめて書く途中の保存を、いま書く。ホームが裏に回ったときに呼ぶ。自動バックアップがオンなら、変わった内容を保存先に書く。 */
     fun flushStores() {
         fileFolders.flush()
         fileSettings.flush()
         fileWidgets.flush()
         fileLaunches.flush()
         fileLayout.flush()
+        scope.launch { autoBackup.backupIfChanged() }
     }
 }

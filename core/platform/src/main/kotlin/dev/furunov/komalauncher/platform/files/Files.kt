@@ -88,17 +88,21 @@ class SafBackupService(
             encodeDefaults = true
         }
 
-    override suspend fun export(uri: String): String? = withContext(Dispatchers.IO) {
-        val layout = currentLayout()
+    /** バックアップのファイルの中身。同じ状態からは同じ文ができるので、自動バックアップが変化の有無を比べるのに使う。 */
+    fun encode(): String {
         val data =
             BackupFile(
                 folders = folders.folders.value,
                 settings = settings.settings.value,
-                layout = layout,
+                layout = currentLayout(),
                 widgets = widgets.assignments.value.byPanel.mapValues { it.value.provider },
             )
+        return json.encodeToString(BackupFile.serializer(), data)
+    }
+
+    override suspend fun export(uri: String): String? = withContext(Dispatchers.IO) {
         context.contentResolver.openOutputStream(Uri.parse(uri), "wt")?.use {
-            it.write(json.encodeToString(BackupFile.serializer(), data).encodeToByteArray())
+            it.write(encode().encodeToByteArray())
         } ?: return@withContext "書き出し先を開けません"
         null
     }

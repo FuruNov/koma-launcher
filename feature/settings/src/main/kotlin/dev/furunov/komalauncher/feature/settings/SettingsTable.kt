@@ -63,7 +63,7 @@ data class Option(
     val label: String,
 )
 
-enum class ActionKey { EditLayout, MusicAccess, ImportArt, ExportBackup, ImportBackup, HomeApp }
+enum class ActionKey { EditLayout, MusicAccess, ImportArt, ExportBackup, ImportBackup, AutoBackup, HomeApp }
 
 data class SettingSection(
     val title: String,
@@ -176,6 +176,7 @@ fun settingsSections(): List<SettingSection> = listOf(
             SettingRow.Action("コマ画像をインポート", "layout.json と画像を選択", ActionKey.ImportArt),
             SettingRow.Action("バックアップをエクスポート", "フォルダ・設定・layout.json を 1 ファイルに保存", ActionKey.ExportBackup),
             SettingRow.Action("バックアップから復元", "ウィジェットは再配置が必要です", ActionKey.ImportBackup),
+            SettingRow.Action("自動バックアップ", "", ActionKey.AutoBackup),
             SettingRow.Action("既定のホームアプリ", "Android の設定を開く", ActionKey.HomeApp),
         ),
     ),
