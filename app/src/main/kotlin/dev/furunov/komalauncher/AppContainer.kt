@@ -17,6 +17,7 @@ import dev.furunov.komalauncher.platform.apps.LauncherIconLoader
 import dev.furunov.komalauncher.platform.files.SafBackupService
 import dev.furunov.komalauncher.platform.files.SafLayoutImporter
 import dev.furunov.komalauncher.platform.layout.FileLayoutStore
+import dev.furunov.komalauncher.platform.sensor.SensorTiltSource
 import dev.furunov.komalauncher.platform.store.FileFolderStore
 import dev.furunov.komalauncher.platform.store.FileSettingsStore
 import dev.furunov.komalauncher.platform.store.FileWidgetStore
@@ -49,6 +50,7 @@ class AppContainer(
     val appCatalog: AppCatalog = LauncherAppsCatalog(context, scope)
     val iconLoader: IconLoader = LauncherIconLoader(context)
     val screenEvents = BroadcastScreenEvents(context)
+    val tilt = SensorTiltSource(context)
     val actions: ActionPerformer = DefaultActionPerformer(context, ReflectionSystemShade(context), appCatalog)
     private val fileWidgets = FileWidgetStore(context, scope)
     val widgetStore: WidgetStore = fileWidgets

@@ -83,7 +83,10 @@ class EditorViewModel(
         height = h
     }
 
-    fun resolve(layout: Layout = local.value.layout): ResolvedLayout = LayoutResolver.resolve(layout, width, height)
+    /** 視差で絵を動かす最大の量（画素）。ホームと同じく、その分だけ絵を大きく置き、動かせる範囲を狭める。 */
+    private fun parallax(layout: Layout): Float = (layout.shape as? LayoutShape.Tree)?.let { it.fx.artShift() * width / it.frame.refWidth } ?: 0f
+
+    fun resolve(layout: Layout = local.value.layout): ResolvedLayout = LayoutResolver.resolve(layout, width, height, parallax(layout))
 
     private fun resolvedPanel(id: PanelId): ResolvedPanel? = resolve().panels.firstOrNull { it.panel.id == id }
 
@@ -142,7 +145,7 @@ class EditorViewModel(
         val id = local.value.selected ?: return
         val b = resolvedPanel(id)?.polygon?.bounds ?: return
         val moved = start.copy(dx = start.dx + dx / b.width, dy = start.dy + dy / b.height, zoom = start.zoom * scale)
-        commit(LayoutEdits.updatePanel(local.value.layout, id) { it.copy(art = ArtLimits.clamp(b, moved)) })
+        commit(LayoutEdits.updatePanel(local.value.layout, id) { it.copy(art = ArtLimits.clamp(b, moved, parallax(local.value.layout))) })
     }
 
     fun selectedArt(): PanelArt? = local.value.selected?.let { local.value.layout.panel(it) }?.art

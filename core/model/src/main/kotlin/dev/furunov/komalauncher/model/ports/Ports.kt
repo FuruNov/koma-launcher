@@ -2,6 +2,7 @@ package dev.furunov.komalauncher.model.ports
 
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.PanelArt
+import dev.furunov.komalauncher.model.layout.Tilt
 import dev.furunov.komalauncher.model.settings.LauncherAction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -89,4 +90,14 @@ interface LayoutStore : LayoutSource {
 
     /** どのコマも使っていない画像を消す。元に戻す履歴が要らなくなってから（編集画面を閉じたときに）呼ぶ。 */
     fun pruneImages()
+}
+
+/** 端末の傾き（視差に使う）。読むのはホームが見えている間だけにする（電池のため）。 */
+interface TiltSource {
+    /** 目標の傾き。画面はここへ少しずつ寄せて描く。 */
+    val target: StateFlow<Tilt>
+
+    fun start()
+
+    fun stop()
 }

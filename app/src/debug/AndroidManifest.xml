@@ -8,6 +8,7 @@
             android:permission="android.permission.DUMP">
             <intent-filter>
                 <action android:name="dev.furunov.komalauncher.DEBUG_PLAY_UNLOCK" />
+                <action android:name="dev.furunov.komalauncher.DEBUG_TILT" />
             </intent-filter>
         </receiver>
     </application>

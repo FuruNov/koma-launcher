@@ -141,6 +141,7 @@ object LayoutParser {
             if (!t.mastheadY.isFinite() || t.mastheadY !in 0f..1f) return "text.mastheadY は 0〜1 にしてください"
             if (t.masthead.length > 40) return "text.masthead は 40 文字までにしてください"
         }
+        dto.fx?.let { if (!it.strength.isFinite() || it.strength !in 0f..3f) return "fx.strength は 0〜3 にしてください" }
         dto.clock?.let { c ->
             if (listOf(c.x, c.y).any { !it.isFinite() || it !in 0f..1f }) return "clock.x・y は 0〜1 にしてください"
             if (!c.size.isFinite() || c.size !in 0.2f..3f) return "clock.size は 0.2〜3 にしてください"
@@ -178,9 +179,10 @@ object LayoutParser {
         val look: LookDto? = null,
         val text: TextDto? = null,
         val clock: ClockDto? = null,
+        val fx: FxDto? = null,
     ) {
         fun toModel(): Layout = if (version >= 2) {
-            Layout(LayoutShape.Tree(requireNotNull(tree).toModel(), (frame ?: FrameDto()).toModel(), (look ?: LookDto()).toModel(), (text ?: TextDto()).toModel(), (clock ?: ClockDto()).toModel()))
+            Layout(LayoutShape.Tree(requireNotNull(tree).toModel(), (frame ?: FrameDto()).toModel(), (look ?: LookDto()).toModel(), (text ?: TextDto()).toModel(), (clock ?: ClockDto()).toModel(), (fx ?: FxDto()).toModel()))
         } else {
             Layout(
                 LayoutShape.Fixed(
@@ -193,7 +195,7 @@ object LayoutParser {
 
         companion object {
             fun of(layout: Layout): LayoutDto = when (val s = layout.shape) {
-                is LayoutShape.Tree -> LayoutDto(version = 2, frame = FrameDto.of(s.frame), tree = NodeDto.of(s.root), look = LookDto.of(s.look), text = TextDto.of(s.text), clock = ClockDto.of(s.clock))
+                is LayoutShape.Tree -> LayoutDto(version = 2, frame = FrameDto.of(s.frame), tree = NodeDto.of(s.root), look = LookDto.of(s.look), text = TextDto.of(s.text), clock = ClockDto.of(s.clock), fx = FxDto(s.fx.parallax, s.fx.strength))
 
                 is LayoutShape.Fixed ->
                     LayoutDto(
@@ -253,6 +255,14 @@ object LayoutParser {
 
         @SerialName("horizontal")
         HORIZONTAL,
+    }
+
+    @Serializable
+    private data class FxDto(
+        val parallax: Boolean = false,
+        val strength: Float = 1f,
+    ) {
+        fun toModel() = FxSpec(parallax, strength)
     }
 
     @Serializable

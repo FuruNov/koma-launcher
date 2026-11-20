@@ -491,4 +491,10 @@ private fun TextAndClockControls(
         SliderRow("横の位置", clock.x * 100f, 0f..100f, onStart = vm::beginGesture) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(x = v / 100f)) } }
         SliderRow("縦の位置", clock.y * 100f, 0f..100f, onStart = vm::beginGesture) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(y = v / 100f)) } }
     }
+    ChipRow("視差") {
+        Chip("傾けると奥行き", selected = tree.fx.parallax) { vm.setTree { it.copy(fx = it.fx.copy(parallax = !it.fx.parallax)) } }
+    }
+    if (tree.fx.parallax) {
+        SliderRow("視差の強さ", tree.fx.strength * 100f, 30f..200f, onStart = vm::beginGesture) { v -> vm.setTree(record = false) { it.copy(fx = it.fx.copy(strength = v / 100f)) } }
+    }
 }

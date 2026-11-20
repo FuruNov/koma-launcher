@@ -22,6 +22,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -47,6 +48,8 @@ import dev.furunov.komalauncher.feature.home.anim.PanelMotion
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.layout.ResolvedPanel
+import dev.furunov.komalauncher.model.layout.Tilt
+import dev.furunov.komalauncher.model.ports.TiltSource
 import dev.furunov.komalauncher.model.settings.GestureKind
 import dev.furunov.komalauncher.ui.art.PanelTextSpec
 import dev.furunov.komalauncher.ui.art.buildPanelTexts
@@ -61,6 +64,7 @@ import dev.furunov.komalauncher.ui.dnd.DragSource
 import dev.furunov.komalauncher.ui.dnd.LocalDragDrop
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import kotlin.math.roundToInt
@@ -90,6 +94,8 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     /** layout.json 以外の知らせ（保存ファイルを読めなかったなど）。 */
     notice: String? = null,
+    /** 端末の傾き（視差）。null なら動かさない。 */
+    tilt: TiltSource? = null,
 ) {
     // コマの間の色は、レイアウトに書いてあればそれを、無ければ設定の色を使う
     val frameGutter = (state.layout.shape as? LayoutShape.Tree)?.frame?.gutterColor
@@ -112,6 +118,8 @@ fun HomeScreen(
             }
         val measurer = rememberTextMeasurer(cacheSize = 16)
         val now by rememberMinuteClock()
+        val parallax = remember(state.layout, wPx) { parallaxOf(state.layout, wPx) }
+        val shownTilt = rememberShownTilt(tilt, parallax.art > 0f)
         val anim = state.settings.animation
         val pressAnim = PanelAnimations.press(anim.press)
         val currentState = rememberUpdatedState(state)
@@ -217,6 +225,8 @@ fun HomeScreen(
                         texts = texts[g.panel.id],
                         measurer = measurer,
                         now = { now },
+                        tilt = { shownTilt.value },
+                        parallax = parallax,
                         label = state.folders.byPanel[g.panel.id.value]?.name ?: g.panel.label,
                         highlight = if (hovered == g.panel.id) Color(state.settings.appearance.highlightColor) else null,
                     )
@@ -319,6 +329,9 @@ private fun PanelLayer(
     measurer: TextMeasurer,
     /** 時計の時刻。描画の段階で読む（毎分、そのコマだけを描き直す）。 */
     now: () -> LocalDateTime,
+    /** 画面に描く傾き。描画の段階で読む（傾きが変わったら、作り直しでなく描き直しだけにする）。 */
+    tilt: () -> Tilt,
+    parallax: ParallaxAmounts,
     label: String?,
     highlight: Color?,
 ) {
@@ -340,13 +353,29 @@ private fun PanelLayer(
                 clip = true
             }.drawBehind {
                 // 絵の長方形はコマの外へはみ出す。はみ出た分は graphicsLayer の shape で切り抜く
-                with(g.face) { drawArt(art) }
+                val t = tilt()
+                // 絵は傾けた向きへ、文字と時計は逆へ動かし、絵・文字・時計の 3 層に見せる（モックアップと同じ）
+                val artShift = Offset(t.x * parallax.art, t.y * parallax.art)
+                with(g.face) { drawArt(art, artShift) }
                 if (texts != null) {
                     val r = g.art
                     val (mo, ms) = r?.let { localPlacement(g.bounds, it) } ?: (null to null)
-                    drawPanelTexts(texts, Size(g.bounds.width, g.bounds.height), measurer, now(), mask, mo, ms)
+                    drawPanelTexts(
+                        texts,
+                        Size(g.bounds.width, g.bounds.height),
+                        measurer,
+                        now(),
+                        mask,
+                        mo,
+                        ms,
+                        textShift = Offset(-t.x * parallax.text, -t.y * parallax.text),
+                        clockShift = Offset(-t.x * parallax.clock, -t.y * parallax.clock),
+                        artShift = artShift,
+                    )
                 }
-                with(g.face) { drawOverlay() }
+                // 光の反射は傾きと逆へ流す（手に持った紙に光が当たっているように見せる）
+                val sheen = if (parallax.art > 0f) Offset(-t.x * g.bounds.width * 0.35f, -t.y * g.bounds.height * 0.2f) else Offset.Zero
+                with(g.face) { drawOverlay(sheen) }
                 // 押している間は少し暗くする
                 if (motion.press.value > 0f) drawRect(Color.Black.copy(alpha = 0.18f * motion.press.value))
                 if (highlight != null) drawRect(highlight.copy(alpha = 0.35f))
@@ -376,4 +405,38 @@ private fun rememberMinuteClock(): State<LocalDateTime> {
             }
         }
     }
+}
+
+/**
+ * 画面に描く傾き。センサーの目標へ 1 フレームごとに少しずつ寄せる。ホームが見えている間だけセンサーを読む。
+ * 目標に着いたらフレームを待つのをやめる（止まっている間は描き直さない）。
+ */
+@Composable
+private fun rememberShownTilt(
+    source: TiltSource?,
+    enabled: Boolean,
+): State<Tilt> {
+    val shown = remember { mutableStateOf(Tilt.ZERO) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(source, enabled) {
+        if (source == null || !enabled) {
+            shown.value = Tilt.ZERO
+            return@LaunchedEffect
+        }
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            source.start()
+            try {
+                source.target.collectLatest { target ->
+                    while (shown.value != target) {
+                        withFrameNanos { }
+                        shown.value = Tilt.follow(shown.value, target)
+                    }
+                }
+            } finally {
+                source.stop()
+                shown.value = Tilt.ZERO
+            }
+        }
+    }
+    return shown
 }

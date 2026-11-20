@@ -68,7 +68,7 @@ class HomeGeometry(
             val fixedImage = (layout.shape as? LayoutShape.Fixed)?.image
             val style = PanelStyle.of(layout, width)
             val panels =
-                LayoutResolver.resolve(layout, width, height).panels.map { r ->
+                LayoutResolver.resolve(layout, width, height, parallaxOf(layout, width).art).panels.map { r ->
                     val poly = r.polygon
                     val b = poly.bounds
                     val image = fixedImage ?: r.panel.art?.image
@@ -92,4 +92,21 @@ private class PolygonShape(
         path.close()
         return Outline.Generic(path)
     }
+}
+
+/** 視差で動かす最大の量（画素）。絵・文字・時計の順。 */
+class ParallaxAmounts(
+    val art: Float,
+    val text: Float,
+    val clock: Float,
+)
+
+/** レイアウトの視差の指定を、この画面の画素にする（長さはレイアウトの基準の幅で書いてあるので、画面の幅に合わせる）。 */
+fun parallaxOf(
+    layout: Layout,
+    width: Float,
+): ParallaxAmounts {
+    val tree = layout.shape as? LayoutShape.Tree ?: return ParallaxAmounts(0f, 0f, 0f)
+    val s = width / tree.frame.refWidth
+    return ParallaxAmounts(tree.fx.artShift() * s, tree.fx.textShift() * s, tree.fx.clockShift() * s)
 }

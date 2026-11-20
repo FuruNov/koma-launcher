@@ -47,6 +47,7 @@ scripts/record-animations.sh <出力先>             # アニメーションの�
 - `look` はコマの見た目。`tone`（`none`・`soft` の淡い色合い）、`strength`（かかり具合）、`inner`（内側の影）、`sheen`（光の反射）。どれも 0〜1 で、省くと何もしない。
 - `text` は文字。`label`（`vertical`・`horizontal`・`none`）はコマの名前の向き、`lang`（`en`・`ja`）は名前の言語、`masthead` は大見出しの文字（空なら出さない）、`mastheadY` はその高さ（コマに対する割合）、`mastheadPanel` は置くコマ（省くと時計のコマ）。
 - `clock` はランチャーが描く時計。`enabled`、`panel`（省くといちばん大きいコマ）、`x`・`y`（コマに対する中心の位置）、`size`。
+- `fx` は視差。`parallax` を true にすると、端末を傾けたとき絵（人物の切り抜きと一緒に）を傾けた向きへ、文字と時計を逆へ動かす（基準の幅で絵 26・時計 18・文字 7 画素 × `strength`）。光の反射も逆へ流れる。センサーはホームが見えている間だけ読む。センサーの無い Waydroid では、debug ビルドに `adb shell am broadcast -p dev.furunov.komalauncher -a dev.furunov.komalauncher.DEBUG_TILT --ef x 1 --ef y 0` で傾きを送って確かめる。
 - 人物の切り抜きがあると、名前・大見出し・時計を人物の後ろに描く。取り込み口の `art/<image>.inv.(png|webp)`（白が人物以外）か `art/<image>.mask.(png|webp)`（白が人物。アプリが濃さ 0.35〜0.65 を 0〜1 に詰めて反転する）に置くか、編集画面の「人物を切り抜く」で端末の中で作る。
 - `kind` は `folder`（フォルダ）・`widget`（ウィジェット）・`drawer`（押すと全アプリ一覧を開く）。
 - `art.image` の画像は、取り込み口の `art/<image>.(jpg|jpeg|png|webp)` に置く。アプリは長辺 2048 以下に縮めて内部へ写し、縦横比（`art.aspect`）を書き込む。`zoom`（1〜3）と `dx`・`dy`（コマの外接長方形の幅・高さに対するずらし）は、絵の端がコマに見えない範囲に収めて使う。

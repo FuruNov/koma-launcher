@@ -64,6 +64,10 @@ jq '
       x: ($s.clock.x // 0.5),
       y: ($s.clock.y // 0.83),
       size: ($s.clock.size // 0.78)
+    },
+    fx: {
+      parallax: ($s.fx.parallax // false),
+      strength: ($s.fx.strength // 1)
     }
   }' "$STATE" >"$OUT"
 echo "layout.json を作りました: $OUT"

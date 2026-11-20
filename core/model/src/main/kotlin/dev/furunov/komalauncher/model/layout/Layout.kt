@@ -145,6 +145,20 @@ data class ClockSpec(
     val size: Float = 0.78f,
 )
 
+/** 視差（段階 5）。端末を傾けると、絵・文字・時計を別の量で動かす。 */
+data class FxSpec(
+    val parallax: Boolean = false,
+    /** 動かす量の倍率（モックアップの 0.3〜2）。 */
+    val strength: Float = 1f,
+) {
+    /** 基準の幅（refWidth）のときの、絵・時計・文字を動かす最大の量。モックアップの PARALLAX。 */
+    fun artShift(): Float = if (parallax) 26f * strength else 0f
+
+    fun clockShift(): Float = if (parallax) 18f * strength else 0f
+
+    fun textShift(): Float = if (parallax) 7f * strength else 0f
+}
+
 /** コマの形の決め方。version 1 と 2 の違いはここに閉じ込め、描画は [LayoutResolver] の結果だけを見る。 */
 sealed interface LayoutShape {
     /** version 2。線の木とコマごとの画像。 */
@@ -154,6 +168,7 @@ sealed interface LayoutShape {
         val look: Look = Look(),
         val text: TextSpec = TextSpec(),
         val clock: ClockSpec = ClockSpec(),
+        val fx: FxSpec = FxSpec(),
     ) : LayoutShape
 
     /** version 1。1 枚の絵と、絵に対する 0〜1 の相対座標の多角形。 */

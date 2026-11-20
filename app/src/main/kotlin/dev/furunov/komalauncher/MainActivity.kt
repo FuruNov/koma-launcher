@@ -111,6 +111,7 @@ class MainActivity : ComponentActivity() {
                     onEvent = home::onEvent,
                     unlockPending = container.screenEvents.unlockPending,
                     notice = container.storeNotice,
+                    tilt = container.tilt,
                     onUnlockPlayed = container.screenEvents::consumeUnlock,
                     slots = slots,
                 )
