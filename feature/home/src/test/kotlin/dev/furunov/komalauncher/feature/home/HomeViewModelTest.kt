@@ -9,12 +9,12 @@ import dev.furunov.komalauncher.model.folders.Folders
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutNode
 import dev.furunov.komalauncher.model.layout.LayoutShape
-import dev.furunov.komalauncher.model.media.MediaSessions
-import dev.furunov.komalauncher.model.media.NowPlaying
-import dev.furunov.komalauncher.model.media.PlaybackStatus
 import dev.furunov.komalauncher.model.layout.Panel
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.layout.PanelId
+import dev.furunov.komalauncher.model.media.MediaSessions
+import dev.furunov.komalauncher.model.media.NowPlaying
+import dev.furunov.komalauncher.model.media.PlaybackStatus
 import dev.furunov.komalauncher.model.ports.ActionPerformer
 import dev.furunov.komalauncher.model.ports.LayoutSource
 import dev.furunov.komalauncher.model.ports.LayoutState

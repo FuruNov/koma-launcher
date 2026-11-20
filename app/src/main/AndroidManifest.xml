@@ -12,6 +12,10 @@
     <!-- 通知センターを開くため（StatusBarManager の非公開のメソッド） -->
     <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
 
+    <!-- 音楽プレイヤーのコマの「音に合わせて動かす」（Visualizer で音の周波数を受け取る。録音はしない） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
     <application
         android:name=".KomaApplication"
         android:label="@string/app_name"

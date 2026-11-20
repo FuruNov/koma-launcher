@@ -41,6 +41,15 @@ sealed interface SettingRow {
         val gesture: GestureKind,
     ) : SettingRow
 
+    /** Android の権限が要るオン・オフ。オンにするときに権限が無ければ求め、断られたらオフのままにする。 */
+    class PermissionToggle(
+        override val title: String,
+        val subtitle: String,
+        val permission: String,
+        val get: (Settings) -> Boolean,
+        val set: (Settings, Boolean) -> Settings,
+    ) : SettingRow
+
     /** 押すと何かをする行（ファイルの取り込みなど）。動作は画面側が [key] で決める。 */
     class Action(
         override val title: String,
@@ -54,7 +63,7 @@ data class Option(
     val label: String,
 )
 
-enum class ActionKey { EditLayout, ImportArt, ExportBackup, ImportBackup, HomeApp }
+enum class ActionKey { EditLayout, MusicAccess, ImportArt, ExportBackup, ImportBackup, HomeApp }
 
 data class SettingSection(
     val title: String,
@@ -137,6 +146,22 @@ fun settingsSections(): List<SettingSection> = listOf(
             SettingRow.Stepper("コマごとの遅延", 0..150, step = 10, unit = "ms", get = { it.animation.staggerMs }) { s, v ->
                 s.copy(animation = s.animation.copy(staggerMs = v))
             },
+        ),
+    ),
+    SettingSection(
+        "音楽プレイヤー",
+        listOf(
+            // サブタイトルは画面側が許可の状態（許可済み・未許可）で書き換える
+            SettingRow.Action("通知へのアクセス", "", ActionKey.MusicAccess),
+            SettingRow.Stepper("一時停止から元に戻すまで", 5..120, step = 5, unit = "分", get = { it.music.pauseTimeoutMinutes }) { s, v ->
+                s.copy(music = s.music.copy(pauseTimeoutMinutes = v))
+            },
+            SettingRow.PermissionToggle(
+                "音に合わせて動かす",
+                "マイクの権限を使います。音の録音・保存はしません",
+                android.Manifest.permission.RECORD_AUDIO,
+                { it.music.reactToAudio },
+            ) { s, v -> s.copy(music = s.music.copy(reactToAudio = v)) },
         ),
     ),
     SettingSection(

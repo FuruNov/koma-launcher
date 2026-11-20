@@ -31,6 +31,8 @@ class SettingsActivity : ComponentActivity() {
                 importer = c.importer,
                 backup = c.backup,
                 openHomeSettings = { startActivity(Intent(Settings.ACTION_HOME_SETTINGS)) },
+                hasMusicAccess = c.media::checkAccess,
+                openMusicAccess = c.media::openAccessSettings,
                 openEditor = { startActivity(Intent(this, EditorActivity::class.java)) },
                 onClose = ::finish,
             )

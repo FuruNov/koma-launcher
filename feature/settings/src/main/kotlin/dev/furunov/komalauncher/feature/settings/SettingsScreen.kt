@@ -1,5 +1,6 @@
 package dev.furunov.komalauncher.feature.settings
 
+import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,11 +33,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import dev.furunov.komalauncher.model.apps.AppEntry
 import dev.furunov.komalauncher.model.ports.BackupService
 import dev.furunov.komalauncher.model.ports.LayoutImporter
@@ -52,6 +58,9 @@ class SettingsDeps(
     val importer: LayoutImporter,
     val backup: BackupService,
     val openHomeSettings: () -> Unit,
+    /** 音楽プレイヤーに要る「通知へのアクセス」が許可されているか。 */
+    val hasMusicAccess: () -> Boolean,
+    val openMusicAccess: () -> Unit,
     val openEditor: () -> Unit,
     val onClose: () -> Unit,
 )
@@ -69,6 +78,36 @@ fun SettingsScreen(deps: SettingsDeps) {
     var message by remember { mutableStateOf<String?>(null) }
     var choosing by remember { mutableStateOf<SettingRow?>(null) }
     val sections = remember { settingsSections() }
+    val context = LocalContext.current
+
+    // 通知へのアクセスは Android の設定画面で変わるので、この画面に戻るたびに読み直す
+    var musicAccess by remember { mutableStateOf(deps.hasMusicAccess()) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { musicAccess = deps.hasMusicAccess() }
+    }
+
+    // 権限を求めている行。許可されたらオンにする
+    var askingFor by remember { mutableStateOf<SettingRow.PermissionToggle?>(null) }
+    val requestPermission =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            val row = askingFor
+            if (granted && row != null) deps.store.update { row.set(it, true) }
+            askingFor = null
+        }
+
+    fun togglePermission(row: SettingRow.PermissionToggle) {
+        when {
+            row.get(deps.store.settings.value) -> deps.store.update { row.set(it, false) }
+
+            context.checkSelfPermission(row.permission) == PackageManager.PERMISSION_GRANTED -> deps.store.update { row.set(it, true) }
+
+            else -> {
+                askingFor = row
+                requestPermission.launch(row.permission)
+            }
+        }
+    }
 
     // 絵の取り込みは、layout.json → 画像の順に選んでもらう
     var pendingLayout by remember { mutableStateOf<String?>(null) }
@@ -98,6 +137,7 @@ fun SettingsScreen(deps: SettingsDeps) {
     fun onAction(key: ActionKey) {
         when (key) {
             ActionKey.EditLayout -> deps.openEditor()
+            ActionKey.MusicAccess -> deps.openMusicAccess()
             ActionKey.ImportArt -> pickLayout.launch(arrayOf("application/json", "text/plain", "*/*"))
             ActionKey.ExportBackup -> exportTo.launch("koma-launcher-backup.json")
             ActionKey.ImportBackup -> importFrom.launch(arrayOf("application/json", "*/*"))
@@ -130,6 +170,7 @@ fun SettingsScreen(deps: SettingsDeps) {
                             .clickable {
                                 when (row) {
                                     is SettingRow.Toggle -> deps.store.update { row.set(it, !row.get(it)) }
+                                    is SettingRow.PermissionToggle -> togglePermission(row)
                                     is SettingRow.Action -> onAction(row.key)
                                     is SettingRow.Choice, is SettingRow.Gesture -> choosing = row
                                     is SettingRow.Stepper -> Unit
@@ -150,7 +191,14 @@ fun SettingsScreen(deps: SettingsDeps) {
                                             appLabel = { a -> apps.firstOrNull { it.key == a.app }?.label ?: a.app.packageName },
                                         )
 
-                                    is SettingRow.Action -> row.subtitle
+                                    is SettingRow.Action ->
+                                        if (row.key == ActionKey.MusicAccess) {
+                                            if (musicAccess) "許可済み" else "未許可"
+                                        } else {
+                                            row.subtitle
+                                        }
+
+                                    is SettingRow.PermissionToggle -> row.subtitle
 
                                     else -> null
                                 }
@@ -158,6 +206,8 @@ fun SettingsScreen(deps: SettingsDeps) {
                         }
                         when (row) {
                             is SettingRow.Toggle -> Switch(row.get(settings))
+
+                            is SettingRow.PermissionToggle -> Switch(row.get(settings))
 
                             is SettingRow.Stepper ->
                                 Stepper(row.get(settings), row.unit) { delta ->

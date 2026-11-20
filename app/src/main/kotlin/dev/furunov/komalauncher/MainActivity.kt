@@ -1,6 +1,8 @@
 package dev.furunov.komalauncher
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -15,6 +17,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.furunov.komalauncher.feature.drawer.DrawerActions
 import dev.furunov.komalauncher.feature.drawer.DrawerScreen
 import dev.furunov.komalauncher.feature.home.HomeEvent
+import dev.furunov.komalauncher.feature.home.HomeMedia
 import dev.furunov.komalauncher.feature.home.HomeScreen
 import dev.furunov.komalauncher.feature.home.HomeSlots
 import dev.furunov.komalauncher.feature.home.HomeViewModel
@@ -24,6 +27,7 @@ import dev.furunov.komalauncher.feature.widgets.WidgetPanel
 import dev.furunov.komalauncher.feature.widgets.WidgetPicker
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.settings.LauncherAction
+import dev.furunov.komalauncher.platform.media.VisualizerSpectrum
 import dev.furunov.komalauncher.ui.icons.LocalIconLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -34,7 +38,7 @@ class MainActivity : ComponentActivity() {
     private val home: HomeViewModel by viewModels {
         viewModelFactory {
             initializer {
-                HomeViewModel(container.layoutSource, container.folderStore, container.settingsStore, container.appCatalog, container.actions)
+                HomeViewModel(container.layoutSource, container.folderStore, container.settingsStore, container.appCatalog, container.actions, container.media)
             }
         }
     }
@@ -111,6 +115,13 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             val pickerFor by container.widgets.pickerFor
+            // 「音に合わせて動かす」がオンで、マイクの権限があるときだけ実際の音を使う
+            val reactToAudio = state.settings.music.reactToAudio
+            val media =
+                remember(reactToAudio) {
+                    val granted = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                    HomeMedia(container.media.art, if (reactToAudio && granted) VisualizerSpectrum() else null)
+                }
             CompositionLocalProvider(LocalIconLoader provides container.iconLoader) {
                 HomeScreen(
                     state = state,
@@ -120,6 +131,7 @@ class MainActivity : ComponentActivity() {
                     tilt = container.tilt,
                     onUnlockPlayed = container.screenEvents::consumeUnlock,
                     slots = slots,
+                    media = media,
                 )
                 pickerFor?.let { panelId ->
                     WidgetPicker(panelId, container.widgets, onDismiss = { container.widgets.pickerFor.value = null })
@@ -131,11 +143,13 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         container.widgets.startListening()
+        container.media.start()
     }
 
     override fun onStop() {
         super.onStop()
         container.widgets.stopListening()
+        container.media.stop()
         // 裏に回ったホームは、メモリが足りなくなると止められることがある。まとめて書く途中の変更をここで書く
         container.flushStores()
     }

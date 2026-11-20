@@ -19,6 +19,7 @@ import dev.furunov.komalauncher.platform.apps.LauncherIconLoader
 import dev.furunov.komalauncher.platform.files.SafBackupService
 import dev.furunov.komalauncher.platform.files.SafLayoutImporter
 import dev.furunov.komalauncher.platform.layout.FileLayoutStore
+import dev.furunov.komalauncher.platform.media.MediaSessionWatcher
 import dev.furunov.komalauncher.platform.sensor.SensorTiltSource
 import dev.furunov.komalauncher.platform.store.FileFolderStore
 import dev.furunov.komalauncher.platform.store.FileLaunchStore
@@ -58,6 +59,9 @@ class AppContainer(
     val iconLoader: IconLoader = LauncherIconLoader(context)
     val screenEvents = BroadcastScreenEvents(context)
     val tilt = SensorTiltSource(context)
+
+    /** 他のアプリの再生（音楽プレイヤーのコマ）。ホームが前面にある間だけ監視する。 */
+    val media = MediaSessionWatcher(context)
     val actions: ActionPerformer = DefaultActionPerformer(context, ReflectionSystemShade(context), appCatalog)
     private val fileWidgets = FileWidgetStore(context, scope)
     val widgetStore: WidgetStore = fileWidgets
