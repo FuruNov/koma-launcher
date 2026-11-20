@@ -1,1 +1,15 @@
-<manifest />
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- 再生中のアプリを取得するため（音楽プレイヤーのコマ）。通知は読まない -->
+        <service
+            android:name="dev.furunov.komalauncher.platform.media.KomaNotificationListener"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
