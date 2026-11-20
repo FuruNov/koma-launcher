@@ -32,6 +32,7 @@ class SettingsActivity : ComponentActivity() {
                 autoBackup = c.autoBackup,
                 openHomeSettings = { startActivity(Intent(Settings.ACTION_HOME_SETTINGS)) },
                 hasMusicAccess = c.media::checkAccess,
+                audioStatus = c.spectrum.status,
                 openMusicAccess = c.media::openAccessSettings,
                 openEditor = { startActivity(Intent(this, EditorActivity::class.java)) },
                 onClose = ::finish,

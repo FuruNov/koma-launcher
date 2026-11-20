@@ -1,6 +1,7 @@
 package dev.furunov.komalauncher.model.media
 
 import dev.furunov.komalauncher.model.geometry.Point
+import kotlin.math.pow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -27,20 +28,47 @@ class SpectrumTest {
     fun barCountFollowsEdgeLength() = assertEquals(20, Spectrum.barCount(540f, 3f))
 
     @Test
-    fun silentFftGivesZeroBands() {
+    fun silentFftGivesZeroBars() {
         val out = FloatArray(12) { 1f }
-        Spectrum.bands(ByteArray(1024), 12, out)
+        SpectrumShaper(12).shape(ByteArray(1024), 48_000, 0.016f, out)
         assertTrue(out.all { it == 0f })
         assertTrue(Spectrum.isSilent(ByteArray(1024)))
     }
 
     @Test
-    fun loudLowFrequencyRaisesFirstBand() {
+    fun smallJitterGivesZeroBars() {
+        // 無音でも残る ±1 の揺れは、棒にしない
+        val fft = ByteArray(1024) { if (it % 3 == 0) 1 else -1 }
+        val out = FloatArray(12) { 1f }
+        SpectrumShaper(12).shape(fft, 48_000, 0.016f, out)
+        assertTrue(out.all { it == 0f }, out.joinToString())
+    }
+
+    @Test
+    fun loudLowFrequencyRaisesFirstBar() {
+        // 1 番目の周波数（約 47Hz）だけが大きい
         val fft = ByteArray(1024).also { it[2] = 100 }
         val out = FloatArray(12)
-        Spectrum.bands(fft, 12, out)
-        assertTrue(out[0] > 0.5f && out.drop(1).all { it < 0.01f }, out.joinToString())
+        SpectrumShaper(12).shape(fft, 48_000, 0.016f, out)
+        assertEquals(1f, out[0], 1e-3f)
+        assertTrue(out.drop(1).all { it == 0f }, out.joinToString())
         assertFalse(Spectrum.isSilent(fft))
+    }
+
+    @Test
+    fun barsFollowTheRecentLoudestLevel() {
+        val shaper = SpectrumShaper(12)
+        val out = FloatArray(12)
+        val loud = ByteArray(1024).also { it[2] = 100 }
+        // 10dB 小さい音（大きさ 100 の 1/√10）
+        val quiet = ByteArray(1024).also { it[2] = 32 }
+        shaper.shape(loud, 48_000, 0.016f, out)
+        shaper.shape(quiet, 48_000, 0.016f, out)
+        // 直前の大きい音から 10dB 下なので、範囲 20dB の中ほど（を 1.5 乗した高さ）
+        assertEquals(0.5f.pow(1.5f), out[0], 0.03f)
+        // 小さい音が 5 秒続くと、最近の最大が下がり、同じ音でも棒が高くなる。ただし最近の最大は 34dB より下げないので、満杯にはしない
+        repeat(300) { shaper.shape(quiet, 48_000, 0.016f, out) }
+        assertEquals(0.8f.pow(1.5f), out[0], 0.03f)
     }
 
     @Test

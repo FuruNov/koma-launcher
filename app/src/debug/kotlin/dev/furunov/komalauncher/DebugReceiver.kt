@@ -22,5 +22,8 @@ class DebugReceiver : BroadcastReceiver() {
         if (intent.action == "dev.furunov.komalauncher.DEBUG_MEDIA") {
             DebugMediaSession.handle(context, intent.getStringExtra("state"))
         }
+        if (intent.action == "dev.furunov.komalauncher.DEBUG_VIS") {
+            DebugVisualizer.handle(context, intent.getIntExtra("session", 0), intent.getBooleanExtra("listen", false), intent.getIntExtra("use", -1))
+        }
     }
 }

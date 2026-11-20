@@ -1,5 +1,6 @@
 package dev.furunov.komalauncher.feature.settings
 
+import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -64,6 +65,8 @@ class SettingsDeps(
     val openHomeSettings: () -> Unit,
     /** 音楽プレイヤーに要る「通知へのアクセス」が許可されているか。 */
     val hasMusicAccess: () -> Boolean,
+    /** 実際の音の取得の状態。「音に合わせて動かす」の下に表示する。まだ一度も開始していなければ null。 */
+    val audioStatus: StateFlow<String?>,
     val openMusicAccess: () -> Unit,
     val openEditor: () -> Unit,
     val onClose: () -> Unit,
@@ -79,6 +82,7 @@ fun SettingsScreen(deps: SettingsDeps) {
     val settings by deps.store.settings.collectAsStateWithLifecycle()
     val apps by deps.apps.collectAsStateWithLifecycle()
     val autoBackup by deps.autoBackup.state.collectAsStateWithLifecycle()
+    val audioStatus by deps.audioStatus.collectAsStateWithLifecycle()
     var autoBackupMenu by remember { mutableStateOf(false) }
     // 既存のバックアップがあった保存先のフォルダ（tree の URI）。復元か上書きかを尋ねる
     var existingBackup by remember { mutableStateOf<String?>(null) }
@@ -199,7 +203,9 @@ fun SettingsScreen(deps: SettingsDeps) {
                                             row.subtitle
                                         }
 
-                                    is SettingRow.PermissionToggle -> row.subtitle
+                                    // 端末によっては取得できないので、オンのときは取得の状態も表示する（Release の APK では adb のログを見られないため）
+                                    is SettingRow.PermissionToggle ->
+                                        if (row.permission == Manifest.permission.RECORD_AUDIO && row.get(settings) && audioStatus != null) "${row.subtitle}\n状態: $audioStatus" else row.subtitle
 
                                     else -> null
                                 }

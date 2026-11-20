@@ -21,6 +21,7 @@ import dev.furunov.komalauncher.platform.files.SafAutoBackup
 import dev.furunov.komalauncher.platform.files.SafFolderRestorer
 import dev.furunov.komalauncher.platform.layout.FileLayoutStore
 import dev.furunov.komalauncher.platform.media.MediaSessionWatcher
+import dev.furunov.komalauncher.platform.media.VisualizerSpectrum
 import dev.furunov.komalauncher.platform.sensor.SensorTiltSource
 import dev.furunov.komalauncher.platform.store.FileFolderStore
 import dev.furunov.komalauncher.platform.store.FileLaunchStore
@@ -63,6 +64,9 @@ class AppContainer(
 
     /** 他のアプリの再生（音楽プレイヤーのコマ）。ホームが前面にある間だけ監視する。 */
     val media = MediaSessionWatcher(context)
+
+    /** 実際の音の周波数（音楽プレイヤーの棒）。ホームと設定画面（取得の状態の表示）で同じものを使う。 */
+    val spectrum = VisualizerSpectrum(context)
     val actions: ActionPerformer = DefaultActionPerformer(context, ReflectionSystemShade(context), appCatalog)
     private val fileWidgets = FileWidgetStore(context, scope)
     val widgetStore: WidgetStore = fileWidgets

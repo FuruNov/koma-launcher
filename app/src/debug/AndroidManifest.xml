@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- 実験: adb の pm grant で与えると、オーディオの状態の記録から再生中のセッションの番号を読める（2026-11-20） -->
+    <uses-permission
+        android:name="android.permission.DUMP"
+        tools:ignore="ProtectedPermissions" />
     <application>
         <!-- debug ビルドだけの確認用の口。DUMP 権限を持つ送り手（adb の shell）以外からは呼べない -->
         <receiver
@@ -10,6 +15,7 @@
                 <action android:name="dev.furunov.komalauncher.DEBUG_PLAY_UNLOCK" />
                 <action android:name="dev.furunov.komalauncher.DEBUG_TILT" />
                 <action android:name="dev.furunov.komalauncher.DEBUG_MEDIA" />
+                <action android:name="dev.furunov.komalauncher.DEBUG_VIS" />
             </intent-filter>
         </receiver>
     </application>
