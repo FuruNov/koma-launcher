@@ -1,8 +1,6 @@
 package dev.furunov.komalauncher.model.folders
 
 import dev.furunov.komalauncher.model.apps.AppKey
-import dev.furunov.komalauncher.model.geometry.Point
-import dev.furunov.komalauncher.model.geometry.Polygon
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.Panel
 import dev.furunov.komalauncher.model.layout.PanelContent
@@ -71,15 +69,7 @@ class FolderEditsTest {
     @Test
     fun renameBlankClears() = assertEquals(null, FolderEdits.rename(FolderEdits.rename(base, "p1", "x"), "p1", " ").byPanel["p1"]?.name)
 
-    private fun layout(vararg panels: Pair<String, List<String>>) = Layout(
-        version = 1,
-        image = null,
-        aspect = 1f,
-        panels =
-        panels.map { (id, apps) ->
-            Panel(PanelId(id), Polygon(listOf(Point(0f, 0f), Point(1f, 0f), Point(1f, 1f))), PanelContent.Folder(apps))
-        },
-    )
+    private fun layout(vararg panels: Pair<String, List<String>>) = Layout.of(panels.map { (id, apps) -> Panel(PanelId(id), PanelContent.Folder(apps)) })
 
     private val resolve: (String) -> AppKey? = { pkg -> listOf(a, b, c).firstOrNull { it.packageName == pkg } }
 
@@ -103,9 +93,7 @@ class FolderEditsTest {
 
 class SampleFolderTest {
     private val a = AppKey("a", "A")
-    private val tri = Polygon(listOf(Point(0f, 0f), Point(1f, 0f), Point(1f, 1f)))
-
-    private fun layoutOf(id: String) = Layout(1, null, 1f, listOf(Panel(PanelId(id), tri, PanelContent.Folder(listOf("a")))))
+    private fun layoutOf(id: String) = Layout.of(listOf(Panel(PanelId(id), PanelContent.Folder(listOf("a")))))
 
     @Test
     fun sampleContentsAreDroppedNotUnassigned() {

@@ -9,19 +9,28 @@ import kotlinx.coroutines.flow.StateFlow
 sealed interface LayoutState {
     val layout: Layout
 
-    /** 利用者の layout.json を読めた。[imagePath] は絵のファイルの絶対パス（無ければ仮の絵）。 */
+    /** 画面に表示する知らせ（取り込みの失敗など）。null なら何も表示しない。 */
+    val error: String?
+
+    /**
+     * 利用者のレイアウトを読めた。[images] は画像の id → 絵のファイルの絶対パス（ファイルがある画像だけ）。
+     * [error] は、新しい layout.json の取り込みに失敗して、前のレイアウトを表示し続けているときの理由。
+     * [revision] は画像を取り込んだ回数。画像のファイル名は変わらないので、読み直しの合図に使う。
+     */
     data class Loaded(
         override val layout: Layout,
-        val imagePath: String?,
+        val images: Map<String, String>,
+        override val error: String? = null,
+        val revision: Long = 0,
     ) : LayoutState
 
     /**
-     * 利用者の layout.json が無いか壊れているので、見本を表示している。
+     * 利用者のレイアウトが無いか壊れているので、見本を表示している。
      * [error] が null なら単に未配置。このときはフォルダとウィジェットの整理をしない。
      */
     data class Fallback(
         override val layout: Layout,
-        val error: String?,
+        override val error: String?,
     ) : LayoutState
 }
 

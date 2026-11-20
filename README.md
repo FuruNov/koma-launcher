@@ -1,6 +1,6 @@
 # koma-launcher
 
-漫画のコマ割りの絵を全画面に表示する Android のホームアプリ。コマは多角形で持ち、斜めの辺や凹んだ形もそのまま判定する。コマを押すとアプリの一覧（フォルダ）が開き、ウィジェットを置くコマも作れる。
+漫画のコマ割りの形でホーム画面を区切る Android のホームアプリ。コマは線で割ることを繰り返して作り、コマごとに別の画像を置く。コマを押すとアプリの一覧（フォルダ）が開き、ウィジェットを置くコマも作れる。
 
 目標の端末は POCO X7 Pro（1220×2712、HyperOS、Android 15 以降）。確認には Waydroid（Android 13、1080×1920）を使う。
 
@@ -11,7 +11,7 @@ nix develop -c ./gradlew assembleDebug          # debug の APK
 nix develop -c ./gradlew assembleRelease        # R8 で縮小した APK
 nix develop -c ./gradlew :core:model:test :feature:home:testDebugUnitTest
 nix develop -c ./gradlew spotlessApply lint
-scripts/e2e-waydroid.sh                         # Waydroid で一連の操作（13 項目）
+scripts/e2e-waydroid.sh                         # Waydroid で一連の操作（14 項目。確かめる間だけ既定のホームにする）
 scripts/measure.sh [ラベル]                      # 起動時間・メモリ・フレーム → docs/measurements/
 scripts/record-animations.sh <出力先>             # アニメーションの各案を録画（debug ビルドと su が要る）
 ```
@@ -22,7 +22,31 @@ scripts/record-animations.sh <出力先>             # アニメーションの�
 
 ## コマの絵を入れる
 
-`/sdcard/Android/data/dev.furunov.komalauncher/files/` に `layout.json` と画像を置く。adb push で置き換えると、再起動せずに読み直す。設定画面の「コマの絵を取り込む」からも入れられる。
+レイアウトはアプリの内部（`files/layout.json` と `files/art/`）に持つ。外から入れるときは、`/sdcard/Android/data/dev.furunov.komalauncher/files/` を取り込み口に使う。ここに `layout.json` を置くと、アプリは中身を確かめ、参照する画像を内部へ写してから、ホームをその形に変える。取り込んだ `layout.json` は `layout.json.imported` に名前が変わり、写し終えた画像は消える。設定画面の「コマの絵を取り込む」とバックアップの読み込みも、同じ取り込み口を通る。
+
+モックアップ（`docs/mockups/`）で作ったコマ割りは、`scripts/import-mockup.sh <state.json> <画像のディレクトリ>` で送れる。`state.json` は Artifact の db の `editor/current`。
+
+### version 2（線の木とコマごとの画像）
+
+```json
+{ "version": 2,
+  "frame": { "refWidth": 1220, "margin": 24, "gutter": 9, "gutterColor": "#ffffff", "bleed": false,
+             "border": { "style": "single", "width": 24, "color": "#111111" } },
+  "tree": { "cut": { "ta": 0.3246, "tb": 0.7999 },
+            "a": { "panel": { "id": "fav", "kind": "folder", "label": "よく使う", "apps": ["com.android.chrome"],
+                              "art": { "image": "pic-a-5", "zoom": 1, "dx": -0.067, "dy": 0 } } },
+            "b": { "panel": { "id": "all", "kind": "drawer", "label": "その他" } } } }
+```
+
+- コマ割りは、コマを線で 2 つに割ることを繰り返した木で書く。葉は `panel`、枝は `cut`・`a`・`b`。`ta`・`tb` は線の両端の位置で、親のコマの周に対する割合（左上の頂点から時計回り）。`a` は線の進む向きの左側のコマ。画面の縦横比が変わっても、線の端は縁の同じ割合の位置に来る。
+- 長さ（`margin`・`gutter`・`border.width`）は、画面の幅が `refWidth` のときの画素数で書く。`gutterColor` を省くと設定の「コマの間の色」を使う。枠線（`border`）は段階 3 で描く。
+- `kind` は `folder`（フォルダ）・`widget`（ウィジェット）・`drawer`（押すと全アプリ一覧を開く）。
+- `art.image` の画像は、取り込み口の `art/<image>.(jpg|jpeg|png|webp)` に置く。アプリは長辺 2048 以下に縮めて内部へ写し、縦横比（`art.aspect`）を書き込む。`zoom`（1〜3）と `dx`・`dy`（コマの外接長方形の幅・高さに対するずらし）は、絵の端がコマに見えない範囲に収めて使う。
+- 画像だけを差し替えるときも、`layout.json` を置き直す（取り込みは `layout.json` が置かれたときに始まる）。
+
+### version 1（1 枚の絵と多角形）
+
+一晩目の形式も読み込める。
 
 ```json
 { "version": 1,
@@ -36,12 +60,15 @@ scripts/record-animations.sh <出力先>             # アニメーションの�
       "polygon": [[0.02,0.255],[0.58,0.232],[0.50,0.46],[0.02,0.46]] } ] }
 ```
 
-- 座標は画像に対する 0〜1 の相対値。`aspect` は画像の幅 / 高さ（1220×2712 なら 0.4499）。画面と縦横比が違えば、画像を画面いっぱいに広げて余りを切る（cover）。
+- 画像（`image`）は `layout.json` と同じ場所に置く。座標は画像に対する 0〜1 の相対値。`aspect` は画像の幅 / 高さ（1220×2712 なら 0.4499）。画面と縦横比が違えば、画像を画面いっぱいに広げて余りを切る（cover）。
 - コマが重なる場所では、後に書いたコマが優先される（描画も上になる）。
+
+### どちらの形式でも
+
 - `apps` は初期値で、最初に読み込んだときに 1 度だけフォルダへ入れる。その後の入れ替えは画面の上で行う（全アプリ一覧から長押しで運ぶ、フォルダの中で並べ替える、上端の「フォルダから外す」へ運ぶ）。
-- JSON が壊れていると見本のレイアウトに戻り、上端に誤りを表示する。このとき、フォルダとウィジェットの割り当ては消さない。
+- 壊れた `layout.json` を置いても、前のレイアウトのまま、上端に誤りを表示する。フォルダとウィジェットの割り当ては消さない。
 - id の変わったコマのフォルダの中身は「割り当てのないアプリ」として残す。見本のコマ（`sample-` で始まる id）の中身は、利用者が選んだものではないので残さない。
-- 版権のある画像は `art/` か `*.private.webp` の名前にして、git に入れない（`.gitignore`）。
+- 版権のある画像はリポジトリに入れない（`art/` と `*.private.webp` は `.gitignore` にある）。
 
 ## 構成
 
@@ -49,7 +76,7 @@ scripts/record-animations.sh <出力先>             # アニメーションの�
 
 | モジュール | 中身 | 依存してよいもの |
 |---|---|---|
-| `:core:model` | 純粋な Kotlin。多角形の判定・内接長方形・cover の変換、layout.json、フォルダの編集（純粋な関数）、設定とジェスチャー、境界のインターフェース | なし |
+| `:core:model` | 純粋な Kotlin。多角形の判定・内接長方形・cover の変換、線の木と絵の置き場所、layout.json、フォルダの編集（純粋な関数）、設定とジェスチャー、境界のインターフェース | なし |
 | `:core:ui` | 機能をまたぐ Compose のコンポーネント。ドラッグ＆ドロップの状態、アイコンの表示とそのインターフェース | `:core:model` |
 | `:core:platform` | Android の API を包むアダプタ（下の表の実装） | `:core:model`, `:core:ui` |
 | `:feature:home` | ホーム画面、ジェスチャー、フォルダ、アニメーション、ViewModel | `:core:ui` |
@@ -64,7 +91,7 @@ scripts/record-animations.sh <出力先>             # アニメーションの�
 
 | インターフェース | 実装 |
 |---|---|
-| `LayoutSource` | `FileLayoutSource`（外部ファイル領域の layout.json を FileObserver で監視） |
+| `LayoutSource` | `FileLayoutStore`（内部の layout.json を持ち、外部ファイル領域の layout.json を FileObserver で監視して取り込む） |
 | `FolderStore` / `SettingsStore` / `WidgetStore` | `JsonFileStore`（AtomicFile、300 ms まとめて書く） |
 | `AppCatalog` | `LauncherAppsCatalog`（LauncherApps。ショートカットも） |
 | `IconLoader` | `LauncherIconLoader`（表示する大きさで 1 回だけ Bitmap にし、LruCache に約 4 MB） |

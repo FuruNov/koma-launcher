@@ -6,8 +6,6 @@ import dev.furunov.komalauncher.model.apps.AppKey
 import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.folders.Folders
-import dev.furunov.komalauncher.model.geometry.Point
-import dev.furunov.komalauncher.model.geometry.Polygon
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.Panel
 import dev.furunov.komalauncher.model.layout.PanelContent
@@ -34,10 +32,20 @@ import kotlin.test.assertEquals
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
-    private val tri = Polygon(listOf(Point(0f, 0f), Point(1f, 0f), Point(1f, 1f)))
     private val chrome = AppKey("com.android.chrome", "Main")
 
-    private fun layout(vararg ids: String) = Layout(1, null, 1f, ids.map { Panel(PanelId(it), tri, if (it.startsWith("w")) PanelContent.Widget else PanelContent.Folder(listOf("com.android.chrome"))) })
+    /** id の頭文字で種類を決める（w: ウィジェット、d: 全アプリ一覧、それ以外: フォルダ）。 */
+    private fun layout(vararg ids: String) = Layout.of(
+        ids.map {
+            val content =
+                when {
+                    it.startsWith("w") -> PanelContent.Widget
+                    it.startsWith("d") -> PanelContent.Drawer
+                    else -> PanelContent.Folder(listOf("com.android.chrome"))
+                }
+            Panel(PanelId(it), content)
+        },
+    )
 
     private class FakeLayout(
         initial: LayoutState,
@@ -99,7 +107,7 @@ class HomeViewModelTest {
     @BeforeTest
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        layoutSource = FakeLayout(LayoutState.Loaded(layout("p1", "w1"), null))
+        layoutSource = FakeLayout(LayoutState.Loaded(layout("p1", "w1", "d1"), emptyMap()))
         folders = FakeFolders()
         appsFake = FakeApps()
         actions = FakeActions()
@@ -122,6 +130,19 @@ class HomeViewModelTest {
     fun tapWidgetPanelDoesNotOpenFolder() {
         vm.onEvent(HomeEvent.TapPanel(PanelId("w1")))
         assertEquals(Overlay.None, vm.state.value.overlay)
+    }
+
+    @Test
+    fun tapDrawerPanelOpensDrawer() {
+        vm.onEvent(HomeEvent.TapPanel(PanelId("d1")))
+        assertEquals(Overlay.Drawer, vm.state.value.overlay)
+    }
+
+    @Test
+    fun importErrorIsShownWhileKeepingLayout() {
+        layoutSource.flow.value = LayoutState.Loaded(layout("p1", "w1", "d1"), emptyMap(), error = "取り込めない")
+        assertEquals("取り込めない", vm.state.value.layoutError)
+        assertEquals(listOf(chrome), vm.state.value.folders.appsOf("p1"))
     }
 
     @Test

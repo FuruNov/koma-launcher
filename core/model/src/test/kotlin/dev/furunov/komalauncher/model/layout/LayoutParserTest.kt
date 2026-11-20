@@ -1,10 +1,8 @@
 package dev.furunov.komalauncher.model.layout
 
-import dev.furunov.komalauncher.model.geometry.Point
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class LayoutParserTest {
@@ -22,20 +20,25 @@ class LayoutParserTest {
     @Test
     fun parsesValid() {
         val layout = assertIs<LayoutResult.Ok>(LayoutParser.parse(valid)).layout
+        assertEquals(1, layout.version)
         assertEquals(3, layout.panels.size)
         assertEquals(PanelContent.Folder(listOf("com.android.chrome")), layout.panels[0].content)
         assertEquals(PanelContent.Widget, layout.panels[1].content)
         assertEquals("仕事", layout.panels[0].label)
-        assertEquals(0.45f, layout.aspect)
+        assertEquals(0.45f, assertIs<LayoutShape.Fixed>(layout.shape).aspect)
+        assertEquals(setOf("page.webp"), layout.images)
     }
 
     @Test
-    fun hitTestPrefersLaterPanel() {
+    fun resolvedFixedPanelsKeepImageCoordinates() {
         val layout = assertIs<LayoutResult.Ok>(LayoutParser.parse(valid)).layout
-        assertEquals(PanelId("p1"), layout.panelAt(Point(0.1f, 0.1f))?.id)
-        // p2 と p3 が重なる位置は後の p3
-        assertEquals(PanelId("p3"), layout.panelAt(Point(0.7f, 0.25f))?.id)
-        assertNull(layout.panelAt(Point(0.1f, 0.9f)))
+        // 画像と同じ縦横比の画面なら、相対座標をそのまま拡大した位置になる
+        val r = LayoutResolver.resolve(layout, 450f, 1000f)
+        assertEquals(0.62f * 450f, r.panels[0].polygon.points[1].x, 0.01f)
+        assertEquals(0f, r.panels[0].polygon.points[1].y, 0.01f)
+        // 1 枚の絵を、どのコマも同じ位置に描く
+        assertEquals(r.panels[0].art, r.panels[2].art)
+        assertEquals(1000f, r.panels[0].art!!.height, 0.01f)
     }
 
     @Test

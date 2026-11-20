@@ -73,8 +73,11 @@ sealed interface DropTarget {
 @Immutable
 data class HomeUiState(
     val layout: Layout,
-    val imagePath: String?,
-    /** layout.json の誤りの内容。見本を表示しているときに画面に示す。 */
+    /** 画像の id → ファイルの絶対パス。 */
+    val images: Map<String, String>,
+    /** 画像を取り込み直した回数（読み直しの合図）。 */
+    val imagesRevision: Long,
+    /** レイアウトの読み込み・取り込みの誤りの内容。画面の上端に示す。 */
     val layoutError: String?,
     val folders: Folders,
     val overlay: Overlay,
@@ -167,8 +170,9 @@ class HomeViewModel(
         combine(layoutSource.state, folderStore.folders, settingsStore.settings, overlay, undo) { l, f, s, o, u ->
             HomeUiState(
                 layout = l.layout,
-                imagePath = (l as? LayoutState.Loaded)?.imagePath,
-                layoutError = (l as? LayoutState.Fallback)?.error,
+                images = (l as? LayoutState.Loaded)?.images.orEmpty(),
+                imagesRevision = (l as? LayoutState.Loaded)?.revision ?: 0L,
+                layoutError = l.error,
                 folders = f,
                 overlay = o,
                 settings = s,
@@ -180,7 +184,8 @@ class HomeViewModel(
                 SharingStarted.Eagerly,
                 HomeUiState(
                     layout = layoutSource.state.value.layout,
-                    imagePath = null,
+                    images = emptyMap(),
+                    imagesRevision = 0L,
                     layoutError = null,
                     folders = folderStore.folders.value,
                     overlay = Overlay.None,
@@ -210,7 +215,11 @@ class HomeViewModel(
         when (event) {
             is HomeEvent.TapPanel -> {
                 val panel = state.value.layout.panel(event.panelId) ?: return
-                if (panel.content is PanelContent.Folder) overlay.value = Overlay.Folder(panel.id)
+                when (panel.content) {
+                    is PanelContent.Folder -> overlay.value = Overlay.Folder(panel.id)
+                    PanelContent.Drawer -> overlay.value = Overlay.Drawer
+                    PanelContent.Widget -> Unit
+                }
             }
 
             is HomeEvent.Gesture -> perform(state.value.settings.actionFor(event.kind))

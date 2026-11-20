@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Waydroid（1080x1920、ウィンドウを最大化した状態）で、ホームの基本の操作を確かめる。
-# 見本のレイアウト（app/src/main/assets/sample/layout.json）を前提にした座標を使う。
+# 見本のレイアウト（app/src/main/assets/sample/layout.json、version 2 の大ゴマ）を前提にした座標を使う。
+# 始める前に、アプリの内部のレイアウトを消して見本に戻す（Waydroid の su を使う）。
 # 使い方: scripts/e2e-waydroid.sh [スクリーンショットの保存先]
 set -uo pipefail
 
@@ -50,12 +51,18 @@ tap_text() { # ラベル [dy]
 }
 focus() { adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'; }
 
+# HOME キーでこのランチャーが開くよう、確かめる間だけ既定のホームにする。終わったら元のホームに戻す
+prev_home=$(adb shell cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN | tail -1 | tr -d "\r")
+adb shell cmd package set-home-activity "$PKG/.MainActivity" >/dev/null
+trap '[ -n "$prev_home" ] && adb shell cmd package set-home-activity "$prev_home" >/dev/null' EXIT
+adb shell am force-stop "$PKG"
+adb shell su -c "rm -rf /data/data/$PKG/files/layout.json /data/data/$PKG/files/art"
 adb shell am start -n "$PKG/.MainActivity" >/dev/null
 sleep 2
 home
 
 # 緑のコマ（連絡）の、斜めの辺のすぐ内側
-adb shell input tap 615 600
+adb shell input tap 850 1200
 sleep 1.2
 shot folder-open
 has Contacts
@@ -67,14 +74,14 @@ has Contacts
 [ $? -ne 0 ]
 check "戻るボタンでフォルダが閉じる" $?
 
-# 青と緑の間の余白
-adb shell input tap 590 600
+# ウィジェットのコマと道具のコマの間の余白
+adb shell input tap 300 1454
 sleep 1
 has Contacts
 [ $? -ne 0 ]
 check "コマの間の余白ではフォルダが開かない" $?
 
-adb shell input tap 615 600
+adb shell input tap 850 1200
 sleep 1
 home
 has Contacts
@@ -97,7 +104,7 @@ check "下スワイプで通知センターが開く" $?
 adb shell cmd statusbar collapse >/dev/null 2>&1
 sleep 1
 
-adb shell input tap 615 600
+adb shell input tap 850 1200
 sleep 1
 tap_text Contacts 40
 sleep 2
@@ -108,9 +115,17 @@ adb shell input keyevent BACK
 adb shell input keyevent BACK
 home
 
+# その他のコマ（全アプリ一覧）
+adb shell input tap 810 1680
+sleep 1.2
+waitfor 'has Calculator'
+check "全アプリ一覧のコマを押すと一覧が開く" $?
+adb shell input keyevent BACK
+sleep 1
+
 # --- フォルダの中身の編集 ---
 # 長押しして動かさずに離すとメニュー
-adb shell input tap 615 600
+adb shell input tap 850 1200
 sleep 1
 read -r mx my <<<"$(center_of Messages 40)"
 adb shell input swipe "$mx" "$my" "$mx" "$my" 900
@@ -128,7 +143,7 @@ dragto() { # x1 y1 x2 y2
 labels_in_folder() { texts | grep -vxE '連絡|よく使う|道具|メディア|その他|フォルダを変更しました|元に戻す' | tr '\n' ' '; }
 
 # 連絡のフォルダの中で、Contacts を Messages の位置へ（並べ替え）
-adb shell input tap 615 600
+adb shell input tap 850 1200
 sleep 1
 read -r cx cy <<<"$(center_of Contacts 40)"
 read -r mx my <<<"$(center_of Messages 40)"
@@ -143,23 +158,23 @@ home
 # 全アプリ一覧の Music を道具のコマへ
 adb shell input swipe 540 1500 540 700 200
 sleep 1.5
-dragto 753 360 230 1190
-adb shell input tap 227 1195
+dragto 753 360 300 1650
+adb shell input tap 300 1650
 sleep 1
 waitfor 'has Music'
 check "一覧からコマへ運ぶとフォルダに加わる" $?
 
-# 道具のフォルダの Music をメディアのコマへ（コマ間の移動）
+# 道具のフォルダの Music をよく使うのコマへ（コマ間の移動）
 read -r mx my <<<"$(center_of Music 40)"
-dragto "$mx" "$my" 760 1200
-adb shell input tap 760 1200
+dragto "$mx" "$my" 540 500
+adb shell input tap 540 500
 sleep 1
 waitfor 'has Music'
 check "フォルダから別のコマへ移せる" $?
 home
 
-# メディアから外し、元に戻す
-adb shell input tap 760 1200
+# よく使うから外し、元に戻す
+adb shell input tap 540 500
 sleep 1
 read -r mx my <<<"$(center_of Music 40)"
 dragto "$mx" "$my" 540 60
@@ -169,7 +184,7 @@ undo_at=$(center_of 元に戻す)
 check "外す場所へ運ぶと外れ、元に戻すが出る" $?
 [ -n "$undo_at" ] && adb shell input tap $undo_at
 sleep 1
-adb shell input tap 760 1200
+adb shell input tap 540 500
 sleep 1
 waitfor 'has Music'
 check "元に戻すで戻る" $?

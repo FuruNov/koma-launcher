@@ -23,7 +23,7 @@
 ## 進め方
 
 - koma-launcher のディレクトリ（`~/ghq/github.com/FuruNov/koma-launcher`）で新しいセッションを開いて進める。設計の文書（`docs/superpowers/specs/`）に今日の決定を追記してから、段階ごとに実装計画を書く
-- 段階ごとに、Waydroid（1220×2712 を再現）で動かしてスクリーンショットを見せ、次へ進む。段階の終わりに Sonnet のサブエージェント 1 体にレビューを頼む
+- 段階ごとに、Waydroid（1220×2712 を再現）で動かしてスクリーンショットを見せ、次へ進む。Sonnet のサブエージェントのレビューは、段階 5 まで終えた後に 1 回だけ頼む（11/20 に利用者が決めた。段階 1 だけは、後の段階の土台なので段階の終わりにも頼んだ）
 - 画像と切り抜きはリポジトリに入れない。端末へは adb で送る
 
 ## 段階
@@ -82,3 +82,41 @@
 ## 決まった進め方
 
 - 段階ごとに Waydroid の画面を見せ、利用者の確認を得てから次の段階へ進む（11/20 に利用者が選んだ）
+
+## 段階 1 の詳細（11/20 に実装の前に決めた）
+
+### layout.json の version 2
+
+```json
+{ "version": 2,
+  "frame": { "refWidth": 1220, "margin": 24, "gutter": 9, "gutterColor": "#ffffff", "bleed": false,
+             "border": { "style": "single", "width": 24, "color": "#111111" } },
+  "tree": { "cut": { "ta": 0.3246, "tb": 0.7999 },
+            "a": { "panel": { "id": "p43", "kind": "folder", "label": "よく使う", "apps": ["com.android.chrome"],
+                              "art": { "image": "pic-a-5", "aspect": 1.777, "zoom": 1, "dx": -0.067, "dy": 0 } } },
+            "b": { "panel": { "id": "p47", "kind": "drawer", "label": "その他" } } } }
+```
+
+- 木の形はモックアップの state と同じにする（葉は `panel`、枝は `cut`・`a`・`b`）。`scripts/import-mockup.sh` が state をほぼそのまま写せるように
+- `ta`・`tb` は親のコマの周に対する割合なので、画面の縦横比が違っても同じ木を使える。根のコマは画面全体から外周の余白（`margin`、裁ち落としなら 0）を除いた長方形
+- 長さ（`margin`・`gutter`・`border.width`）は、画面の幅が `refWidth` のときの画素数で書く。端末では画面の幅 / `refWidth` 倍する。モックアップ（幅 1220）の数値をそのまま使うため
+- `art.image` は内部の `files/art/<image>.webp` を指す。`aspect`（画像の幅 / 高さ）は取り込みのときにアプリが画像から求めて書き込むので、手で書くときは省いてよい。画像を読む前にコマの絵の置き場所を決めるために持たせる
+- `gutterColor` を省くと、設定の「コマの間の色」を使う
+- version 1（平らな多角形と 1 枚の絵）も読み込む。描画は、1 枚の絵を各コマが同じ位置で切り抜く形として、version 2 と同じ描画の経路に乗せる
+
+### レイアウトの持ち方と取り込み
+
+- アプリが内部の `files/layout.json` を `JsonFileStore` で持つ。段階 2 の編集画面はここを書き換える
+- 外部の `/sdcard/Android/data/<pkg>/files/layout.json` は取り込み口にする。現れたら（adb push・設定画面の取り込み・バックアップの読み込み）、読んで確かめ、参照する画像を内部へ写し、内部の layout.json を置き換える。取り込んだ外部の layout.json は `layout.json.imported` に名前を変える（次の起動で編集の結果を上書きしないため）
+- 画像は外部の `art/<image>.(webp|jpg|jpeg|png)` から読み、長辺 2048 以下に縮めて内部の `files/art/<image>.webp` に書く。写し終えた外部の画像は消す（取り込みのために置いたもので、4096 の元画像は数 MB あるため）。version 1 の絵は縮めずにそのまま写す（画面全体に広げるので、縮めると粗くなる）
+- 取り込みに失敗したら、内部のレイアウトはそのままにして、理由を画面の上端に表示する。内部の layout.json が無ければ見本を表示する
+
+### 描画
+
+- `:core:model` の `LayoutResolver.resolve(layout, 幅, 高さ)` が、コマごとの画面上の多角形と、絵を置く長方形（画面座標）を返す。v1 と v2 の違いはここで吸収する
+- 絵は画像ごとに 1 回、使うコマの中で最も大きい置き場所の大きさで読む（元の画像より大きくはしない）。`ALLOCATOR_HARDWARE` で GPU 側に置く
+- 枠線・陰影は段階 3。段階 1 では `border` を読んで保存するだけにする
+
+### ウィジェットの長押し
+
+- `AppWidgetHostView` を継承し、`onInterceptTouchEvent` で長押しを見分ける（Launcher3 と同じ方法）。長押しが成立したらウィジェットへの以降のタッチを取り上げ、コマのメニューを開く

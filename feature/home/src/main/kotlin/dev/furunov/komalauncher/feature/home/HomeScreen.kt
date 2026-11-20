@@ -24,7 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -41,6 +40,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import dev.furunov.komalauncher.feature.home.anim.MotionContext
 import dev.furunov.komalauncher.feature.home.anim.PanelAnimations
 import dev.furunov.komalauncher.feature.home.anim.PanelMotion
+import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.settings.GestureKind
 import dev.furunov.komalauncher.ui.dnd.DragDropState
@@ -78,7 +78,9 @@ fun HomeScreen(
     /** layout.json 以外の知らせ（保存ファイルを読めなかったなど）。 */
     notice: String? = null,
 ) {
-    val gutter = Color(state.settings.appearance.gutterColor)
+    // コマの間の色は、レイアウトに書いてあればそれを、無ければ設定の色を使う
+    val frameGutter = (state.layout.shape as? LayoutShape.Tree)?.frame?.gutterColor
+    val gutter = Color(frameGutter ?: state.settings.appearance.gutterColor)
     BoxWithConstraints(modifier.fillMaxSize().background(gutter)) {
         val density = LocalDensity.current
         val wPx = with(density) { maxWidth.toPx() }
@@ -87,7 +89,7 @@ fun HomeScreen(
         val geometryState = rememberUpdatedState<HomeGeometry?>(geometry)
         val motions = remember(state.layout) { state.layout.panels.associate { it.id to PanelMotion() } }
         val scope = rememberCoroutineScope()
-        val art by rememberArt(state.imagePath, geometry.transform.imageRect.width, geometry.transform.imageRect.height)
+        val arts by rememberArts(state.images, geometry.artSizes, state.imagesRevision)
         val anim = state.settings.animation
         val pressAnim = PanelAnimations.press(anim.press)
         val currentState = rememberUpdatedState(state)
@@ -188,10 +190,7 @@ fun HomeScreen(
                     PanelLayer(
                         g = g,
                         motion = motions.getValue(g.panel.id),
-                        art = art,
-                        imageOffset = Offset(geometry.transform.imageRect.left, geometry.transform.imageRect.top),
-                        imageSize = Size(geometry.transform.imageRect.width, geometry.transform.imageRect.height),
-                        showPlaceholderLabel = state.imagePath == null,
+                        art = g.image?.let(arts::get),
                         label = state.folders.byPanel[g.panel.id.value]?.name ?: g.panel.label,
                         highlight = if (hovered == g.panel.id) Color(state.settings.appearance.highlightColor) else null,
                     )
@@ -292,9 +291,6 @@ private fun PanelLayer(
     g: PanelGeometry,
     motion: PanelMotion,
     art: ImageBitmap?,
-    imageOffset: Offset,
-    imageSize: Size,
-    showPlaceholderLabel: Boolean,
     label: String?,
     highlight: Color?,
 ) {
@@ -316,11 +312,13 @@ private fun PanelLayer(
                 shape = g.shape
                 clip = true
             }.drawBehind {
-                if (art != null) {
+                val r = g.art
+                if (art != null && r != null) {
+                    // 絵の長方形はコマの外へはみ出す。はみ出た分は graphicsLayer の shape で切り抜く
                     drawImage(
                         art,
-                        dstOffset = IntOffset((imageOffset.x - b.left).roundToInt(), (imageOffset.y - b.top).roundToInt()),
-                        dstSize = IntSize(imageSize.width.roundToInt(), imageSize.height.roundToInt()),
+                        dstOffset = IntOffset((r.left - b.left).roundToInt(), (r.top - b.top).roundToInt()),
+                        dstSize = IntSize(r.width.roundToInt(), r.height.roundToInt()),
                     )
                 } else {
                     drawRect(color)
@@ -330,7 +328,8 @@ private fun PanelLayer(
                 if (highlight != null) drawRect(highlight.copy(alpha = 0.35f))
             },
     ) {
-        if (showPlaceholderLabel && label != null) {
+        // 絵が無いコマ（見本や、画像をまだ置いていないコマ）だけ、仮の色の上に名前を表示する
+        if (art == null && label != null) {
             BasicText(
                 label,
                 style = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),

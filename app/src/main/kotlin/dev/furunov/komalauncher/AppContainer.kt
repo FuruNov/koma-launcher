@@ -15,7 +15,7 @@ import dev.furunov.komalauncher.platform.apps.LauncherAppsCatalog
 import dev.furunov.komalauncher.platform.apps.LauncherIconLoader
 import dev.furunov.komalauncher.platform.files.SafBackupService
 import dev.furunov.komalauncher.platform.files.SafLayoutImporter
-import dev.furunov.komalauncher.platform.layout.FileLayoutSource
+import dev.furunov.komalauncher.platform.layout.FileLayoutStore
 import dev.furunov.komalauncher.platform.store.FileFolderStore
 import dev.furunov.komalauncher.platform.store.FileSettingsStore
 import dev.furunov.komalauncher.platform.store.FileWidgetStore
@@ -38,7 +38,7 @@ class AppContainer(
     /** アプリの寿命の処理（保存、アプリ一覧の更新）に使う。 */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    private val fileLayout = FileLayoutSource(context, scope)
+    private val fileLayout = FileLayoutStore(context, scope)
     val layoutSource: LayoutSource = fileLayout
     private val fileFolders = FileFolderStore(context, scope)
     private val fileSettings = FileSettingsStore(context, scope)
@@ -53,11 +53,12 @@ class AppContainer(
 
     /** Activity が作り直されてもウィジェットのビューを持ち続けるよう、アプリの寿命で持つ。 */
     val widgets = WidgetHostController(context.applicationContext, widgetStore)
-    val importer: LayoutImporter = SafLayoutImporter(context, fileLayout.directory)
-    val backup: BackupService = SafBackupService(context, fileLayout.directory, folderStore, settingsStore, widgetStore)
+    val importer: LayoutImporter = SafLayoutImporter(context, fileLayout.importDirectory) { layoutSource.state.value.takeIf { it is LayoutState.Loaded }?.layout }
+    val backup: BackupService = SafBackupService(context, fileLayout.importDirectory, fileLayout::currentText, folderStore, settingsStore, widgetStore)
 
     /** 読めずに既定値で始めた保存ファイルがあれば、その知らせ。ホームの上端に出す。 */
     val storeNotice: String? =
+        // レイアウトを読めなかったときは、FileLayoutStore が LayoutState の error で知らせる
         listOfNotNull(fileFolders.brokenFile, fileSettings.brokenFile, fileWidgets.brokenFile)
             .takeIf { it.isNotEmpty() }
             ?.let { files -> "保存ファイルを読めなかったので、初期の状態で始めました。元のファイルは ${files.joinToString { it.name }} に残してあります" }
@@ -74,5 +75,6 @@ class AppContainer(
         fileFolders.flush()
         fileSettings.flush()
         fileWidgets.flush()
+        fileLayout.flush()
     }
 }

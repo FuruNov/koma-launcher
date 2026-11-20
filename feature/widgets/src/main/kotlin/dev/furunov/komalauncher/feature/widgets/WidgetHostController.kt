@@ -32,7 +32,9 @@ class WidgetHostController(
     private val store: WidgetStore,
 ) {
     private val manager = AppWidgetManager.getInstance(context)
-    private val host = AppWidgetHost(context, HOST_ID)
+
+    // 長押しの間はウィジェットにタッチを渡さないビューを作る（KomaWidgetHostView）
+    private val host: AppWidgetHost = KomaWidgetHost(context, HOST_ID)
     private val views = mutableMapOf<Int, AppWidgetHostView>()
 
     /** bind や configure の結果を待っているコマ。 */

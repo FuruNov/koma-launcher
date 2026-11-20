@@ -30,6 +30,8 @@
         packages = [
           pkgs.jdk21
           android.androidsdk
+          # scripts/import-mockup.sh がモックアップの state を layout.json に直すのに使う
+          pkgs.jq
         ];
         ANDROID_HOME = sdk;
         ANDROID_SDK_ROOT = sdk;

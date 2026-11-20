@@ -1,7 +1,5 @@
 package dev.furunov.komalauncher.model.widgets
 
-import dev.furunov.komalauncher.model.geometry.Point
-import dev.furunov.komalauncher.model.geometry.Polygon
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.Panel
 import dev.furunov.komalauncher.model.layout.PanelContent
@@ -10,9 +8,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class WidgetEditsTest {
-    private val tri = Polygon(listOf(Point(0f, 0f), Point(1f, 0f), Point(1f, 1f)))
-
-    private fun layout(vararg panels: Pair<String, PanelContent>) = Layout(1, null, 1f, panels.map { (id, c) -> Panel(PanelId(id), tri, c) })
+    private fun layout(vararg panels: Pair<String, PanelContent>) = Layout.of(panels.map { (id, c) -> Panel(PanelId(id), c) })
 
     private val assigned =
         WidgetAssignments(byPanel = mapOf("w1" to WidgetRef(1, "a/.A"), "w2" to WidgetRef(2, "b/.B"), "f1" to WidgetRef(3, "c/.C")))

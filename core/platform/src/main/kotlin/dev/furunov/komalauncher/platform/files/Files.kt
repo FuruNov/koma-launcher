@@ -4,8 +4,10 @@ import android.content.Context
 import android.net.Uri
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.folders.Folders
+import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutParser
 import dev.furunov.komalauncher.model.layout.LayoutResult
+import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.ports.BackupService
 import dev.furunov.komalauncher.model.ports.LayoutImporter
 import dev.furunov.komalauncher.model.settings.Settings
@@ -18,12 +20,14 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 /**
- * 利用者が選んだ画像と layout.json を、layout.json の置き場所へ写す。
- * 写す前に layout.json を読んで確かめ、壊れていれば写さない（見本に戻って割り当ての整理が止まるのを避ける）。
+ * 利用者が選んだ画像と layout.json を、取り込み口（外部ファイル領域）へ写す。写した後の取り込みは FileLayoutStore が行う。
+ * 写す前に layout.json を読んで確かめ、壊れていれば写さない。
  */
 class SafLayoutImporter(
     private val context: Context,
-    private val directory: File,
+    private val importDirectory: File,
+    /** いま表示しているレイアウト。画像だけを取り込むとき、置き換える絵の名前を決めるのに使う。 */
+    private val current: () -> Layout?,
 ) : LayoutImporter {
     override suspend fun import(
         imageUri: String?,
@@ -31,7 +35,6 @@ class SafLayoutImporter(
     ): String? = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
         val layoutText = layoutUri?.let { u -> resolver.openInputStream(Uri.parse(u))?.use { it.readBytes().decodeToString() } }
-        val layoutFile = File(directory, "layout.json")
         val layout =
             when {
                 layoutText != null ->
@@ -40,18 +43,20 @@ class SafLayoutImporter(
                         is LayoutResult.Error -> return@withContext r.message
                     }
 
-                layoutFile.exists() -> (LayoutParser.parse(layoutFile.readText()) as? LayoutResult.Ok)?.layout
-
-                else -> null
+                else -> current()
             }
         if (imageUri != null) {
-            val name = layout?.image ?: return@withContext "画像の名前を決める layout.json がありません。先に layout.json を取り込んでください"
+            // 1 枚の絵を選ぶ取り込みは version 1 のためのもの。version 2 のコマごとの画像は、編集画面（段階 2）か adb で art/ に置く
+            val name =
+                (layout?.shape as? LayoutShape.Fixed)?.image
+                    ?: return@withContext "画像の名前を決める version 1 の layout.json がありません。コマごとの画像は adb で art/ に置いてください"
             resolver.openInputStream(Uri.parse(imageUri))?.use { input ->
-                File(directory, name).outputStream().use { input.copyTo(it) }
+                File(importDirectory, name).outputStream().use { input.copyTo(it) }
             } ?: return@withContext "画像を読めません"
         }
-        // layout.json は最後に書く。監視が先に layout.json を読むと、まだ無い画像を探しに行くため
-        layoutText?.let { layoutFile.writeText(it) }
+        // layout.json は最後に書く。書き終えたときに取り込みが始まり、そのとき画像が揃っているように
+        val text = layoutText ?: layout?.let(LayoutParser::encode)
+        text?.let { File(importDirectory, "layout.json").writeText(it) }
         null
     }
 }
@@ -68,7 +73,10 @@ private data class BackupFile(
 
 class SafBackupService(
     private val context: Context,
-    private val layoutDirectory: File,
+    /** 読み込んだレイアウトを置く取り込み口。置けば FileLayoutStore が取り込む。 */
+    private val importDirectory: File,
+    /** いまのレイアウトの layout.json の文（見本なら null）。 */
+    private val currentLayout: () -> String?,
     private val folders: FolderStore,
     private val settings: SettingsStore,
     private val widgets: WidgetStore,
@@ -81,7 +89,7 @@ class SafBackupService(
         }
 
     override suspend fun export(uri: String): String? = withContext(Dispatchers.IO) {
-        val layout = File(layoutDirectory, "layout.json").takeIf { it.exists() }?.readText()
+        val layout = currentLayout()
         val data =
             BackupFile(
                 folders = folders.folders.value,
@@ -107,7 +115,7 @@ class SafBackupService(
             }
         data.layout?.let { l ->
             if (LayoutParser.parse(l) is LayoutResult.Error) return@withContext "バックアップの中の layout.json が壊れています"
-            File(layoutDirectory, "layout.json").writeText(l)
+            File(importDirectory, "layout.json").writeText(l)
         }
         folders.update { data.folders }
         settings.update { data.settings }
