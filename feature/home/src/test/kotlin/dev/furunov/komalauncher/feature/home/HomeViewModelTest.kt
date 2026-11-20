@@ -87,6 +87,8 @@ class HomeViewModelTest {
         override fun shortcuts(key: AppKey) = emptyList<dev.furunov.komalauncher.model.apps.AppShortcut>()
 
         override fun launchShortcut(shortcut: dev.furunov.komalauncher.model.apps.AppShortcut) = Unit
+
+        override fun allShortcuts(): List<dev.furunov.komalauncher.model.apps.AppShortcut> = emptyList()
     }
 
     private class FakeActions : ActionPerformer {

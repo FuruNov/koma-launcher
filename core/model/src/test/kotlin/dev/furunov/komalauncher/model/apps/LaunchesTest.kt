@@ -50,5 +50,7 @@ class LaunchesTest {
         override fun shortcuts(key: AppKey): List<AppShortcut> = emptyList()
 
         override fun launchShortcut(shortcut: AppShortcut) = Unit
+
+        override fun allShortcuts(): List<AppShortcut> = emptyList()
     }
 }

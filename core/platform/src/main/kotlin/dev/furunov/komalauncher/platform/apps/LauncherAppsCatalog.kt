@@ -122,6 +122,28 @@ class LauncherAppsCatalog(
         }
     }
 
+    override fun allShortcuts(): List<AppShortcut> {
+        if (!launcherApps.hasShortcutHostPermission()) return emptyList()
+        val installed = state.value.mapTo(HashSet()) { it.key.packageName }
+        // パッケージを指定しない問い合わせで 1 回にまとめる。使えない端末では、アプリごとに問い合わせる
+        val all =
+            try {
+                val query =
+                    LauncherApps
+                        .ShortcutQuery()
+                        .setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST)
+                launcherApps
+                    .getShortcuts(query, user)
+                    .orEmpty()
+                    .sortedWith(compareBy({ it.`package` }, { it.rank }))
+                    .map { AppShortcut(it.`package`, it.id, (it.shortLabel ?: it.longLabel ?: it.id).toString()) }
+            } catch (e: Exception) {
+                null
+            }
+        val shortcuts = all?.takeIf { it.isNotEmpty() } ?: state.value.flatMap { shortcuts(it.key) }
+        return shortcuts.filter { it.packageName in installed }.distinctBy { it.packageName to it.id }
+    }
+
     override fun launchShortcut(shortcut: AppShortcut) {
         try {
             launcherApps.startShortcut(shortcut.packageName, shortcut.id, null, null, user)

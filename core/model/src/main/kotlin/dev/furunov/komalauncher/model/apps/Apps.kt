@@ -40,4 +40,7 @@ interface AppCatalog {
     fun shortcuts(key: AppKey): List<AppShortcut>
 
     fun launchShortcut(shortcut: AppShortcut)
+
+    /** 検索のための、全アプリのショートカット。時間がかかるので IO のスレッドで呼ぶ。ホームアプリでないときは空。 */
+    fun allShortcuts(): List<AppShortcut>
 }
