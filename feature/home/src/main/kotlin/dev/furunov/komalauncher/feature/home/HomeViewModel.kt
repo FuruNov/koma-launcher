@@ -219,8 +219,19 @@ class HomeViewModel(
             is HomeEvent.TapPanel -> {
                 val panel = state.value.layout.panel(event.panelId) ?: return
                 when (panel.content) {
-                    is PanelContent.Folder -> overlay.value = Overlay.Folder(panel.id)
+                    is PanelContent.Folder -> {
+                        // 起動はコマを離した時点。フォルダを開くときと同じく、押したときの動きの完了を待たない
+                        val first = directLaunchTarget(panel.id)
+                        if (first != null) {
+                            apps.launch(first)
+                            overlay.value = Overlay.None
+                        } else {
+                            overlay.value = Overlay.Folder(panel.id)
+                        }
+                    }
+
                     PanelContent.Drawer -> overlay.value = Overlay.Drawer
+
                     PanelContent.Widget -> Unit
                 }
             }
@@ -299,6 +310,17 @@ class HomeViewModel(
         // 同じフォルダの中での並べ替えなら開いたままにし、それ以外は閉じてホームを見せる
         val stayOpen = target is DropTarget.Panel && target.panelId == e.fromPanel
         if (!stayOpen) overlay.value = Overlay.None
+    }
+
+    /**
+     * 「押したら直接起動」のフォルダなら、起動するアプリ（入っているアプリのうち先頭）。
+     * 切り替えがオフか、起動できるアプリが 1 つも無ければ null（フォルダを開く）。
+     */
+    private fun directLaunchTarget(panelId: PanelId): AppKey? {
+        val folder = folderStore.folders.value.byPanel[panelId.value] ?: return null
+        if (!folder.directLaunch) return null
+        val installed = apps.apps.value.mapTo(HashSet()) { it.key }
+        return folder.apps.firstOrNull { it in installed }
     }
 
     /** ホームの中で完結する操作はここで処理し、それ以外は ActionPerformer に渡す。 */

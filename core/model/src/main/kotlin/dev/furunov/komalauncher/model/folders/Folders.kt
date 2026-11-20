@@ -11,6 +11,8 @@ data class Folder(
     val apps: List<AppKey> = emptyList(),
     /** 利用者が付けた名前。null なら layout.json の label を使う。 */
     val name: String? = null,
+    /** true なら、コマを押したときにフォルダを開かず、先頭のアプリを起動する。 */
+    val directLaunch: Boolean = false,
 )
 
 /** フォルダの中身の全体。保存の単位でもある。キーは PanelId の文字列（JSON のキーにするため）。 */
@@ -99,6 +101,15 @@ object FolderEdits {
     ): Folders {
         val folder = f.byPanel[panelId] ?: Folder()
         return f.copy(byPanel = f.byPanel + (panelId to folder.copy(name = name?.takeIf { it.isNotBlank() })))
+    }
+
+    fun setDirectLaunch(
+        f: Folders,
+        panelId: String,
+        on: Boolean,
+    ): Folders {
+        val folder = f.byPanel[panelId] ?: Folder()
+        return f.copy(byPanel = f.byPanel + (panelId to folder.copy(directLaunch = on)))
     }
 
     /**

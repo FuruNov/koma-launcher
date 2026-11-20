@@ -268,7 +268,13 @@ fun HomeScreen(
                 is Overlay.AppMenu -> AppMenuSheet(o, state.labelOf(o.app), onEvent)
 
                 is Overlay.PanelMenu -> geometry.panels.firstOrNull { it.panel.id == o.panelId }?.let { g ->
-                    PanelMenuSheet(g, state.folders.byPanel[g.panel.id.value]?.name ?: g.panel.label, slots.panelMenuItems(g), onEvent)
+                    PanelMenuSheet(
+                        g,
+                        state.folders.byPanel[g.panel.id.value]?.name ?: g.panel.label,
+                        state.folders.byPanel[g.panel.id.value]?.directLaunch == true,
+                        slots.panelMenuItems(g),
+                        onEvent,
+                    )
                 }
 
                 is Overlay.Rename -> RenameSheet(o.panelId, state.folders.byPanel[o.panelId.value]?.name ?: state.layout.panel(o.panelId)?.label, onEvent)

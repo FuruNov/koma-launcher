@@ -36,6 +36,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.layout.PanelId
 import dev.furunov.komalauncher.model.settings.LauncherAction
@@ -157,6 +158,7 @@ private fun Divider() {
 internal fun PanelMenuSheet(
     panel: PanelGeometry,
     name: String?,
+    directLaunch: Boolean,
     extra: List<PanelMenuItem>,
     onEvent: (HomeEvent) -> Unit,
 ) {
@@ -168,7 +170,14 @@ internal fun PanelMenuSheet(
             modifier = Modifier.padding(16.dp),
         )
         if (panel.panel.content is PanelContent.Folder) {
-            MenuRow("名前を変更") { onEvent(HomeEvent.OpenOverlay(Overlay.Rename(panel.panel.id))) }
+            val id = panel.panel.id
+            // 直接起動にしたフォルダは押しても開かないので、中身を並べ替える入口をここに置く
+            if (directLaunch) MenuRow("フォルダを開く") { onEvent(HomeEvent.OpenOverlay(Overlay.Folder(id))) }
+            MenuRow(if (directLaunch) "押したら直接起動: オン" else "押したら直接起動: オフ") {
+                onEvent(HomeEvent.EditFolders { FolderEdits.setDirectLaunch(it, id.value, !directLaunch) })
+                onEvent(HomeEvent.Dismiss)
+            }
+            MenuRow("名前を変更") { onEvent(HomeEvent.OpenOverlay(Overlay.Rename(id))) }
         }
         extra.forEach { item ->
             MenuRow(item.label) {

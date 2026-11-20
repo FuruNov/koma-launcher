@@ -227,4 +227,48 @@ class HomeViewModelTest {
         assertEquals(listOf(other, chrome), vm.state.value.folders.appsOf("p1"))
         assertEquals(Overlay.Folder(PanelId("p1")), vm.state.value.overlay)
     }
+
+    private val missing = AppKey("gone", "Main")
+
+    private fun directLaunch(vararg apps: AppKey) = folders.update {
+        FolderEdits.setDirectLaunch(it.copy(byPanel = it.byPanel + ("p1" to it.byPanel.getValue("p1").copy(apps = apps.toList()))), "p1", true)
+    }
+
+    @Test
+    fun directLaunchStartsFirstApp() {
+        directLaunch(chrome)
+        vm.onEvent(HomeEvent.TapPanel(PanelId("p1")))
+        assertEquals(listOf(chrome), appsFake.launched)
+        assertEquals(Overlay.None, vm.state.value.overlay)
+    }
+
+    @Test
+    fun directLaunchSkipsMissingApps() {
+        directLaunch(missing, chrome)
+        vm.onEvent(HomeEvent.TapPanel(PanelId("p1")))
+        assertEquals(listOf(chrome), appsFake.launched)
+    }
+
+    @Test
+    fun directLaunchWithOnlyMissingAppsOpensFolder() {
+        directLaunch(missing)
+        vm.onEvent(HomeEvent.TapPanel(PanelId("p1")))
+        assertEquals(emptyList(), appsFake.launched)
+        assertEquals(Overlay.Folder(PanelId("p1")), vm.state.value.overlay)
+    }
+
+    @Test
+    fun directLaunchEmptyOpensFolder() {
+        directLaunch()
+        vm.onEvent(HomeEvent.TapPanel(PanelId("p1")))
+        assertEquals(Overlay.Folder(PanelId("p1")), vm.state.value.overlay)
+    }
+
+    @Test
+    fun gestureOpenFolderIgnoresDirectLaunch() {
+        directLaunch(chrome)
+        vm.onEvent(HomeEvent.Perform(LauncherAction.OpenFolder("p1")))
+        assertEquals(emptyList(), appsFake.launched)
+        assertEquals(Overlay.Folder(PanelId("p1")), vm.state.value.overlay)
+    }
 }

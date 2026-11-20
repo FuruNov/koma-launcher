@@ -110,4 +110,17 @@ class SampleFolderTest {
         val f = Folders(byPanel = mapOf("gone" to Folder(listOf(a))))
         assertEquals(listOf(a), FolderEdits.seedOnly(f, layoutOf("p1"), { null }).appsOf("gone"))
     }
+
+    @Test
+    fun setDirectLaunchKeepsApps() {
+        val named = FolderEdits.rename(Folders(byPanel = mapOf("p1" to Folder(listOf(a, AppKey("b", "B"))))), "p1", "よく使う")
+        val on = FolderEdits.setDirectLaunch(named, "p1", true)
+        assertEquals(true, on.byPanel.getValue("p1").directLaunch)
+        assertEquals(listOf(a, AppKey("b", "B")), on.appsOf("p1"))
+        assertEquals("よく使う", on.byPanel.getValue("p1").name)
+        assertEquals(false, FolderEdits.setDirectLaunch(on, "p1", false).byPanel.getValue("p1").directLaunch)
+    }
+
+    @Test
+    fun setDirectLaunchCreatesFolder() = assertEquals(true, FolderEdits.setDirectLaunch(Folders(), "new", true).byPanel.getValue("new").directLaunch)
 }
