@@ -8,3 +8,7 @@ github.com/android/skills（Apache-2.0、LICENSE.txt）の commit c729425 から
 - jetpack-compose-performance（jetpack-compose/）
 
 上流は Gradle と Compose を前提にしている。testing-setup が勧める Hilt はこのリポジトリでは使わない（理由は README）。
+
+# このリポジトリのスキル
+
+- export-mockup: Artifact で作ったコマ割りのモックアップを、実機か Waydroid に送る手順

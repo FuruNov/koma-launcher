@@ -35,7 +35,7 @@ scripts/record-animations.sh <出力先>             # アニメーションの�
 
 レイアウトはアプリの内部（`files/layout.json` と `files/art/`）に持つ。外から入れるときは、`/sdcard/Android/data/dev.furunov.komalauncher/files/` を取り込み口に使う。ここに `layout.json` を置くと、アプリは中身を確かめ、参照する画像を内部へ写してから、ホームをその形に変える。取り込んだ `layout.json` は `layout.json.imported` に名前が変わり、写し終えた画像は消える。設定画面の「コマ画像をインポート」とバックアップの読み込みも、同じ取り込み口を通る。
 
-モックアップ（`docs/mockups/`）で作ったコマ割りは、`scripts/import-mockup.sh <state.json> <画像のディレクトリ>` で送れる。`state.json` は Artifact の db の `editor/current`。
+モックアップ（`docs/mockups/`）で作ったコマ割りは、`scripts/import-mockup.sh <state.json> <画像のディレクトリ>` で送れる。`state.json` は Artifact の db の `editor/current`。画像はページに埋め込まれているので、`scripts/extract-mockup-images.sh <ページの HTML>` で書き出す。Claude に頼むときの手順と、新しいモックアップが守る保存の形は `.claude/skills/export-mockup/SKILL.md` にある。
 
 ### version 2（線の木とコマごとの画像）
 
