@@ -108,7 +108,8 @@ fun HomeScreen(
         val density = LocalDensity.current
         val wPx = with(density) { maxWidth.toPx() }
         val hPx = with(density) { maxHeight.toPx() }
-        val geometry = remember(state.layout, wPx, hPx) { HomeGeometry.of(state.layout, wPx, hPx) }
+        val defaultGutter = state.settings.appearance.gutterColor
+        val geometry = remember(state.layout, wPx, hPx, defaultGutter) { HomeGeometry.of(state.layout, wPx, hPx, defaultGutter) }
         val geometryState = rememberUpdatedState<HomeGeometry?>(geometry)
         val motions = remember(state.layout) { state.layout.panels.associate { it.id to PanelMotion() } }
         val scope = rememberCoroutineScope()

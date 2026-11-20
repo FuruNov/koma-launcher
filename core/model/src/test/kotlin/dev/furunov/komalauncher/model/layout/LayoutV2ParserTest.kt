@@ -46,6 +46,25 @@ class LayoutV2ParserTest {
     }
 
     @Test
+    fun borderWithoutColorIsAutoAndStaysAuto() {
+        val auto = valid.replace(""", "color": "#111111" }""", " }")
+        val layout = assertIs<LayoutResult.Ok>(LayoutParser.parse(auto)).layout
+        assertNull(assertIs<LayoutShape.Tree>(layout.shape).frame.border.color)
+        val again = assertIs<LayoutResult.Ok>(LayoutParser.parse(LayoutParser.encode(layout))).layout
+        assertNull(assertIs<LayoutShape.Tree>(again.shape).frame.border.color)
+    }
+
+    @Test
+    fun autoBorderContrastsWithGutter() {
+        val auto = Border()
+        assertEquals(Border.WHITE, auto.colorOn(0xFF111111))
+        assertEquals(Border.WHITE, auto.colorOn(0xFF2B2B33))
+        assertEquals(Border.BLACK, auto.colorOn(0xFFFFFFFF))
+        // 色を選んであれば、間隔の色に関係なくその色
+        assertEquals(Border.BLACK, Border(color = Border.BLACK).colorOn(0xFF111111))
+    }
+
+    @Test
     fun encodeThenParseIsSame() {
         val layout = assertIs<LayoutResult.Ok>(LayoutParser.parse(valid)).layout
         val again = assertIs<LayoutResult.Ok>(LayoutParser.parse(LayoutParser.encode(layout))).layout

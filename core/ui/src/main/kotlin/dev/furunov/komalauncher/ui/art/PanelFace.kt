@@ -39,16 +39,21 @@ class PanelStyle(
     val border: Border,
     /** 画面の幅 / レイアウトの基準の幅。枠線の太さを画面に合わせるのに使う。 */
     val scale: Float,
+    /** 枠線の色。自動のときは間隔の色から決めてある。 */
+    val borderColor: Long = border.color ?: Border.BLACK,
 ) {
     companion object {
         val NONE = PanelStyle(Look(), Border(style = BorderStyle.NONE), 1f)
 
+        /** [defaultGutter] はレイアウトに間隔の色が無いときの色（設定の値）。枠の色を自動で決めるのに使う。 */
         fun of(
             layout: Layout,
             viewWidth: Float,
+            defaultGutter: Long,
         ): PanelStyle {
             val tree = layout.shape as? LayoutShape.Tree ?: return NONE
-            return PanelStyle(tree.look, tree.frame.border, viewWidth / tree.frame.refWidth)
+            val frame = tree.frame
+            return PanelStyle(tree.look, frame.border, viewWidth / frame.refWidth, frame.border.colorOn(frame.gutterColor ?: defaultGutter))
         }
     }
 }
@@ -119,10 +124,13 @@ class PanelFace(
 
     /** 枠線はコマの内側に引く。線を 2 倍の太さで描き、コマの形で切り抜いて内側の半分だけを残す。 */
     private val borderWidth = if (style.border.style == BorderStyle.NONE) 0f else style.border.width * style.scale
-    private val borderColor = Color(style.border.color)
+    private val borderColor = Color(style.borderColor)
 
-    /** 二重の枠の内側の白線。モックアップと同じく、黒い線より max(4, 太さ × 0.35) だけ太く白を引く。 */
-    private val innerWhiteWidth =
+    /** 二重の枠の内側の線の色。枠の色と反対の明るさにする（白い枠なら黒、黒い枠なら白）。 */
+    private val innerLineColor = if (Border.isDark(style.borderColor)) Color.White else Color(Border.BLACK)
+
+    /** 二重の枠の内側の線。モックアップと同じく、枠の線より max(4, 太さ × 0.35) だけ太く引く。 */
+    private val innerLineWidth =
         if (style.border.style == BorderStyle.DOUBLE && borderWidth > 0f) (style.border.width + max(4f, style.border.width * 0.35f)) * style.scale else 0f
 
     /**
@@ -151,7 +159,7 @@ class PanelFace(
                 drawRect(brush, topLeft = Offset(-bounds.width, -bounds.height), size = Size(bounds.width * 3f, bounds.height * 3f), blendMode = BlendMode.Screen)
             }
         }
-        if (innerWhiteWidth > 0f) drawPath(path, Color.White, style = Stroke(width = innerWhiteWidth * 2f, join = StrokeJoin.Miter))
+        if (innerLineWidth > 0f) drawPath(path, innerLineColor, style = Stroke(width = innerLineWidth * 2f, join = StrokeJoin.Miter))
         if (borderWidth > 0f) drawPath(path, borderColor, style = Stroke(width = borderWidth * 2f, join = StrokeJoin.Miter))
     }
 

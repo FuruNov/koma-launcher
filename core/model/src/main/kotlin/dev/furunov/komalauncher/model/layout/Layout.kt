@@ -45,8 +45,11 @@ data class PanelArt(
 data class Panel(
     val id: PanelId,
     val content: PanelContent,
+    /** コマに表示する名前。null か空なら表示しない。 */
     val label: String? = null,
     val art: PanelArt? = null,
+    /** 英語表示のときの名前。null か空なら [label] を表示する。 */
+    val labelEn: String? = null,
 )
 
 /**
@@ -83,8 +86,25 @@ enum class BorderStyle { NONE, SINGLE, DOUBLE }
 data class Border(
     val style: BorderStyle = BorderStyle.SINGLE,
     val width: Float = 10f,
-    val color: Long = 0xFF111111,
-)
+    /** null なら自動。間隔の色が暗ければ白、明るければ黒にする（黒い間隔で枠が見えなくなるのを避ける）。 */
+    val color: Long? = null,
+) {
+    /** 間隔の色 [gutter] のときに引く枠の色。 */
+    fun colorOn(gutter: Long): Long = color ?: if (BorderColors.isDark(gutter)) BorderColors.WHITE else BorderColors.BLACK
+
+    companion object BorderColors {
+        const val BLACK = 0xFF111111
+        const val WHITE = 0xFFFFFFFF
+
+        /** ARGB の色が暗いか。相対輝度（sRGB の係数）の簡易版で判定する。 */
+        fun isDark(argb: Long): Boolean {
+            val r = (argb shr 16) and 0xFF
+            val g = (argb shr 8) and 0xFF
+            val b = argb and 0xFF
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128
+        }
+    }
+}
 
 /**
  * コマ割りの外側とコマの間。長さは、画面の幅が [refWidth] のときの画素数で書く。
@@ -150,8 +170,8 @@ data class ClockSpec(
 /** 視差（段階 5）。端末を傾けると、絵・文字・時計を別の量で動かす。 */
 data class FxSpec(
     val parallax: Boolean = false,
-    /** 動かす量の倍率（モックアップの 0.3〜2）。 */
-    val strength: Float = 1f,
+    /** 動かす量の倍率（0.1〜2）。既定の 0.4 は、利用者が実機で試してちょうどよいとした値（2026-11-20）。 */
+    val strength: Float = 0.4f,
 ) {
     /** 基準の幅（refWidth）のときの、絵・時計・文字を動かす最大の量。モックアップの PARALLAX。 */
     fun artShift(): Float = if (parallax) 26f * strength else 0f

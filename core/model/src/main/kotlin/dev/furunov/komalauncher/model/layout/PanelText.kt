@@ -9,33 +9,20 @@ import kotlin.math.min
  * 描くときに箱へ合わせる。
  */
 object PanelText {
-    /** 英語の名前。モックアップの EN と同じ。無い名前はそのまま大文字にする。 */
-    private val ENGLISH =
-        mapOf(
-            "すべてのアプリ" to "ALL APPS",
-            "よく使う" to "FAVORITES",
-            "連絡" to "MESSAGES",
-            "道具" to "TOOLS",
-            "ツール" to "TOOLS",
-            "その他" to "OTHERS",
-            "メディア" to "MEDIA",
-            "新しいコマ" to "NEW",
-            "ウィジェット" to "WIDGET",
-        )
-
-    /** コマに出す名前。全アプリ一覧のコマはコマの名前でなく種類の名前を出す。ウィジェットのコマには出さない。 */
+    /**
+     * コマに出す名前。利用者が入力した名前だけを出し、アプリの側で名前を補ったり訳したりしない。
+     * 英語表示のときは英語の名前を出し、無ければ名前を出す。ウィジェットのコマには出さない。
+     * [name] はホームの長押しで付けたフォルダの名前で、レイアウトの名前より優先する。
+     */
     fun labelOf(
         panel: Panel,
         name: String?,
         english: Boolean,
     ): String? {
-        val label =
-            when (panel.content) {
-                PanelContent.Drawer -> "すべてのアプリ"
-                PanelContent.Widget -> return null
-                is PanelContent.Folder -> name ?: panel.label ?: return null
-            }
-        return if (english) (ENGLISH[label] ?: label).uppercase() else label
+        if (panel.content == PanelContent.Widget) return null
+        val ja = (name ?: panel.label)?.takeIf { it.isNotBlank() }
+        val en = panel.labelEn?.takeIf { it.isNotBlank() }
+        return if (english) en ?: ja else ja
     }
 
     /** 時計を置くコマ。指定が無いか消えていれば、いちばん大きいコマ（外接長方形の面積）。 */

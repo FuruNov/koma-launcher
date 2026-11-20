@@ -30,7 +30,8 @@ class LayoutEditsTest {
         assertEquals(PanelContent.Folder(listOf("x")), r.panels[0].panel.content)
         assertEquals(art, r.panels[0].panel.art)
         assertEquals(PanelContent.Folder(emptyList()), r.panels[1].panel.content)
-        assertEquals(LayoutEdits.NEW_LABEL, r.panels[1].panel.label)
+        // 新しいコマには名前を付けない
+        assertNull(r.panels[1].panel.label)
         // 横の線は外接長方形の中心を通る
         assertEquals(1000f, r.panels[0].polygon.bounds.bottom, 0.5f)
         assertEquals(1000f, r.panels[1].polygon.bounds.top, 0.5f)
@@ -117,11 +118,28 @@ class LayoutEditsTest {
     fun historyKeepsLatestFifty() {
         val h = EditHistory<Int>()
         repeat(60) { h.push(it) }
-        val popped = generateSequence { h.pop() }.toList()
+        var current = 60
+        val popped = generateSequence { h.undo(current)?.also { current = it } }.toList()
         assertEquals(50, popped.size)
         assertEquals(59, popped.first())
         assertEquals(10, popped.last())
         assertFalse(h.canUndo)
+    }
+
+    @Test
+    fun redoReturnsUndoneStatesUntilANewEdit() {
+        val h = EditHistory<Int>()
+        h.push(0)
+        h.push(1)
+        // 今は 2。2 回戻すと 0、1 回やり直すと 1
+        assertEquals(1, h.undo(2))
+        assertEquals(0, h.undo(1))
+        assertEquals(1, h.redo(0))
+        assertTrue(h.canRedo)
+        // 新しい操作を積むと、やり直す先は無くなる
+        h.push(1)
+        assertFalse(h.canRedo)
+        assertNull(h.redo(5))
     }
 
     @Test

@@ -15,6 +15,7 @@ import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.Look
 import dev.furunov.komalauncher.model.layout.PanelArt
 import dev.furunov.komalauncher.model.layout.PanelId
+import dev.furunov.komalauncher.model.layout.PanelText
 import dev.furunov.komalauncher.model.layout.ResolvedLayout
 import dev.furunov.komalauncher.model.layout.ResolvedPanel
 import dev.furunov.komalauncher.model.layout.SplitDirection
@@ -38,6 +39,9 @@ data class EditorUiState(
     val masks: Map<String, String> = emptyMap(),
     val selected: PanelId? = null,
     val canUndo: Boolean = false,
+    val canRedo: Boolean = false,
+    /** 元に戻す・やり直すをした回数。入力欄が手元に持つ文字を、戻した内容で読み直す合図にする。 */
+    val restored: Int = 0,
     /** 画像を取り込んでいる間は true。 */
     val busy: Boolean = false,
     /** 画面の下に出す短い知らせ。 */
@@ -173,7 +177,7 @@ class EditorViewModel(
             if (art != null) {
                 committed = true
                 history.push(before)
-                local.update { s -> s.copy(layout = LayoutEdits.placeImage(s.layout, id, art), canUndo = true) }
+                local.update { s -> s.copy(layout = LayoutEdits.placeImage(s.layout, id, art), canUndo = true, canRedo = false) }
             }
         }
     }
@@ -216,10 +220,83 @@ class EditorViewModel(
         commit(LayoutEdits.setTree(local.value.layout, transform))
     }
 
-    fun undo() {
-        val prev = history.pop() ?: return
-        local.update { s -> s.copy(selected = s.selected?.takeIf { prev.panel(it) != null }) }
-        commit(prev)
+    /** 選んでいるコマの名前と英語の名前。入力の 1 文字ごとに呼ぶので、履歴に積まない（大見出しと同じ）。 */
+    fun setLabels(
+        label: String,
+        labelEn: String,
+    ) {
+        val id = local.value.selected ?: return
+        commit(LayoutEdits.updatePanel(local.value.layout, id) { it.copy(label = label.takeIf { s -> s.isNotBlank() }, labelEn = labelEn.takeIf { s -> s.isNotBlank() }) })
+    }
+
+    /** 画面の点 [p] にある、指で動かせる文字（時計か大見出し）。時計が上に重なるので先に調べる。 */
+    fun textAt(p: Point): MovableText? {
+        val tree = local.value.layout.shape as? LayoutShape.Tree ?: return null
+        val panels = resolve().panels
+        if (tree.clock.enabled) {
+            val c = textCenter(MovableText.CLOCK) ?: return null
+            val k = tree.clock.size * width / tree.frame.refWidth
+            if (kotlin.math.abs(p.x - c.x) < 450f * k && p.y - c.y in -240f * k..170f * k) return MovableText.CLOCK
+        }
+        val id = PanelText.mastheadPanel(panels, tree.text, tree.clock) ?: return null
+        val b = panels.firstOrNull { it.panel.id == id }?.polygon?.bounds ?: return null
+        val c = textCenter(MovableText.MASTHEAD) ?: return null
+        val half = PanelText.mastheadSize(b) * 0.6f
+        return if (kotlin.math.abs(p.x - c.x) < b.width * 0.45f && kotlin.math.abs(p.y - c.y) < half) MovableText.MASTHEAD else null
+    }
+
+    /** 文字の中心（画面の座標）。 */
+    fun textCenter(t: MovableText): Point? {
+        val tree = local.value.layout.shape as? LayoutShape.Tree ?: return null
+        val panels = resolve().panels
+        return when (t) {
+            MovableText.CLOCK -> {
+                val b = panels.firstOrNull { it.panel.id == PanelText.clockPanel(panels, tree.clock) }?.polygon?.bounds ?: return null
+                Point(b.left + tree.clock.x * b.width, b.top + tree.clock.y * b.height)
+            }
+
+            MovableText.MASTHEAD -> {
+                val b = panels.firstOrNull { it.panel.id == PanelText.mastheadPanel(panels, tree.text, tree.clock) }?.polygon?.bounds ?: return null
+                Point(b.left + b.width / 2f, b.top + tree.text.mastheadY * b.height)
+            }
+        }
+    }
+
+    /**
+     * 文字の中心を画面の点 [center] へ動かす。置くコマは [center] の下のコマで、位置はそのコマの中の割合で持つ
+     * （人物の後ろに回す処理がコマごとなので）。大見出しは横の中央に置くので、縦の位置だけを変える。
+     * ドラッグの間に呼ぶ（始まりで [beginGesture]）。
+     */
+    fun moveText(
+        t: MovableText,
+        center: Point,
+    ) {
+        val panels = resolve().panels
+        val hit = panels.lastOrNull { it.polygon.bounds.contains(center) && it.polygon.contains(center) } ?: return
+        // 置き場所を決めていない大見出しは時計のコマに付いていくので、時計を動かす前に今のコマへ固定する
+        val tree = local.value.layout.shape as? LayoutShape.Tree ?: return
+        val mastheadId = tree.text.mastheadPanel ?: PanelText.mastheadPanel(panels, tree.text, tree.clock)
+        val b = hit.polygon.bounds
+        val x = ((center.x - b.left) / b.width).coerceIn(0f, 1f)
+        val y = ((center.y - b.top) / b.height).coerceIn(0f, 1f)
+        commit(
+            LayoutEdits.setTree(local.value.layout) {
+                when (t) {
+                    MovableText.CLOCK -> it.copy(clock = it.clock.copy(panel = hit.panel.id, x = x, y = y), text = it.text.copy(mastheadPanel = mastheadId))
+                    MovableText.MASTHEAD -> it.copy(text = it.text.copy(mastheadPanel = hit.panel.id, mastheadY = y))
+                }
+            },
+        )
+    }
+
+    fun undo() = restore(history.undo(local.value.layout))
+
+    fun redo() = restore(history.redo(local.value.layout))
+
+    private fun restore(layout: Layout?) {
+        if (layout == null) return
+        local.update { s -> s.copy(selected = s.selected?.takeIf { layout.panel(it) != null }, restored = s.restored + 1) }
+        commit(layout, fromHistory = true)
     }
 
     fun dismissMessage() = local.update { it.copy(message = null) }
@@ -239,12 +316,20 @@ class EditorViewModel(
 
     private fun record() {
         history.push(local.value.layout)
-        local.update { it.copy(canUndo = true) }
+        local.update { it.copy(canUndo = true, canRedo = false) }
     }
 
-    private fun commit(layout: Layout) {
+    /** [fromHistory] は元に戻す・やり直すによる変更。それ以外の変更をしたら、やり直す先は無くなる。 */
+    private fun commit(
+        layout: Layout,
+        fromHistory: Boolean = false,
+    ) {
         committed = true
-        local.update { it.copy(layout = layout, canUndo = history.canUndo) }
+        if (!fromHistory) history.dropRedo()
+        local.update { it.copy(layout = layout, canUndo = history.canUndo, canRedo = history.canRedo) }
         store.update { layout }
     }
 }
+
+/** 縮小図の上で指で動かせる文字。 */
+enum class MovableText { CLOCK, MASTHEAD }

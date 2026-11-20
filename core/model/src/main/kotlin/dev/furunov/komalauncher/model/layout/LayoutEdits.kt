@@ -36,7 +36,8 @@ object LayoutEdits {
         val cy = (t + b) / 2f
         // 横は右 → 左、縦は上 → 下の向きに引く。線の左側（a）が上または左のコマになる
         val (from, to) = if (dir == SplitDirection.HORIZONTAL) Point(r, cy) to Point(l, cy) else Point(cx, t) to Point(cx, b)
-        val fresh = Panel(nextId(layout), PanelContent.Folder(emptyList()), label = NEW_LABEL)
+        // 名前は付けない。役割を決めるのは利用者なので、名前の無いコマには文字を表示しない
+        val fresh = Panel(nextId(layout), PanelContent.Folder(emptyList()))
         val split = LayoutNode.Split(TreeGeometry.paramOf(polygon, from), TreeGeometry.paramOf(polygon, to), leaf, LayoutNode.Leaf(fresh))
         return Layout(shape.copy(root = replaceAt(shape.root, path, split))) to fresh.id
     }
@@ -157,24 +158,21 @@ object LayoutEdits {
         base: Layout,
     ): Layout {
         var n = maxNumber(base)
-        fun leaf(
-            label: String,
-            content: PanelContent = PanelContent.Folder(emptyList()),
-        ) = LayoutNode.Leaf(Panel(PanelId("p${++n}"), content, label))
+        fun leaf(content: PanelContent = PanelContent.Folder(emptyList())) = LayoutNode.Leaf(Panel(PanelId("p${++n}"), content))
         val root =
             when (template) {
-                Template.ONE -> leaf("よく使う")
+                Template.ONE -> leaf()
 
                 Template.HERO ->
                     LayoutNode.Split(
                         0.3246f,
                         0.7999f,
-                        leaf("よく使う"),
+                        leaf(),
                         LayoutNode.Split(
                             0.1477f,
                             0.6503f,
-                            LayoutNode.Split(0.9004f, 0.3905f, leaf("ウィジェット", PanelContent.Widget), leaf("連絡")),
-                            LayoutNode.Split(0.8774f, 0.3196f, leaf("ツール"), leaf("その他", PanelContent.Drawer)),
+                            LayoutNode.Split(0.9004f, 0.3905f, leaf(PanelContent.Widget), leaf()),
+                            LayoutNode.Split(0.8774f, 0.3196f, leaf(), leaf(PanelContent.Drawer)),
                         ),
                     )
             }
@@ -221,24 +219,47 @@ object LayoutEdits {
         val rest = path.substring(1)
         return if (path[0] == 'a') split.copy(a = replaceAt(split.a, rest, replacement)) else split.copy(b = replaceAt(split.b, rest, replacement))
     }
-
-    const val NEW_LABEL = "新しいコマ"
 }
 
-/** 元に戻すための履歴。モックアップと同じく 50 件まで持つ。 */
+/**
+ * 元に戻す・やり直すための履歴。モックアップと同じく、元に戻す側は 50 件まで持つ。
+ * 新しい操作を積むと（[push]・[dropRedo]）、やり直す側は空にする。
+ */
 class EditHistory<T>(
     private val limit: Int = 50,
 ) {
-    private val stack = ArrayDeque<T>()
+    private val undoStack = ArrayDeque<T>()
+    private val redoStack = ArrayDeque<T>()
 
-    val canUndo: Boolean get() = stack.isNotEmpty()
+    val canUndo: Boolean get() = undoStack.isNotEmpty()
+    val canRedo: Boolean get() = redoStack.isNotEmpty()
 
+    /** 操作の前の状態を積む。 */
     fun push(state: T) {
-        stack.addLast(state)
-        if (stack.size > limit) stack.removeFirst()
+        undoStack.addLast(state)
+        if (undoStack.size > limit) undoStack.removeFirst()
+        redoStack.clear()
     }
 
-    fun pop(): T? = stack.removeLastOrNull()
+    /** 1 つ前の状態を返し、今の状態 [current] をやり直す側に積む。 */
+    fun undo(current: T): T? {
+        val prev = undoStack.removeLastOrNull() ?: return null
+        redoStack.addLast(current)
+        return prev
+    }
 
-    fun clear() = stack.clear()
+    /** 元に戻した状態を返し、今の状態 [current] を元に戻す側に積む。 */
+    fun redo(current: T): T? {
+        val next = redoStack.removeLastOrNull() ?: return null
+        undoStack.addLast(current)
+        return next
+    }
+
+    /** 履歴に積まない変更（スライダーなど）をしたとき。元に戻した先で変えたので、やり直す先はもう無い。 */
+    fun dropRedo() = redoStack.clear()
+
+    fun clear() {
+        undoStack.clear()
+        redoStack.clear()
+    }
 }

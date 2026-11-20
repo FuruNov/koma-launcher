@@ -44,7 +44,7 @@ class EditorFolders(
     val openMusicAccess: () -> Unit,
 )
 
-/** 選択中のフォルダのコマの設定（名前・アプリ・直接起動・音楽プレイヤー）。 */
+/** 選択中のフォルダのコマの設定（アプリ・直接起動・音楽プレイヤー）。名前は NameFields で変える。 */
 @Composable
 internal fun FolderControls(
     deps: EditorFolders,
@@ -61,23 +61,6 @@ internal fun FolderControls(
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { musicAccess = deps.hasMusicAccess() }
     }
 
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        BasicText("名前", style = TextStyle(color = Color(0xFF9E9EA8), fontSize = 13.sp), modifier = Modifier.width(LABEL_WIDTH))
-        BasicTextField(
-            value = folder?.name.orEmpty(),
-            onValueChange = { v -> deps.store.update { FolderEdits.rename(it, id, v.take(40)) } },
-            singleLine = true,
-            textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
-            cursorBrush = SolidColor(Color.White),
-            decorationBox = { inner ->
-                Box(Modifier.fillMaxWidth().background(Color(0xFF2A2A32), RoundedCornerShape(8.dp)).padding(10.dp)) {
-                    if (folder?.name.isNullOrEmpty()) BasicText(panel.label ?: "（空欄で既定の名前）", style = TextStyle(color = Color(0xFF6A6A74), fontSize = 15.sp))
-                    inner()
-                }
-            },
-            modifier = Modifier.weight(1f),
-        )
-    }
     ChipRow("アプリ") {
         Chip("アプリを追加（${folder?.apps?.size ?: 0} 個）", onClick = onAddApps)
     }

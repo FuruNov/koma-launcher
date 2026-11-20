@@ -64,9 +64,9 @@ class HomeGeometry(
     }
 
     companion object {
-        fun of(layout: Layout, width: Float, height: Float): HomeGeometry {
+        fun of(layout: Layout, width: Float, height: Float, defaultGutter: Long): HomeGeometry {
             val fixedImage = (layout.shape as? LayoutShape.Fixed)?.image
-            val style = PanelStyle.of(layout, width)
+            val style = PanelStyle.of(layout, width, defaultGutter)
             val panels =
                 LayoutResolver.resolve(layout, width, height, parallaxOf(layout, width).art).panels.map { r ->
                     val poly = r.polygon

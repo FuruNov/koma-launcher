@@ -269,7 +269,7 @@ object LayoutParser {
     @Serializable
     private data class FxDto(
         val parallax: Boolean = false,
-        val strength: Float = 1f,
+        val strength: Float = 0.4f,
     ) {
         fun toModel() = FxSpec(parallax, strength)
     }
@@ -332,7 +332,8 @@ object LayoutParser {
     private data class BorderDto(
         val style: Style = Style.SINGLE,
         val width: Float = 10f,
-        val color: String = "#111111",
+        /** 省略すると自動（間隔の色に合わせて白か黒）。 */
+        val color: String? = null,
     ) {
         fun toModel() = Border(
             style =
@@ -342,7 +343,7 @@ object LayoutParser {
                 Style.DOUBLE -> BorderStyle.DOUBLE
             },
             width = width,
-            color = requireNotNull(parseColor(color)),
+            color = color?.let { requireNotNull(parseColor(it)) },
         )
 
         companion object {
@@ -354,7 +355,7 @@ object LayoutParser {
                     BorderStyle.DOUBLE -> Style.DOUBLE
                 },
                 width = b.width,
-                color = formatColor(b.color),
+                color = b.color?.let(::formatColor),
             )
         }
     }
@@ -414,6 +415,7 @@ object LayoutParser {
         val id: String,
         val kind: Kind,
         val label: String? = null,
+        val labelEn: String? = null,
         val apps: List<String>? = null,
         val art: ArtDto? = null,
         // version 1 だけ
@@ -428,6 +430,7 @@ object LayoutParser {
                 Kind.DRAWER -> PanelContent.Drawer
             },
             label = label,
+            labelEn = labelEn,
             art = art?.let { PanelArt(it.image, it.aspect, it.zoom, it.dx, it.dy, it.dim.coerceIn(0f, 1f)) },
         )
 
@@ -441,6 +444,7 @@ object LayoutParser {
                     PanelContent.Drawer -> Kind.DRAWER
                 },
                 label = p.label,
+                labelEn = p.labelEn,
                 apps = (p.content as? PanelContent.Folder)?.initialApps?.takeIf { it.isNotEmpty() },
                 art = p.art?.let { ArtDto(it.image, it.aspect, it.zoom, it.dx, it.dy, it.dim) },
             )

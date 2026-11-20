@@ -10,13 +10,20 @@ class PanelTextTest {
     private val box = Rect(0f, 0f, 600f, 1000f)
 
     @Test
-    fun labelUsesEnglishTableAndDrawerName() {
-        val folder = Panel(PanelId("a"), PanelContent.Folder(emptyList()), "よく使う")
-        assertEquals("FAVORITES", PanelText.labelOf(folder, null, english = true))
-        assertEquals("よく使う", PanelText.labelOf(folder, null, english = false))
-        // 利用者が付けた名前が優先。表に無ければ大文字にするだけ
-        assertEquals("GAMES", PanelText.labelOf(folder, "games", english = true))
-        assertEquals("ALL APPS", PanelText.labelOf(Panel(PanelId("d"), PanelContent.Drawer, "その他"), null, english = true))
+    fun labelShowsOnlyWhatTheUserTyped() {
+        val folder = Panel(PanelId("a"), PanelContent.Folder(emptyList()), "道具")
+        // 英語の名前が無ければ、訳さずに名前を出す
+        assertEquals("道具", PanelText.labelOf(folder, null, english = true))
+        assertEquals("道具", PanelText.labelOf(folder, null, english = false))
+        val named = folder.copy(labelEn = "Tools")
+        assertEquals("Tools", PanelText.labelOf(named, null, english = true))
+        assertEquals("道具", PanelText.labelOf(named, null, english = false))
+        // ホームの長押しで付けた名前が優先
+        assertEquals("ゲーム", PanelText.labelOf(folder, "ゲーム", english = false))
+        // 全アプリ一覧のコマも、付けた名前を出す。名前が無ければ出さない
+        assertEquals("その他", PanelText.labelOf(Panel(PanelId("d"), PanelContent.Drawer, "その他"), null, english = true))
+        assertNull(PanelText.labelOf(Panel(PanelId("d"), PanelContent.Drawer), null, english = true))
+        assertNull(PanelText.labelOf(Panel(PanelId("e"), PanelContent.Folder(emptyList()), " "), null, english = false))
         assertNull(PanelText.labelOf(Panel(PanelId("w"), PanelContent.Widget, "ウィジェット"), null, english = true))
     }
 
