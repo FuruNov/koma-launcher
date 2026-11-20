@@ -1,0 +1,1093 @@
+<title>コマ割りの編集画面</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@1,6..96,800&family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap">
+<style>
+  :root {
+    --paper: #f7f6f3; --sheet: #ffffff; --ink: #17161b; --ink-soft: #55535e; --rule: #d9d7dd;
+    --accent: #e0447a; --accent-ink: #ffffff; --frame: #17161b; --tool: #24232a; --tool-ink: #f2f1f5;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #131217; --sheet: #1c1b21; --ink: #eeedf2; --ink-soft: #a6a4b0; --rule: #34323b;
+      --accent: #ff6a9b; --accent-ink: #1a0b11; --frame: #000; --tool: #24232a; --tool-ink: #f2f1f5;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #131217; --sheet: #1c1b21; --ink: #eeedf2; --ink-soft: #a6a4b0; --rule: #34323b;
+    --accent: #ff6a9b; --accent-ink: #1a0b11; --frame: #000; --tool: #24232a; --tool-ink: #f2f1f5;
+    color-scheme: dark;
+  }
+  body { background: var(--paper); color: var(--ink); font-family: "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 15px; line-height: 1.7; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; display: grid; gap: 20px; }
+  h1 { font-family: "Dela Gothic One", sans-serif; font-weight: 400; font-size: clamp(26px, 5vw, 40px); line-height: 1.2; margin: 0; text-wrap: balance; }
+  h2 { margin: 0; font-size: 16px; }
+  p { margin: 0; max-width: 64ch; }
+  .lede { color: var(--ink-soft); }
+  .studio { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 28px; align-items: start; }
+  @media (max-width: 800px) { .studio { grid-template-columns: minmax(0, 1fr); } }
+  /* 端末の画面。上にアプリの編集のツールバーを重ねて、実際の編集画面に近づける */
+  .device { width: min(100%, 380px); justify-self: center; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: grid; gap: 10px; }
+  .phone { aspect-ratio: 1220 / 2712; background: var(--frame); border-radius: 30px; padding: 8px; box-sizing: border-box; position: relative; }
+  .phone svg { width: 100%; height: 100%; display: block; border-radius: 22px; touch-action: none; user-select: none; }
+  .panel { cursor: pointer; transform-box: fill-box; transform-origin: center; }
+  .outline { fill: none; stroke: var(--accent); stroke-width: 12; pointer-events: none; }
+  .cut { stroke: var(--accent); stroke-width: 6; stroke-dasharray: 24 16; pointer-events: none; }
+  .handle { fill: #fff; stroke: var(--accent); stroke-width: 10; cursor: grab; }
+  .toolbar { background: var(--tool); color: var(--tool-ink); border-radius: 16px; padding: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .toolbar button { background: transparent; color: var(--tool-ink); border: 1px solid #44434c; font-size: 13px; padding: 6px 10px; }
+  .toolbar button:disabled { opacity: 0.35; }
+  .toolbar .sep { flex-basis: 100%; height: 0; }
+  .controls { display: grid; gap: 16px; }
+  .card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; padding: 16px; display: grid; gap: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .chips button[aria-pressed="true"], .thumbs button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+  .thumbs button { padding: 4px; display: grid; gap: 4px; font-size: 11px; line-height: 1.35; text-align: left; }
+  .thumbs img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; background: var(--rule); }
+  label.lbl { font-size: 13px; color: var(--ink-soft); font-weight: 700; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  button { font: inherit; font-size: 14px; border-radius: 6px; padding: 7px 12px; cursor: pointer; border: 1px solid var(--rule); background: transparent; color: var(--ink); }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .note { font-size: 13px; color: var(--ink-soft); }
+  .status { font-size: 13px; color: var(--ink-soft); min-height: 1.4em; }
+  .credit { font-size: 12px; color: var(--ink-soft); }
+  @media (prefers-reduced-motion: reduce) { .panel { transition: none !important; } }
+  /* スマートフォン: プレビューを画面の高さの約 6 割に収め、ツールバーを下端に固定する */
+  .lede-short { display: none; }
+  @media (max-width: 800px) {
+    .lede-long { display: none; }
+    .lede-short { display: block; }
+    .wrap { padding-block: 16px 120px; gap: 14px; }
+    .lede { font-size: 14px; }
+    .device { position: static; width: 100%; }
+    .phone { width: min(100%, calc(60svh * 1220 / 2712)); justify-self: center; border-radius: 22px; padding: 6px; }
+    .phone svg { border-radius: 16px; }
+    .toolbar {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; border-radius: 0;
+      flex-wrap: nowrap; overflow-x: auto; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+      box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
+    }
+    .toolbar button { flex: 0 0 auto; font-size: 14px; padding: 10px 12px; }
+    .toolbar .sep { display: none; }
+    .thumbs { display: flex; overflow-x: auto; gap: 8px; padding-bottom: 6px; scroll-snap-type: x proximity; }
+    .thumbs button { flex: 0 0 132px; scroll-snap-align: start; }
+    .card { padding: 14px; }
+    .chips button { padding: 9px 12px; }
+  }
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:10px">
+    <h1>コマ割りの編集画面</h1>
+    <p class="lede lede-short">コマを押して選び、下のツールバーで割ります。線の端の丸で斜めに、画像はドラッグとピンチで合わせます。</p>
+    <p class="lede lede-long">ランチャーに入れる編集画面の操作を、ここで試せます。コマを押して選び、ツールバーで割ったり線を消したりします。線の両端の丸をドラッグすると、線が斜めになります。選んだコマの画像は、ドラッグで動き、2 本指のピンチで拡大・縮小します。漫画風の変換は画面全体にかかります。ここで作ったコマ割りと画像は保存され、アプリの最初の設定に使えます。</p>
+  </header>
+
+  <div class="studio">
+    <div class="device">
+      <div class="phone"><svg id="screen" viewBox="0 0 1220 2712" role="img" aria-label="編集中のホーム画面"></svg></div>
+      <div class="toolbar" role="toolbar" aria-label="編集のツールバー">
+        <button type="button" id="split-h">横に割る</button>
+        <button type="button" id="split-v">縦に割る</button>
+        <button type="button" id="merge">線を消す</button>
+        <button type="button" id="kind">種類: フォルダ</button>
+        <button type="button" id="undo">元に戻す</button>
+        <span class="sep"></span>
+        <button type="button" id="mode">ホームで試す</button>
+        <button type="button" id="play">ロック解除を再生</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="card">
+        <h2>最初の形</h2>
+        <div class="row chips" id="templates"></div>
+        <p class="note">選ぶと、いまのコマ割りを置き換えます（「元に戻す」で戻せます）。</p>
+      </div>
+
+      <div class="card">
+        <h2 id="sel-title">選んでいるコマ</h2>
+        <label class="lbl">画像</label>
+        <div class="thumbs" id="thumbs"></div>
+        <label class="lbl" for="zoom">拡大率 <span id="zoom-val"></span></label>
+        <input type="range" id="zoom" min="1" max="3" step="0.01">
+      </div>
+
+      <div class="card">
+        <h2>漫画風の変換</h2>
+        <div class="row chips" id="filters"></div>
+        <label class="lbl" for="strength">かかり具合 <span id="strength-val"></span></label>
+        <input type="range" id="strength" min="0" max="1" step="0.1">
+        <p class="note">色合いだけを変え、線や陰影の細部は残します。画面全体の画像にかかるので、塗りの違う画像を並べても雰囲気がそろいます。</p>
+      </div>
+
+      <div class="card">
+        <h2>文字</h2>
+        <label class="lbl">コマの名前（人物の後ろに大きく）</label>
+        <div class="row chips" id="labelmodes"></div>
+        <div class="row chips">
+          <button type="button" id="lang-en" aria-pressed="true">英語</button>
+          <button type="button" id="lang-ja" aria-pressed="false">日本語</button>
+          <button type="button" id="outline" aria-pressed="false">中抜きの文字</button>
+        </div>
+        <label class="lbl" for="word">大見出し</label>
+        <div class="row">
+          <button type="button" id="masthead" aria-pressed="true">大見出しを出す</button>
+          <button type="button" id="masthead-here">選んでいるコマに置く</button>
+        </div>
+        <input type="text" id="word" maxlength="16" style="font:inherit;padding:8px 10px;border-radius:6px;border:1px solid var(--rule);background:var(--paper);color:var(--ink)">
+        <label class="lbl" for="masthead-y">大見出しの高さ <span id="masthead-y-val"></span></label>
+        <input type="range" id="masthead-y" min="0.04" max="0.6" step="0.01">
+      </div>
+
+      <div class="card">
+        <h2>陰影</h2>
+        <label class="lbl" for="shade-inner">内側の影 <span id="shade-inner-val"></span></label>
+        <input type="range" id="shade-inner" min="0" max="1" step="0.05">
+        <label class="lbl" for="shade-sheen">光の反射 <span id="shade-sheen-val"></span></label>
+        <input type="range" id="shade-sheen" min="0" max="1" step="0.05">
+        <p class="note">光の反射は、「ホームで試す」で傾けると、傾けた向きと逆へ流れます。</p>
+      </div>
+
+      <div class="card">
+        <h2>演出</h2>
+        <div class="row chips">
+          <button type="button" id="fx-parallax" aria-pressed="true">傾けると奥行き（視差）</button>
+        </div>
+        <label class="lbl" for="fx-strength">視差の強さ <span id="fx-strength-val"></span></label>
+        <input type="range" id="fx-strength" min="0.3" max="2" step="0.1">
+        <p class="note" id="tilt-note">ツールバーの「ホームで試す」で確かめられます。端末を傾けると、絵と時計が別々に動きます。傾きを読めないときは、画面の上で指やマウスを動かすと代わりになります。</p>
+      </div>
+
+      <div class="card">
+        <h2>時計</h2>
+        <div class="row chips" id="cstyles"></div>
+        <div class="row">
+          <button type="button" id="clock-here">選んでいるコマに時計を置く</button>
+        </div>
+        <label class="lbl" for="csize">大きさ <span id="csize-val"></span></label>
+        <input type="range" id="csize" min="0.5" max="1.6" step="0.05">
+        <p class="note">時計は画面の上でドラッグすると動きます。「人物の後ろ」は、コマの画像から人物を切り抜いて、数字の上に重ねます。</p>
+      </div>
+
+      <div class="card">
+        <h2>フチ</h2>
+        <div class="row chips" id="bstyles"></div>
+        <label class="lbl" for="bwidth">枠線の太さ <span id="bwidth-val"></span></label>
+        <input type="range" id="bwidth" min="0" max="40" step="1">
+        <div class="row chips">
+          <button type="button" id="bleed" aria-pressed="false">裁ち落とし（画面の端まで）</button>
+        </div>
+        <h2>コマの間</h2>
+        <label class="lbl" for="gutter">幅 <span id="gutter-val"></span></label>
+        <input type="range" id="gutter" min="8" max="60" step="1">
+        <div class="row chips" id="gcolors"></div>
+      </div>
+
+      <p class="status" id="status" role="status"></p>
+      <p class="credit">画像: 利用者が用意した画像。このページとアプリの中だけで使い、リポジトリには入れません。</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const W = 1220, H = 2712, MARGIN = 24;
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const IMG = {{IMAGES_JSON}};
+  // 人物の切り抜き（白が人物）。PC で isnet-anime で作った（INV は BiRefNet から作った版を使う）。アプリでは端末の中で作る想定
+  const MASK = {{MASKS_JSON}};
+  // 白黒を反転し、縁をはっきりさせた切り抜き（白が人物以外）。人物の後ろの文字を切り抜くのに使う。
+  // BiRefNet（birefnet-general-lite）で作った。isnet-anime は大写しの絵で背景まで人物に含めることがあったため
+  const INV = {{INVMASKS_JSON}};
+  const CARDS = {{CARDS_JSON}};
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const svg = document.getElementById("screen");
+  const status = document.getElementById("status");
+
+  // ---------- 幾何 ----------
+  // 凸多角形を、直線 a→b の左側（sign=+1）または右側（sign=-1）で切る。境目を off だけ内側へずらす（コマの間の幅）
+  function clip(poly, a, b, sign, off) {
+    const nx = -(b[1] - a[1]), ny = b[0] - a[0], len = Math.hypot(nx, ny) || 1;
+    const side = p => sign * (((p[0] - a[0]) * nx + (p[1] - a[1]) * ny) / len) - off;
+    const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i], q = poly[(i + 1) % poly.length], sp = side(p), sq = side(q);
+      if (sp >= 0) out.push(p);
+      if ((sp >= 0) !== (sq >= 0)) { const t = sp / (sp - sq); out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); }
+    }
+    return out.length >= 3 ? out : [];
+  }
+  function perimeter(poly) { let L = 0; for (let i = 0; i < poly.length; i++) { const p = poly[i], q = poly[(i + 1) % poly.length]; L += Math.hypot(q[0] - p[0], q[1] - p[1]); } return L; }
+  // 周の長さに対する割合 t（0〜1）で、多角形の縁の上の点を返す。線の端を親のコマの縁に沿わせるため
+  function pointAt(poly, t) {
+    const L = perimeter(poly); let d = ((t % 1) + 1) % 1 * L;
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i], q = poly[(i + 1) % poly.length], s = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (d <= s) { const u = s ? d / s : 0; return [p[0] + (q[0] - p[0]) * u, p[1] + (q[1] - p[1]) * u]; }
+      d -= s;
+    }
+    return poly[0];
+  }
+  function paramOf(poly, pt) {
+    const L = perimeter(poly); let best = 0, bestD = Infinity, acc = 0;
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i], q = poly[(i + 1) % poly.length], dx = q[0] - p[0], dy = q[1] - p[1], s = Math.hypot(dx, dy);
+      const u = s ? Math.max(0, Math.min(1, ((pt[0] - p[0]) * dx + (pt[1] - p[1]) * dy) / (s * s))) : 0;
+      const x = p[0] + dx * u, y = p[1] + dy * u, d = Math.hypot(pt[0] - x, pt[1] - y);
+      if (d < bestD) { bestD = d; best = (acc + u * s) / L; }
+      acc += s;
+    }
+    return best;
+  }
+  const bbox = poly => { const xs = poly.map(p => p[0]), ys = poly.map(p => p[1]); const b = { l: Math.min(...xs), t: Math.min(...ys), r: Math.max(...xs), b: Math.max(...ys) }; b.w = b.r - b.l; b.h = b.b - b.t; b.cx = (b.l + b.r) / 2; b.cy = (b.t + b.b) / 2; return b; };
+
+  // ---------- コマ割りの木 ----------
+  // 葉: { panel: { id, kind, label, art } }   枝: { cut: { ta, tb }, a: 子, b: 子 }（ta・tb は親の縁の上の位置）
+  let seq = 1;
+  const leaf = (label, art = null, kind = "folder") => ({ panel: { id: "p" + (seq++), kind, label, art } });
+    const art = (card, dy = 0, zoom = 1) => ({ card, zoom, dx: 0, dy });
+
+  // 型は画面上の座標で線を書き、表示の前に（resolve）親のコマの縁の位置へ変換する。
+  // hcut は右端 → 左端の向きに引くので、a の子が上のコマになる。vcut は上端 → 下端なので、a の子が左のコマになる
+  const hcut = (yLeft, yRight, top, bottom) => ({ pts: { a: [W, yRight * H], b: [0, yLeft * H] }, a: top, b: bottom });
+  const vcut = (xTop, xBottom, left, right) => ({ pts: { a: [xTop * W, 0], b: [xBottom * W, H] }, a: left, b: right });
+  const TEMPLATES = {
+    hero: () => hcut(0.575, 0.495,
+      leaf("よく使う", art("pic-a-5", 0, 1)),
+      hcut(0.76, 0.76,
+        vcut(0.48, 0.42, leaf("ウィジェット", art("pic-b-3"), "widget"), leaf("連絡", art("pic-b-1"))),
+        vcut(0.62, 0.55, leaf("道具", art("pic-a-2")), leaf("その他", art("pic-b-5"))))),
+    four: () => hcut(0.5, 0.5,
+      vcut(0.5, 0.5, leaf("よく使う", art("pic-a-1")), leaf("連絡", art("pic-b-2"))),
+      vcut(0.5, 0.5, leaf("道具", art("pic-a-3")), leaf("その他", art("pic-b-4")))),
+    slash: () => hcut(0.32, 0.16,
+      leaf("よく使う", art("pic-a-5")),
+      vcut(0.64, 0.36, leaf("連絡", art("pic-b-1")), leaf("その他", art("pic-a-0")))),
+    one: () => leaf("よく使う", art("pic-a-0")),
+  };
+  const TEMPLATE_NAMES = [["hero", "大ゴマ"], ["four", "4 コマ"], ["slash", "斜め割り"], ["one", "1 コマ"]];
+
+  let state = { tree: TEMPLATES.hero(), gutter: 26, gutterColor: "#111111", filter: "none", strength: 1, ink: "#e0447a", fx: { parallax: true, strength: 1, burst: true }, text: { label: "vertical", lang: "en", outline: false, masthead: true, word: "KOMA", mastheadY: 0.09, panel: null }, shade: { inner: 0.5, sheen: 0.4 }, clock: { style: "depth", panel: null, x: 0.5, y: 0.83, size: 0.78 }, border: { width: 10, style: "single", color: "#111111" }, bleed: false };
+  let selected = null;
+  const history = [];
+  const snapshot = () => JSON.parse(JSON.stringify(state));
+  function commit() { history.push(snapshot()); if (history.length > 50) history.shift(); }
+
+  // 木を辿って、葉ごとの多角形と、枝ごとの線（ハンドルの位置）を求める
+  function layout() {
+    const leaves = [], cuts = [];
+    // 裁ち落としのときは外周の余白を無くし、画面の端に接するコマを端まで広げる
+    const m = state.bleed ? 0 : MARGIN;
+    const root = [[m, m], [W - m, m], [W - m, H - m], [m, H - m]];
+    (function walk(node, poly, path) {
+      if (!poly.length) return;
+      if (node.panel) { leaves.push({ node, poly, path }); return; }
+      if (node.pts) { node.cut = { ta: paramOf(poly, node.pts.a), tb: paramOf(poly, node.pts.b) }; delete node.pts; }
+      const a = pointAt(poly, node.cut.ta), b = pointAt(poly, node.cut.tb);
+      cuts.push({ node, poly, a, b, path });
+      walk(node.a, clip(poly, a, b, 1, state.gutter / 2), path + "a");
+      walk(node.b, clip(poly, a, b, -1, state.gutter / 2), path + "b");
+    })(state.tree, root, "");
+    return { leaves, cuts };
+  }
+  function findParent(node, target, parent = null) {
+    if (node === target) return parent;
+    if (node.panel) return null;
+    return findParent(node.a, target, node) || findParent(node.b, target, node);
+  }
+  function findById(node, id) {
+    if (node.panel) return node.panel.id === id ? node : null;
+    return findById(node.a, id) || findById(node.b, id);
+  }
+
+  // ---------- 漫画風の変換（色合いだけを変える） ----------
+  // 線や陰影の細部を残すため、明るさの段階は減らさない。各画素の明るさを「色の対応表」で別の色に置き換えるだけにする。
+  // 縮めずに元の解像度のまま処理する。アプリでは同じ対応表を GPU のシェーダで引く想定
+  // モノクロ印刷と 2 色刷りは、利用者の判断で外した（2026-11-20）。対応表で置き換える仕組みは残す
+  const FILTERS = [["none", "変換しない"], ["soft", "淡い色合い"]];
+  const INKS = [["#e0447a", "桃"], ["#2f5fa8", "藍"], ["#d9822b", "橙"], ["#3c8a6a", "緑"]];
+  const PAPER = [246, 242, 233];
+  const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  // 明るさ 0〜1 から色を返す。暗部は少し持ち上げず、黒の締まりを残す
+  function ramp(mode, L, ink) {
+    if (mode === "mono") {
+      // 中間の明暗差を 15% だけ強め、印刷らしく締める（段階は減らさない）
+      const v = Math.min(1, Math.max(0, (Math.pow(L, 0.95) - 0.5) * 1.15 + 0.5));
+      return [lerp(18, PAPER[0], v), lerp(18, PAPER[1], v), lerp(20, PAPER[2], v)];
+    }
+    // 2 色刷り: 黒 → 特色 → 紙。特色は中間の明るさで最も濃く出る
+    if (L < 0.5) { const t = L / 0.5; return [lerp(20, ink[0], t), lerp(18, ink[1], t), lerp(24, ink[2], t)]; }
+    const t = (L - 0.5) / 0.5; return [lerp(ink[0], PAPER[0], t), lerp(ink[1], PAPER[1], t), lerp(ink[2], PAPER[2], t)];
+  }
+  const filtered = {};
+  function filterImage(key, mode) {
+    const strength = Math.round(state.strength * 10) / 10;
+    const k = `${key}:${mode}:${state.ink}:${strength}`;
+    if (filtered[k] !== undefined) return filtered[k];
+    if (mode === "none" || strength === 0) return (filtered[k] = IMG[key]);
+    filtered[k] = null;
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const w = img.width, h = img.height;
+        const c = document.createElement("canvas"); c.width = w; c.height = h;
+        const g = c.getContext("2d"); g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, w, h), px = d.data, ink = hex(state.ink);
+        for (let o = 0; o < px.length; o += 4) {
+          const r0 = px[o], g0 = px[o + 1], b0 = px[o + 2];
+          const L = (0.299 * r0 + 0.587 * g0 + 0.114 * b0) / 255;
+          let r, gg, b;
+          if (mode === "soft") {
+            // 彩度を 45% 下げ、全体を少し暖かい紙の色へ寄せる。色の違いは残る
+            const gray = L * 255;
+            r = lerp(gray, r0, 0.55) * 0.9 + PAPER[0] * 0.1;
+            gg = lerp(gray, g0, 0.55) * 0.9 + PAPER[1] * 0.1;
+            b = lerp(gray, b0, 0.55) * 0.9 + PAPER[2] * 0.1 - 6;
+          } else {
+            [r, gg, b] = ramp(mode, L, ink);
+          }
+          px[o] = lerp(r0, r, strength); px[o + 1] = lerp(g0, gg, strength); px[o + 2] = lerp(b0, b, strength);
+        }
+        g.putImageData(d, 0, 0);
+        filtered[k] = c.toDataURL("image/webp", 0.9);
+      } catch (e) {
+        filtered[k] = IMG[key];
+      }
+      render();
+    };
+    img.src = IMG[key];
+    return null;
+  }
+
+  // ---------- 描画 ----------
+  const el = (name, attrs) => { const e = document.createElementNS(SVGNS, name); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+  let current = { leaves: [], cuts: [] };
+  const pts = poly => poly.map(p => p.join(",")).join(" ");
+
+  // 視差で動かす最大の量（viewBox の単位）。絵（背景と人物）は一緒に動かし、時計は逆向きに動かす。
+  // 背景と人物を別々に動かすと、背景に描かれた人物と二重に見えるため
+  // 文字は絵と時計の中間の速さで動かし、絵・文字・時計の 3 層に見せる
+  const PARALLAX = { art: 26, clock: 18, text: 7 };
+  let fxNodes = [];
+  /**
+   * 絵の置き場所。絵の端がコマに見えないよう、次の 2 つを守る。
+   * - 拡大率は 1（コマの外接長方形をちょうど覆う大きさ）以上。視差で動く量の分だけさらに大きく置く
+   * - 中心のずらし（dx・dy）は、覆ったまま動ける範囲に収める。コマの形が変わっても、表示のたびに収め直す
+   */
+  function artLimits(b, a) {
+    const ar = 1400 / 788, m = state.fx && state.fx.parallax ? PARALLAX.art * state.fx.strength : 0;
+    const zoom = Math.max(1, a.zoom);
+    const pad = 1 + (2 * m) / Math.min(b.w, b.h);
+    const scale = Math.max(b.w, b.h * ar) * zoom * pad;
+    const w = scale, h = scale / ar;
+    return { w, h, maxX: Math.max(0, (w - b.w) / 2 - m), maxY: Math.max(0, (h - b.h) / 2 - m) };
+  }
+  const clampv = (v, lim) => Math.max(-lim, Math.min(lim, v));
+  function placement(poly, a) {
+    const b = bbox(poly), L = artLimits(b, a);
+    const ox = clampv(a.dx * b.w, L.maxX), oy = clampv(a.dy * b.h, L.maxY);
+    return { x: b.cx + ox - L.w / 2, y: b.cy + oy - L.h / 2, w: L.w, h: L.h };
+  }
+  /** 状態の dx・dy・zoom を、端が見えない範囲へ書き戻す（ドラッグやピンチの後に呼ぶ） */
+  function clampArt(poly, a) {
+    a.zoom = Math.max(1, Math.min(3, a.zoom));
+    const b = bbox(poly), L = artLimits(b, a);
+    a.dx = clampv(a.dx * b.w, L.maxX) / b.w;
+    a.dy = clampv(a.dy * b.h, L.maxY) / b.h;
+  }
+
+  // ---------- 人物の後ろの文字（時計・コマの名前・大見出しで共通） ----------
+  // 文字を「人物の形を抜いた切り抜き」で切り抜いて、絵の上に置く。切り抜きは絵と一緒に動き、文字は別の速さで動く
+  function behindPerson(inner, p, poly, content) {
+    if (!(p.art && INV[p.art.card])) { inner.appendChild(content); return; }
+    const id = "m-" + p.id;
+    if (!svg.querySelector("#" + id)) {
+      const pl = placement(poly, p.art);
+      const mask = el("mask", { id, maskUnits: "userSpaceOnUse", x: 0, y: 0, width: W, height: H });
+      mask.appendChild(el("rect", { x: 0, y: 0, width: W, height: H, fill: "#fff" }));
+      mask.appendChild(el("image", { class: "art", href: INV[p.art.card], x: pl.x, y: pl.y, width: pl.w, height: pl.h, preserveAspectRatio: "none" }));
+      svg.querySelector("defs").appendChild(mask);
+    }
+    const holder = el("g", { mask: `url(#${id})` });
+    holder.appendChild(content);
+    inner.appendChild(holder);
+  }
+  function textStyle(size, family) {
+    const o = state.text.outline;
+    return {
+      // 塗りの文字にも細い暗い縁を付け、淡い絵の上でも読めるようにする
+      fill: o ? "none" : "#fff", stroke: o ? "#fff" : "rgba(0,0,0,0.45)", "stroke-width": o ? Math.max(3, size * 0.035) : Math.max(2, size * 0.03), "paint-order": "stroke",
+      "font-size": size, "font-family": family, opacity: o ? 0.95 : 0.88,
+      style: "filter: drop-shadow(0 4px 10px rgba(0,0,0,.35))",
+    };
+  }
+  // コマの名前。英語のときは大見出しと同じ斜体のセリフ体にそろえる
+  const KIND_NAMES = { folder: "フォルダ", widget: "ウィジェット", drawer: "全アプリ一覧" };
+  const EN = { "すべてのアプリ": "ALL APPS", "よく使う": "FAVORITES", "連絡": "MESSAGES", "道具": "TOOLS", "その他": "OTHERS", "メディア": "MEDIA", "新しいコマ": "NEW", "ウィジェット": "WIDGET" };
+  // コマに内接する最大の軸平行の長方形（アプリの Polygon.largestInscribedRect と同じ方法）。
+  // 斜めのコマでは外接長方形の端がコマの外に出るので、名前やウィジェットの置き場所はこちらを基準にする
+  function inside(poly, x, y) {
+    let c = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [xi, yi] = poly[i], [xj, yj] = poly[j];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
+    }
+    return c;
+  }
+  function inscribed(poly, grid = 32) {
+    const b = bbox(poly), cw = b.w / grid, ch = b.h / grid;
+    const ok = [];
+    for (let gy = 0; gy <= grid; gy++) { ok.push([]); for (let gx = 0; gx <= grid; gx++) ok[gy].push(inside(poly, b.l + gx * cw, b.t + gy * ch)); }
+    const hts = new Array(grid).fill(0);
+    let best = { l: b.cx, t: b.cy, r: b.cx, b: b.cy }, area = 0;
+    for (let gy = 0; gy < grid; gy++) {
+      for (let gx = 0; gx < grid; gx++) hts[gx] = ok[gy][gx] && ok[gy][gx + 1] && ok[gy + 1][gx] && ok[gy + 1][gx + 1] ? hts[gx] + 1 : 0;
+      for (let s0 = 0; s0 < grid; s0++) {
+        let mh = Infinity;
+        for (let e = s0; e < grid; e++) {
+          mh = Math.min(mh, hts[e]); if (!mh) break;
+          const a = (e - s0 + 1) * cw * mh * ch;
+          if (a > area) { area = a; best = { l: b.l + s0 * cw, t: b.t + (gy + 1 - mh) * ch, r: b.l + (e + 1) * cw, b: b.t + (gy + 1) * ch }; }
+        }
+      }
+    }
+    best.w = best.r - best.l; best.h = best.b - best.t; best.cx = (best.l + best.r) / 2; best.cy = (best.t + best.b) / 2;
+    return best;
+  }
+
+  // 人物がどこにいるかの粗い地図（64×36）。切り抜きから作り、名前を人物の少ない側へ置くのに使う
+  const COVER = {};
+  Object.entries(INV).forEach(([key, src]) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const c = document.createElement("canvas"); c.width = 64; c.height = 36;
+        const g = c.getContext("2d"); g.drawImage(img, 0, 0, 64, 36);
+        const px = g.getImageData(0, 0, 64, 36).data, grid = new Float32Array(64 * 36);
+        for (let i = 0; i < grid.length; i++) grid[i] = 1 - px[i * 4] / 255; // 1 が人物
+        COVER[key] = grid;
+        render();
+      } catch (e) { /* 地図が無ければ既定の位置に置く */ }
+    };
+    img.src = src;
+  });
+  // 長方形 r（画面の座標）の中で、人物が占める割合
+  function personCover(card, pl, r) {
+    const grid = COVER[card]; if (!grid) return 0;
+    let sum = 0, cnt = 0;
+    for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) {
+      const x = r.l + (r.w * (i + 0.5)) / 6, y = r.t + (r.h * (j + 0.5)) / 6;
+      const u = Math.floor(((x - pl.x) / pl.w) * 64), v = Math.floor(((y - pl.y) / pl.h) * 36);
+      if (u < 0 || v < 0 || u >= 64 || v >= 36) continue;
+      sum += grid[v * 64 + u]; cnt++;
+    }
+    return cnt ? sum / cnt : 0;
+  }
+  // 縦書きは writing-mode に頼らず自分で並べる（Chrome では SVG の writing-mode で文字がコマの外に描かれ、消えていた）。
+  // 日本語は 1 文字ずつ縦に積み、英語は単語を 90 度回して縁に沿わせる。
+  // 縁の候補（縦書きは左右、横書きは上下）のうち、人物に隠れる割合がいちばん少ない側に置く
+  function drawLabel(inner, p, poly, outer) {
+    if (!p.label) return;
+    // 斜めのコマでも名前がコマの外に出ないよう、内接する長方形を基準にする
+    const b = inscribed(poly);
+    const en = state.text.lang !== "ja";
+    // 全アプリ一覧のコマは、コマの名前でなく種類の名前を出す
+    const label = p.kind === "drawer" ? "すべてのアプリ" : p.label;
+    const text = en ? (EN[label] || label).toUpperCase() : label;
+    const n = [...text].length, vertical = state.text.label === "vertical";
+    const family = en ? "Bodoni Moda, Didot, serif" : "Dela Gothic One, sans-serif";
+    const extra = en ? { "font-style": "italic", "font-weight": 800 } : {};
+    const pl = p.art ? placement(poly, p.art) : null;
+    // 名前の箱（幅 bw × 高さ bh）の大きさを決める。縦書きの英語は回すので、箱は縦長になる
+    const maxSize = vertical
+      ? (en ? Math.min(b.w * 0.2, (b.h * 0.7) / (n * 0.62)) : Math.min(b.w * 0.2, (b.h * 0.72) / n))
+      : Math.min(b.h * 0.22, (b.w * 0.8) / (n * (en ? 0.62 : 1)));
+    const boxOf = size => {
+      const len = vertical ? (en ? Math.min(b.h * 0.7, n * size * 0.62) : n * size * 1.05) : n * size * (en ? 0.62 : 1);
+      return vertical ? { bw: size, bh: len } : { bw: len, bh: size };
+    };
+    // コマの中の全体から、人物に隠れにくい位置を探す。大きさは 3 段階、位置は 7×7 で試し、
+    // 縮めた分だけ少し不利に数える（小さくなりすぎないように）
+    let best = null;
+    for (const k of [1, 0.8, 0.65]) {
+      const size = maxSize * k, { bw, bh } = boxOf(size);
+      for (let i = 0; i < 7; i++) for (let j = 0; j < 7; j++) {
+        const cx = b.l + bw / 2 + ((b.w - bw) * i) / 6, cy = b.t + bh / 2 + ((b.h - bh) * j) / 6;
+        const cover = pl ? personCover(p.art.card, pl, { l: cx - bw / 2, t: cy - bh / 2, w: bw, h: bh }) : 0;
+        const score = cover + (1 - k) * 0.25;
+        if (!best || score < best.score) best = { score, size, cx, cy };
+      }
+      if (!pl) break;
+    }
+    const { size, cx, cy } = best;
+    const grp = el("g", { class: "ptext" });
+    if (vertical && !en) {
+      const y0 = cy - (size * 1.05 * (n - 1)) / 2;
+      [...text].forEach((ch, i) => {
+        const t = el("text", { x: cx, y: y0 + i * size * 1.05, "text-anchor": "middle", "dominant-baseline": "central", ...textStyle(size, family), ...extra });
+        t.textContent = ch; grp.appendChild(t);
+      });
+    } else {
+      const t = el("text", { x: cx, y: cy, "text-anchor": "middle", "dominant-baseline": "central", ...textStyle(size, family), ...extra });
+      if (vertical) t.setAttribute("transform", `rotate(90 ${cx} ${cy})`);
+      if (vertical && en && n * size * 0.62 > b.h * 0.7) { t.setAttribute("textLength", b.h * 0.7); t.setAttribute("lengthAdjust", "spacingAndGlyphs"); }
+      t.textContent = text; grp.appendChild(t);
+    }
+    // 隠れる割合が大きくても、名前は常に人物の後ろに置く（立体感を優先する。利用者の判断、2026-11-20）
+    behindPerson(inner, p, poly, grp);
+  }
+  function mastheadPanelId() {
+    const ids = current.leaves.map(l => l.node.panel.id);
+    return state.text.panel && ids.includes(state.text.panel) ? state.text.panel : clockPanelId();
+  }
+  // 大見出し: 雑誌の表紙のように、コマの幅いっぱいの斜体のセリフ体で置く
+  function drawMasthead(inner, p, poly, b) {
+    const word = (state.text.word || "").trim(); if (!word) return;
+    // 書体ごとに字の幅が違うので、文字列の幅をコマの幅の 9 割に合わせる（はみ出さないように）
+    const size = Math.min(b.h * 0.16, b.w * 0.42);
+    const t = el("text", { class: "ptext", x: b.cx, y: b.t + state.text.mastheadY * b.h, "text-anchor": "middle", "dominant-baseline": "central", textLength: b.w * 0.9, lengthAdjust: "spacingAndGlyphs", ...textStyle(size, "Bodoni Moda, Didot, serif"), "font-style": "italic", "font-weight": 800 });
+    t.textContent = word;
+    behindPerson(inner, p, poly, t);
+  }
+
+  // ---------- 陰影 ----------
+  // 内側の影: コマの縁に太い黒線をぼかして引き、コマの形で切り抜く。内側だけが残り、縁に向かって暗くなる。
+  // 光の反射: 斜めの白いグラデーションを薄く重ねる。視差のときは傾きと逆へ流す（返り値の要素を動かす）
+  function drawShade(g, p, poly, b) {
+    const defs = svg.querySelector("defs");
+    let sheenEl = null;
+    if (state.shade.inner > 0) {
+      const fid = "blur-" + p.id, sz = Math.min(b.w, b.h) * 0.12;
+      const f = el("filter", { id: fid, x: "-20%", y: "-20%", width: "140%", height: "140%" });
+      f.appendChild(el("feGaussianBlur", { stdDeviation: sz * 0.45 }));
+      defs.appendChild(f);
+      const sh = el("g", { "clip-path": `url(#c-${p.id})`, "pointer-events": "none" });
+      sh.appendChild(el("polygon", { points: pts(poly), fill: "none", stroke: "#000", "stroke-width": sz, opacity: 0.55 * state.shade.inner, filter: `url(#${fid})` }));
+      g.appendChild(sh);
+    }
+    if (state.shade.sheen > 0) {
+      const gid = "sheen-" + p.id;
+      const lg = el("linearGradient", { id: gid, gradientUnits: "userSpaceOnUse", x1: b.l, y1: b.t, x2: b.r, y2: b.b });
+      [[0, 0], [0.38, 0], [0.5, 0.55], [0.62, 0], [1, 0]].forEach(([o, a]) => lg.appendChild(el("stop", { offset: o, "stop-color": "#fff", "stop-opacity": a * state.shade.sheen })));
+      defs.appendChild(lg);
+      const sh = el("g", { "clip-path": `url(#c-${p.id})`, "pointer-events": "none" });
+      // 流しても途切れないよう、コマより大きい長方形に塗る
+      sheenEl = el("rect", { x: b.l - b.w, y: b.t - b.h, width: b.w * 3, height: b.h * 3, fill: `url(#${gid})`, style: "mix-blend-mode: screen" });
+      sh.appendChild(sheenEl);
+      g.appendChild(sh);
+    }
+    return sheenEl;
+  }
+
+  // ---------- 時計（ランチャーが自分で描く） ----------
+  function clockPanelId() {
+    const ids = current.leaves.map(l => l.node.panel.id);
+    if (state.clock.panel && ids.includes(state.clock.panel)) return state.clock.panel;
+    // 置き場所が無ければ、いちばん大きいコマに置く
+    let best = null, area = -1;
+    current.leaves.forEach(l => { const b = bbox(l.poly); if (b.w * b.h > area) { area = b.w * b.h; best = l.node.panel.id; } });
+    return best;
+  }
+  const WD = ["日", "月", "火", "水", "木", "金", "土"];
+  function timeText() {
+    const d = new Date();
+    return { hm: `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`, date: `${d.getMonth() + 1}月${d.getDate()}日（${WD[d.getDay()]}）` };
+  }
+  function drawClock(g, inner, p, poly, b) {
+    const { hm, date } = timeText();
+    const cx = b.l + state.clock.x * b.w, cy = b.t + state.clock.y * b.h, k = state.clock.size;
+    const style = state.clock.style;
+    const grp = el("g", { class: "clock" });
+    if (style === "bubble") {
+      // 吹き出し: 黒い太い縁の白い楕円と、しっぽ
+      const rx = 300 * k, ry = 170 * k;
+      grp.appendChild(el("path", { d: `M ${cx - rx * 0.35} ${cy + ry * 0.8} L ${cx - rx * 0.55} ${cy + ry * 1.45} L ${cx - rx * 0.05} ${cy + ry * 0.92} Z`, fill: "#fff", stroke: "#111", "stroke-width": 12 * k, "stroke-linejoin": "round" }));
+      grp.appendChild(el("ellipse", { cx, cy, rx, ry, fill: "#fff", stroke: "#111", "stroke-width": 12 * k }));
+      const t = el("text", { x: cx, y: cy - 10 * k, "text-anchor": "middle", "dominant-baseline": "middle", fill: "#111", "font-size": 150 * k, "font-family": "Dela Gothic One, sans-serif" }); t.textContent = hm;
+      const d = el("text", { x: cx, y: cy + 95 * k, "text-anchor": "middle", "dominant-baseline": "middle", fill: "#111", "font-size": 46 * k, "font-family": "Zen Kaku Gothic New, sans-serif", "font-weight": 700 }); d.textContent = date;
+      grp.append(t, d);
+      g.appendChild(grp);
+    } else if (style === "sfx") {
+      // 描き文字: 傾けた太い数字に、白い縁と黒い影
+      const tr = `rotate(-8 ${cx} ${cy})`;
+      const mk = (dx, dy, fill, stroke, sw) => { const t = el("text", { x: cx + dx, y: cy + dy, "text-anchor": "middle", "dominant-baseline": "middle", fill, stroke, "stroke-width": sw, "stroke-linejoin": "round", "paint-order": "stroke", "font-size": 230 * k, "font-family": "Dela Gothic One, sans-serif", transform: tr }); t.textContent = hm; return t; };
+      grp.append(mk(14 * k, 14 * k, "#111", "#111", 34 * k), mk(0, 0, "#fff", "#111", 30 * k));
+      const d = el("text", { x: cx, y: cy + 150 * k, "text-anchor": "middle", "dominant-baseline": "middle", fill: "#fff", stroke: "#111", "stroke-width": 12 * k, "paint-order": "stroke", "font-size": 54 * k, "font-family": "Zen Kaku Gothic New, sans-serif", "font-weight": 700, transform: tr }); d.textContent = date;
+      grp.appendChild(d);
+      g.appendChild(grp);
+    } else {
+      // 人物の後ろ: 数字を「人物の形を抜いた形」で切り抜いて、絵の上に置く。
+      // 人物の画像を上に重ねる作りだと、切り抜きの縁の半透明から数字が透け、視差で動くとちらつくため
+      const t = el("text", { x: cx, y: cy, "text-anchor": "middle", "dominant-baseline": "middle", fill: "#fff", "font-size": 330 * k, "font-family": "Dela Gothic One, sans-serif", "letter-spacing": -6 * k, style: "filter: drop-shadow(0 6px 10px rgba(0,0,0,.35))" }); t.textContent = hm;
+      const d = el("text", { x: cx, y: cy - 210 * k, "text-anchor": "middle", "dominant-baseline": "middle", fill: "#fff", "font-size": 54 * k, "font-family": "Zen Kaku Gothic New, sans-serif", "font-weight": 700, style: "filter: drop-shadow(0 3px 6px rgba(0,0,0,.4))" }); d.textContent = date;
+      grp.append(d, t);
+      behindPerson(inner, p, poly, grp);
+    }
+  }
+  setInterval(() => { if (!drag) render(); }, 30000);
+
+  function render() {
+    current = layout();
+    fxNodes = [];
+    svg.textContent = "";
+    const defs = el("defs", {}); svg.appendChild(defs);
+    svg.appendChild(el("rect", { width: W, height: H, fill: state.gutterColor }));
+    current.leaves.forEach(({ node, poly }, i) => {
+      const p = node.panel;
+      const cp = el("clipPath", { id: "c-" + p.id }); cp.appendChild(el("polygon", { points: pts(poly) })); defs.appendChild(cp);
+      const g = el("g", { class: "panel", "data-id": p.id });
+      const inner = el("g", { "clip-path": `url(#c-${p.id})` });
+      inner.appendChild(el("polygon", { points: pts(poly), fill: "#e9e7ee" }));
+      if (p.art) {
+        // コマの形が変わっていたら、保存されている位置も範囲に収め直す
+        clampArt(poly, p.art);
+        const href = filterImage(p.art.card, state.filter) || IMG[p.art.card];
+        const pl = placement(poly, p.art);
+        inner.appendChild(el("image", { class: "art", href, x: pl.x, y: pl.y, width: pl.w, height: pl.h, preserveAspectRatio: "none" }));
+      }
+      g.appendChild(inner);
+      const b = bbox(poly);
+      if (p.kind === "widget") {
+        // ここには端末のウィジェット（天気・カレンダーなど）が入る。モックアップでは場所だけを示す
+        const w = Math.min(b.w * 0.8, 700), h = Math.min(b.h * 0.6, 360);
+        g.appendChild(el("rect", { x: b.cx - w / 2, y: b.cy - h / 2, width: w, height: h, rx: 36, fill: "#000", opacity: 0.45 }));
+        const t = el("text", { x: b.cx, y: b.cy, "text-anchor": "middle", "dominant-baseline": "middle", fill: "#fff", "font-size": Math.min(52, w / 8), "font-family": "Zen Kaku Gothic New, sans-serif", "font-weight": 700 });
+        t.textContent = "ウィジェット"; g.appendChild(t);
+      }
+      if ((p.kind === "folder" || p.kind === "drawer") && state.text.label !== "none" && clockPanelId() !== p.id) drawLabel(inner, p, poly, b);
+      if (state.text.masthead && mastheadPanelId() === p.id) drawMasthead(inner, p, poly, b);
+      if (clockPanelId() === p.id && state.clock.style !== "none") drawClock(g, inner, p, poly, b);
+      const sheen = drawShade(g, p, poly, b);
+      // 枠線はコマの内側に引く。線を 2 倍の太さで描いてコマの形で切り抜くと、内側の半分だけが残る
+      const bw = state.border.width;
+      if (state.border.style !== "none" && bw > 0) {
+        const frame = el("g", { "clip-path": `url(#c-${p.id})` });
+        const line = w => el("polygon", { points: pts(poly), fill: "none", "stroke-width": w * 2, "stroke-linejoin": "miter" });
+        if (state.border.style === "double") {
+          // 二重: 先に白い線を広く引き、その上に黒い線を重ねる。内側に細い白線が残る
+          const white = line(bw + Math.max(4, bw * 0.35)); white.setAttribute("stroke", "#ffffff"); frame.appendChild(white);
+        }
+        const black = line(bw); black.setAttribute("stroke", state.border.color); frame.appendChild(black);
+        g.appendChild(frame);
+      }
+      svg.appendChild(g);
+      // 人物の切り抜き（マスク）は defs にあるので、コマの要素と別に拾う。人物の画像と一緒に動かさないと形がずれる
+      const maskImg = svg.querySelector(`#m-${p.id} image`);
+      fxNodes.push({ id: p.id, art: [...g.querySelectorAll(".art"), ...(maskImg ? [maskImg] : [])], clock: g.querySelector(".clock"), texts: [...g.querySelectorAll(".ptext")], sheen, box: b });
+    });
+    applyTilt();
+    // 選んでいるコマの枠と、そのコマを作った線のハンドル（ホームで試している間は出さない）
+    const sel = mode === "edit" && current.leaves.find(l => l.node.panel.id === selected);
+    if (sel) {
+      svg.appendChild(el("polygon", { class: "outline", points: pts(sel.poly) }));
+      const parent = findParent(state.tree, sel.node);
+      const c = current.cuts.find(c => c.node === parent);
+      if (c) {
+        svg.appendChild(el("line", { class: "cut", x1: c.a[0], y1: c.a[1], x2: c.b[0], y2: c.b[1] }));
+        [["ta", c.a], ["tb", c.b]].forEach(([which, p]) => {
+          // 表示の大きさに合わせ、画面上で直径 44px 以上になるようにする（小さい画面でも指で押せるように）
+          const perPx = W / (svg.clientWidth || 380);
+          const h = el("circle", { class: "handle", cx: p[0], cy: p[1], r: Math.max(34, 22 * perPx), "data-which": which });
+          svg.appendChild(h);
+        });
+      }
+    }
+    controls();
+  }
+
+  function controls() {
+    const node = selected && findById(state.tree, selected);
+    const p = node && node.panel;
+    document.getElementById("sel-title").textContent = p ? `選んでいるコマ: ${p.label}` : "コマを選んでください";
+    document.getElementById("split-h").disabled = !p;
+    document.getElementById("split-v").disabled = !p;
+    const parent = node && findParent(state.tree, node);
+    const sibling = parent && (parent.a === node ? parent.b : parent.a);
+    document.getElementById("merge").disabled = !(sibling && sibling.panel);
+    const kind = document.getElementById("kind");
+    kind.disabled = !p;
+    kind.textContent = `種類: ${KIND_NAMES[(p && p.kind) || "folder"]}`;
+    document.getElementById("undo").disabled = history.length === 0;
+    document.querySelectorAll("#thumbs button").forEach(b => b.setAttribute("aria-pressed", p && ((p.art && p.art.card) || "") === b.dataset.card ? "true" : "false"));
+    const zoom = document.getElementById("zoom");
+    zoom.disabled = !(p && p.art);
+    if (p && p.art) zoom.value = p.art.zoom;
+    document.getElementById("zoom-val").textContent = p && p.art ? `${p.art.zoom.toFixed(2)} 倍` : "";
+    document.querySelectorAll("#filters button").forEach(b => b.setAttribute("aria-pressed", b.dataset.f === state.filter ? "true" : "false"));
+    const st = state.strength ?? 1;
+    document.getElementById("strength").value = st;
+    document.getElementById("strength").disabled = state.filter === "none";
+    document.getElementById("strength-val").textContent = `${Math.round(st * 100)}%`;
+    document.querySelectorAll("#labelmodes button").forEach(b => b.setAttribute("aria-pressed", b.dataset.lm === state.text.label ? "true" : "false"));
+    document.getElementById("lang-en").setAttribute("aria-pressed", state.text.lang !== "ja" ? "true" : "false");
+    document.getElementById("lang-ja").setAttribute("aria-pressed", state.text.lang === "ja" ? "true" : "false");
+    document.getElementById("outline").setAttribute("aria-pressed", state.text.outline ? "true" : "false");
+    document.getElementById("masthead").setAttribute("aria-pressed", state.text.masthead ? "true" : "false");
+    document.getElementById("masthead-here").disabled = !selected;
+    const word = document.getElementById("word");
+    if (document.activeElement !== word) word.value = state.text.word;
+    document.getElementById("masthead-y").value = state.text.mastheadY;
+    document.getElementById("masthead-y-val").textContent = `${Math.round(state.text.mastheadY * 100)}%`;
+    document.getElementById("shade-inner").value = state.shade.inner;
+    document.getElementById("shade-inner-val").textContent = `${Math.round(state.shade.inner * 100)}%`;
+    document.getElementById("shade-sheen").value = state.shade.sheen;
+    document.getElementById("shade-sheen-val").textContent = `${Math.round(state.shade.sheen * 100)}%`;
+    document.getElementById("fx-parallax").setAttribute("aria-pressed", state.fx.parallax ? "true" : "false");
+    document.getElementById("fx-strength").value = state.fx.strength;
+    document.getElementById("fx-strength-val").textContent = `${Math.round(state.fx.strength * 100)}%`;
+    document.querySelectorAll("#cstyles button").forEach(b => b.setAttribute("aria-pressed", b.dataset.cs === state.clock.style ? "true" : "false"));
+    document.getElementById("csize").value = state.clock.size;
+    document.getElementById("csize-val").textContent = `${Math.round(state.clock.size * 100)}%`;
+    document.getElementById("clock-here").disabled = !selected;
+    document.querySelectorAll("#bstyles button").forEach(b => b.setAttribute("aria-pressed", b.dataset.bs === state.border.style ? "true" : "false"));
+    document.getElementById("bwidth").value = state.border.width;
+    document.getElementById("bwidth").disabled = state.border.style === "none";
+    document.getElementById("bwidth-val").textContent = `${state.border.width} px`;
+    document.getElementById("bleed").setAttribute("aria-pressed", state.bleed ? "true" : "false");
+    document.getElementById("gutter").value = state.gutter;
+    document.getElementById("gutter-val").textContent = `${state.gutter} px`;
+    document.querySelectorAll("#gcolors button").forEach(b => b.setAttribute("aria-pressed", b.dataset.c === state.gutterColor ? "true" : "false"));
+  }
+
+  // ---------- 操作 ----------
+  function split(dir) {
+    const node = findById(state.tree, selected); if (!node) return;
+    const sel = current.leaves.find(l => l.node === node); if (!sel) return;
+    commit();
+    const b = bbox(sel.poly);
+    // 横は右 → 左、縦は上 → 下の向きに引く。a の子（元の中身を引き継ぐ側）が上または左になる
+    const a = dir === "h" ? [b.r, b.cy] : [b.cx, b.t];
+    const c = dir === "h" ? [b.l, b.cy] : [b.cx, b.b];
+    // 元のコマの中身（id とフォルダ）は片方が引き継ぎ、もう片方は空のフォルダにする
+    const kept = { panel: node.panel };
+    const fresh = leaf("新しいコマ");
+    delete node.panel;
+    node.cut = { ta: paramOf(sel.poly, a), tb: paramOf(sel.poly, c) };
+    node.a = kept; node.b = fresh;
+    selected = fresh.panel.id;
+    render(); save();
+  }
+  function merge() {
+    const node = findById(state.tree, selected); if (!node) return;
+    const parent = findParent(state.tree, node); if (!parent) return;
+    const sibling = parent.a === node ? parent.b : parent.a; if (!sibling.panel) return;
+    commit();
+    // 選んでいるコマの中身を残し、隣のコマを取り除く
+    parent.panel = node.panel; delete parent.cut; delete parent.a; delete parent.b;
+    render(); save();
+  }
+  document.getElementById("split-h").addEventListener("click", () => split("h"));
+  document.getElementById("split-v").addEventListener("click", () => split("v"));
+  document.getElementById("merge").addEventListener("click", merge);
+  document.getElementById("kind").addEventListener("click", () => {
+    const node = findById(state.tree, selected); if (!node) return;
+    // フォルダ → ウィジェット → 全アプリ一覧 の順に切り替える
+    const order = ["folder", "widget", "drawer"];
+    commit(); node.panel.kind = order[(order.indexOf(node.panel.kind) + 1) % order.length]; render(); save();
+  });
+  document.getElementById("undo").addEventListener("click", () => {
+    const prev = history.pop(); if (!prev) return;
+    state = prev; if (selected && !findById(state.tree, selected)) selected = null; render(); save();
+  });
+
+  const tBox = document.getElementById("templates");
+  TEMPLATE_NAMES.forEach(([id, name]) => {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = name;
+    b.addEventListener("click", () => { commit(); state.tree = TEMPLATES[id](); selected = null; render(); save(); });
+    tBox.appendChild(b);
+  });
+  const thumbs = document.getElementById("thumbs");
+  [{ key: "", title: "画像なし", who: "" }, ...CARDS].forEach(cd => {
+    const b = document.createElement("button"); b.type = "button"; b.dataset.card = cd.key;
+    if (cd.key) { const im = document.createElement("img"); im.src = IMG[cd.key]; im.alt = ""; b.appendChild(im); }
+    const s = document.createElement("span"); s.textContent = cd.key ? `${cd.who}「${cd.title}」` : cd.title; b.appendChild(s);
+    b.addEventListener("click", () => {
+      const node = findById(state.tree, selected); if (!node) { status.textContent = "先に画面のコマを押して選んでください"; return; }
+      commit(); node.panel.art = cd.key ? art(cd.key) : null; render(); save();
+    });
+    thumbs.appendChild(b);
+  });
+  const fBox = document.getElementById("filters");
+  FILTERS.forEach(([id, name]) => {
+    const b = document.createElement("button"); b.type = "button"; b.dataset.f = id; b.textContent = name;
+    b.addEventListener("click", () => { state.filter = id; render(); save(); });
+    fBox.appendChild(b);
+  });
+  document.getElementById("strength").addEventListener("change", e => { state.strength = +e.target.value; render(); save(); });
+  const csBox = document.getElementById("cstyles");
+  [["none", "時計なし"], ["bubble", "吹き出し"], ["sfx", "描き文字"], ["depth", "人物の後ろ"]].forEach(([v, name]) => {
+    const b = document.createElement("button"); b.type = "button"; b.dataset.cs = v; b.textContent = name;
+    b.addEventListener("click", () => { state.clock.style = v; render(); save(); });
+    csBox.appendChild(b);
+  });
+  document.getElementById("clock-here").addEventListener("click", () => {
+    if (!selected) { status.textContent = "先に画面のコマを押して選んでください"; return; }
+    state.clock.panel = selected; render(); save();
+  });
+  document.getElementById("csize").addEventListener("input", e => { state.clock.size = +e.target.value; render(); save(); });
+  const bsBox = document.getElementById("bstyles");
+  [["none", "枠なし"], ["single", "1 本線"], ["double", "二重"]].forEach(([v, name]) => {
+    const b = document.createElement("button"); b.type = "button"; b.dataset.bs = v; b.textContent = name;
+    b.addEventListener("click", () => { state.border.style = v; render(); save(); });
+    bsBox.appendChild(b);
+  });
+  document.getElementById("bwidth").addEventListener("input", e => { state.border.width = +e.target.value; render(); save(); });
+  document.getElementById("bleed").addEventListener("click", () => { state.bleed = !state.bleed; render(); save(); });
+  const gBox = document.getElementById("gcolors");
+  [["#111111", "黒"], ["#ffffff", "白"]].forEach(([c, name]) => {
+    const b = document.createElement("button"); b.type = "button"; b.dataset.c = c; b.textContent = name;
+    b.addEventListener("click", () => { state.gutterColor = c; render(); save(); });
+    gBox.appendChild(b);
+  });
+  document.getElementById("gutter").addEventListener("input", e => { state.gutter = +e.target.value; render(); save(); });
+  document.getElementById("zoom").addEventListener("input", e => {
+    const node = findById(state.tree, selected); if (!node || !node.panel.art) return;
+    node.panel.art.zoom = +e.target.value;
+    const l = current.leaves.find(l => l.node === node); if (l) clampArt(l.poly, node.panel.art);
+    render(); save();
+  });
+
+  // 画面の上の操作: コマを選ぶ、線の端を動かす、画像を動かす
+  function toView(e) { const r = svg.getBoundingClientRect(); return [(e.clientX - r.left) * (W / r.width), (e.clientY - r.top) * (H / r.height)]; }
+  let drag = null;
+  // 2 本指のピンチで、選んでいるコマの画像を拡大・縮小する
+  const touches = new Map();
+  let pinch = null;
+  svg.addEventListener("pointerdown", e => {
+    // 1 本目の指なら新しい操作の始まりなので、前の操作の記録を消す。
+    // コマを選ぶと図を作り直すため、指が触れていた要素が消え、指を離した通知が届かないことがある（記録が残ると、次の操作がピンチと誤認される）
+    if (e.isPrimary) { touches.clear(); pinch = null; }
+    touches.set(e.pointerId, toView(e));
+    if (touches.size === 2) {
+      const node = selected && findById(state.tree, selected);
+      if (node && node.panel.art) {
+        const [p1, p2] = [...touches.values()];
+        drag = null;
+        pinch = { node, dist: Math.hypot(p1[0] - p2[0], p1[1] - p2[1]), zoom: node.panel.art.zoom };
+      }
+    }
+  }, true);
+  svg.addEventListener("pointermove", e => {
+    if (!touches.has(e.pointerId)) return;
+    touches.set(e.pointerId, toView(e));
+    if (pinch && touches.size === 2) {
+      const [p1, p2] = [...touches.values()];
+      const d = Math.hypot(p1[0] - p2[0], p1[1] - p2[1]);
+      pinch.node.panel.art.zoom = Math.min(3, Math.max(1, pinch.zoom * d / (pinch.dist || 1)));
+      const l = current.leaves.find(l => l.node === pinch.node); if (l) clampArt(l.poly, pinch.node.panel.art);
+      render();
+    }
+  }, true);
+  const lift = e => {
+    touches.delete(e.pointerId);
+    if (pinch && touches.size < 2) { pinch = null; save(); }
+  };
+  // 指を離した通知は画面全体で受ける（触れていた要素が作り直されて消えていても届くように）
+  window.addEventListener("pointerup", lift, true);
+  window.addEventListener("pointercancel", lift, true);
+  svg.addEventListener("pointerdown", e => {
+    if (pinch) return;
+    const handle = e.target.closest && e.target.closest(".handle");
+    if (handle) {
+      const node = findById(state.tree, selected), parent = findParent(state.tree, node);
+      const c = current.cuts.find(c => c.node === parent);
+      commit(); drag = { kind: "handle", which: handle.dataset.which, cut: c };
+      svg.setPointerCapture(e.pointerId); return;
+    }
+    const clockEl = e.target.closest && e.target.closest(".clock");
+    if (clockEl && mode === "edit") {
+      const l = current.leaves.find(l => l.node.panel.id === clockPanelId());
+      commit(); drag = { kind: "clock", start: toView(e), x: state.clock.x, y: state.clock.y, box: bbox(l.poly) };
+      svg.setPointerCapture(e.pointerId); return;
+    }
+    const g = e.target.closest && e.target.closest("g.panel"); if (!g) return;
+    const id = g.dataset.id;
+    if (mode === "try") { pressTry(id); return; }
+    if (id !== selected) { selected = id; render(); return; }
+    const node = findById(state.tree, id);
+    if (node.panel.art && !pinch) { commit(); drag = { kind: "image", node, start: toView(e), dx: node.panel.art.dx, dy: node.panel.art.dy, box: bbox(current.leaves.find(l => l.node === node).poly) }; svg.setPointerCapture(e.pointerId); }
+  });
+  svg.addEventListener("pointermove", e => {
+    if (!drag || pinch) return;
+    const p = toView(e);
+    if (drag.kind === "clock") {
+      state.clock.x = drag.x + (p[0] - drag.start[0]) / drag.box.w;
+      state.clock.y = drag.y + (p[1] - drag.start[1]) / drag.box.h;
+    } else if (drag.kind === "handle") {
+      // 線の端は、親のコマの縁の上だけを動く
+      drag.cut.node.cut[drag.which] = paramOf(drag.cut.poly, p);
+    } else {
+      const a = drag.node.panel.art;
+      a.dx = drag.dx + (p[0] - drag.start[0]) / drag.box.w;
+      a.dy = drag.dy + (p[1] - drag.start[1]) / drag.box.h;
+      // 端に達したらそれ以上は動かない
+      clampArt(current.leaves.find(l => l.node === drag.node).poly, a);
+    }
+    render();
+  });
+  const endDrag = () => { if (drag) { drag = null; save(); } };
+  window.addEventListener("pointerup", endDrag);
+  window.addEventListener("pointercancel", endDrag);
+
+  document.getElementById("play").addEventListener("click", () => {
+    if (reduced) return;
+    selected = null; render();
+    const gs = [...svg.querySelectorAll("g.panel")];
+    gs.forEach((g, i) => {
+      const b = bbox(current.leaves[i].poly);
+      const cx = b.cx / W - 0.5, cy = b.cy / H - 0.5;
+      const [ox, oy] = Math.abs(cx) * W > Math.abs(cy) * H * 0.6 ? [cx < 0 ? -1 : 1, 0] : [0, cy < 0 ? -1 : 1];
+      g.animate([
+        { transform: `translate(${ox * b.w * 0.6}px, ${oy * b.h * 0.6}px) scale(0.8)`, opacity: 0 },
+        { opacity: 1, offset: 0.35 },
+        { transform: "translate(0,0) scale(1)", opacity: 1 },
+      ], { duration: 620, delay: i * 60, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)", fill: "backwards" });
+    });
+  });
+
+  // ---------- ホームで試す（視差と集中線） ----------
+  let mode = "edit";
+  const tilt = { x: 0, y: 0, tx: 0, ty: 0 };
+  let gotSensor = false, base = null;
+  function applyTilt() {
+    const on = mode === "try" && state.fx.parallax, k = state.fx.strength;
+    fxNodes.forEach(n => {
+      const ax = on ? tilt.x * PARALLAX.art * k : 0, ay = on ? tilt.y * PARALLAX.art * k : 0;
+      const tr = `translate(${ax.toFixed(1)} ${ay.toFixed(1)})`;
+      n.art.forEach(e => { if (e.getAttribute("transform") !== tr) e.setAttribute("transform", tr); });
+      // 光の反射は、傾けた向きと逆へ流す（手に持った紙に光が当たっているように見せる）
+      if (n.sheen) {
+        const sx = on ? -tilt.x * n.box.w * 0.35 : 0, sy = on ? -tilt.y * n.box.h * 0.2 : 0;
+        n.sheen.setAttribute("transform", `translate(${sx.toFixed(1)} ${sy.toFixed(1)})`);
+      }
+      n.texts.forEach(t => t.setAttribute("transform", on ? `translate(${(-tilt.x * PARALLAX.text * k).toFixed(1)} ${(-tilt.y * PARALLAX.text * k).toFixed(1)})` : ""));
+      if (n.clock) n.clock.setAttribute("transform", on ? `translate(${-tilt.x * PARALLAX.clock * k} ${-tilt.y * PARALLAX.clock * k})` : "");
+    });
+  }
+  (function loop() {
+    // 急に跳ばないよう、目標の傾きへ少しずつ寄せる
+    tilt.x += (tilt.tx - tilt.x) * 0.08; tilt.y += (tilt.ty - tilt.y) * 0.08;
+    if (mode === "try") applyTilt();
+    requestAnimationFrame(loop);
+  })();
+  window.addEventListener("deviceorientation", e => {
+    if (e.beta == null || e.gamma == null) return;
+    gotSensor = true;
+    if (!base) base = { b: e.beta, g: e.gamma };
+    // 持ち始めの角度を基準にし、±20 度で端まで動かす
+    // 1 度未満の揺れは無視する（手の小さな震えで絵が揺れないように）
+    const dz = v => (Math.abs(v) < 1 ? 0 : v - Math.sign(v));
+    tilt.tx = Math.max(-1, Math.min(1, dz(e.gamma - base.g) / 20));
+    tilt.ty = Math.max(-1, Math.min(1, dz(e.beta - base.b) / 20));
+  });
+  svg.addEventListener("pointermove", e => {
+    if (mode !== "try" || gotSensor) return;
+    const r = svg.getBoundingClientRect();
+    tilt.tx = ((e.clientX - r.left) / r.width - 0.5) * 2;
+    tilt.ty = ((e.clientY - r.top) / r.height - 0.5) * 2;
+  });
+  svg.addEventListener("pointerleave", () => { if (!gotSensor) { tilt.tx = 0; tilt.ty = 0; } });
+
+  // 全アプリ一覧の見本: アプリと同じく、検索欄とアイコンの格子を画面の上に重ねる。押すと閉じる
+  const MOCK_APPS = ["Chrome", "Gmail", "LINE", "X", "YouTube", "Spotify", "カメラ", "カレンダー", "設定", "マップ", "ゲーム","時計", "電卓", "ファイル", "写真", "Play ストア"];
+  function openDrawerMock() {
+    if (svg.querySelector("#drawer-mock")) return;
+    const g = el("g", { id: "drawer-mock" });
+    g.appendChild(el("rect", { x: 0, y: 0, width: W, height: H, fill: "#121216", opacity: 0.94 }));
+    g.appendChild(el("rect", { x: 60, y: 140, width: W - 120, height: 110, rx: 55, fill: "#2a2a30" }));
+    const q = el("text", { x: 120, y: 195, "dominant-baseline": "central", fill: "#888", "font-size": 46, "font-family": "Zen Kaku Gothic New, sans-serif" }); q.textContent = "アプリを検索"; g.appendChild(q);
+    MOCK_APPS.forEach((name, i) => {
+      const cx = 160 + (i % 4) * 300, cy = 420 + Math.floor(i / 4) * 300;
+      g.appendChild(el("circle", { cx, cy, r: 82, fill: `hsl(${(i * 47) % 360} 55% 60%)` }));
+      const t = el("text", { x: cx, y: cy + 130, "text-anchor": "middle", fill: "#fff", "font-size": 36, "font-family": "Zen Kaku Gothic New, sans-serif" }); t.textContent = name; g.appendChild(t);
+    });
+    g.addEventListener("pointerdown", ev => { ev.stopPropagation(); g.remove(); });
+    svg.appendChild(g);
+    if (!reduced) g.animate([{ opacity: 0, transform: "translateY(120px)" }, { opacity: 1, transform: "translateY(0)" }], { duration: 220, easing: "ease-out" });
+  }
+  function pressTry(id) {
+    const node = findById(state.tree, id);
+    if (node && node.panel.kind === "drawer") setTimeout(openDrawerMock, 200);
+    const g = svg.querySelector(`g.panel[data-id="${id}"]`); if (!g || reduced) return;
+    g.animate([{ transform: "scale(1)" }, { transform: "scale(0.94)", offset: 0.25 }, { transform: "scale(1.04)", offset: 0.6 }, { transform: "scale(1)" }], { duration: 420, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" });
+  }
+  document.getElementById("mode").addEventListener("click", () => {
+    mode = mode === "edit" ? "try" : "edit";
+    document.getElementById("mode").textContent = mode === "edit" ? "ホームで試す" : "編集に戻る";
+    ["split-h", "split-v", "merge", "kind", "undo"].forEach(id => { document.getElementById(id).hidden = mode === "try"; });
+    // 傾きの読み取りに許可が要る環境では、ボタンを押したこの時に頼む
+    if (mode === "try" && typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+      DeviceOrientationEvent.requestPermission().catch(() => {});
+    }
+    base = null;
+    render();
+  });
+  const lmBox = document.getElementById("labelmodes");
+  [["none", "出さない"], ["horizontal", "横書き"], ["vertical", "縦書き"]].forEach(([v, name]) => {
+    const b = document.createElement("button"); b.type = "button"; b.dataset.lm = v; b.textContent = name;
+    b.addEventListener("click", () => { state.text.label = v; render(); save(); });
+    lmBox.appendChild(b);
+  });
+  document.getElementById("lang-en").addEventListener("click", () => { state.text.lang = "en"; render(); save(); });
+  document.getElementById("lang-ja").addEventListener("click", () => { state.text.lang = "ja"; render(); save(); });
+  document.getElementById("outline").addEventListener("click", () => { state.text.outline = !state.text.outline; render(); save(); });
+  document.getElementById("masthead").addEventListener("click", () => { state.text.masthead = !state.text.masthead; render(); save(); });
+  document.getElementById("masthead-here").addEventListener("click", () => {
+    if (!selected) { status.textContent = "先に画面のコマを押して選んでください"; return; }
+    state.text.panel = selected; render(); save();
+  });
+  document.getElementById("word").addEventListener("input", e => { state.text.word = e.target.value; render(); save(); });
+  document.getElementById("masthead-y").addEventListener("input", e => { state.text.mastheadY = +e.target.value; render(); save(); });
+  document.getElementById("shade-inner").addEventListener("input", e => { state.shade.inner = +e.target.value; render(); save(); });
+  document.getElementById("shade-sheen").addEventListener("input", e => { state.shade.sheen = +e.target.value; render(); save(); });
+  document.getElementById("fx-parallax").addEventListener("click", () => { state.fx.parallax = !state.fx.parallax; render(); save(); });
+  document.getElementById("fx-strength").addEventListener("input", e => { state.fx.strength = +e.target.value; render(); save(); });
+
+  // ---------- 保存（db の editor/current） ----------
+  let db = null, timer = null;
+  function save() {
+    if (!db) return;
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      try {
+        await db.doc("editor/current").set({ state: snapshot(), at: new Date().toISOString() });
+        status.textContent = "保存しました";
+      } catch (e) { status.textContent = `保存できませんでした（${e && (e.code || e.message) || "不明な理由"}）`; }
+    }, 600);
+  }
+
+  render();
+  (async () => {
+    for (let k = 0; k < 20 && !(window.claude && typeof window.claude.use === "function"); k++) await new Promise(r => setTimeout(r, 500));
+    if (!(window.claude && typeof window.claude.use === "function")) { status.textContent = "保存する機能を使えません。操作は試せます"; return; }
+    db = await window.claude.use("db");
+    if (!db) { status.textContent = "保存する機能を使えません。操作は試せます"; return; }
+    try {
+      const snap = await db.doc("editor/current").get();
+      const d = snap.exists ? snap.data() : null;
+      if (d && d.state && d.state.tree) {
+        state = JSON.parse(JSON.stringify(d.state));
+        if (!FILTERS.some(f => f[0] === state.filter)) state.filter = "none";
+        if (typeof state.strength !== "number") state.strength = 1;
+        if (!state.ink) state.ink = "#e0447a";
+        if (!state.text) state.text = { label: "vertical", lang: "en", outline: false, masthead: true, word: "KOMA", mastheadY: 0.09, panel: null };
+        if (!state.text.lang) state.text.lang = "en";
+        if (!state.shade) state.shade = { inner: 0.5, sheen: 0.4 };
+        if (!state.fx) state.fx = { parallax: true, strength: 1, burst: true };
+        if (!state.clock) state.clock = { style: "depth", panel: null, x: 0.66, y: 0.3, size: 1 };
+        if (!state.border) state.border = { width: 10, style: "single", color: "#111111" };
+        if (typeof state.bleed !== "boolean") state.bleed = false;
+        // 保存された id より大きい番号から振る（同じ id のコマを作らないため）
+        JSON.stringify(state.tree).replace(/"id":"p(\d+)"/g, (_, n) => { seq = Math.max(seq, +n + 1); return ""; });
+        render();
+      } else {
+        save();
+      }
+    } catch (e) { status.textContent = `保存した内容を読めませんでした（${e && (e.code || e.message) || "不明な理由"}）`; }
+  })();
+})();
+</script>
