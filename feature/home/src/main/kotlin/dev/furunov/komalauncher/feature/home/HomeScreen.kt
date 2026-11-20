@@ -16,12 +16,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -96,6 +98,8 @@ fun HomeScreen(
     notice: String? = null,
     /** 端末の傾き（視差）。null なら動かさない。 */
     tilt: TiltSource? = null,
+    /** 再生中のコマのジャケットと音。null ならジャケットを描かず、棒はそれらしい動きにする。 */
+    media: HomeMedia? = null,
 ) {
     // コマの間の色は、レイアウトに書いてあればそれを、無ければ設定の色を使う
     val frameGutter = (state.layout.shape as? LayoutShape.Tree)?.frame?.gutterColor
@@ -112,10 +116,16 @@ fun HomeScreen(
         val masks by rememberMasks(state.masks, state.imagesRevision)
         val folderNames = remember(state.folders) { state.folders.byPanel.mapNotNull { (id, f) -> f.name?.let { id to it } }.toMap() }
         // 文字の置き場所は、コマの形・文字の指定・切り抜き（人物の地図）が変わったときだけ探し直す
+        val playerPanel = state.player?.panelId
         val texts =
-            remember(geometry, state.layout, folderNames, masks) {
-                buildPanelTexts(state.layout, geometry.panels.map { ResolvedPanel(it.panel, it.index, it.polygon, it.art) }, wPx, folderNames, masks)
+            remember(geometry, state.layout, folderNames, masks, playerPanel) {
+                val built = buildPanelTexts(state.layout, geometry.panels.map { ResolvedPanel(it.panel, it.index, it.polygon, it.art) }, wPx, folderNames, masks)
+                // 再生中のコマには名前を出さない（時計と大見出しは残す）
+                if (playerPanel == null) built else built.mapValues { (id, spec) -> if (id == playerPanel) spec.copy(labels = emptyList()) else spec }
             }
+        val playerArt by (media?.art ?: NO_ART).collectAsState()
+        val artFade = rememberArtFade(playerArt.takeIf { playerPanel != null })
+        var flash by remember { mutableStateOf<PlayerFlashEvent?>(null) }
         val measurer = rememberTextMeasurer(cacheSize = 16)
         val now by rememberMinuteClock()
         val parallax = remember(state.layout, wPx) { parallaxOf(state.layout, wPx) }
@@ -175,6 +185,7 @@ fun HomeScreen(
                     override fun onPanelRelease(panel: PanelGeometry, tapped: Boolean) {
                         val m = motions.getValue(panel.panel.id)
                         if (tapped) {
+                            if (currentState.value.player?.panelId == panel.panel.id) flash = PlayerFlashEvent(PlayerFlash.TOGGLE, System.nanoTime())
                             // 動きの完了を待たずに開く。待つとタップへの反応が遅れて感じられる
                             onEvent(HomeEvent.TapPanel(panel.panel.id))
                             if (anim.enabled) scope.launch { pressAnim.pressUp(m, ctx(panel)) }
@@ -185,7 +196,12 @@ fun HomeScreen(
 
                     override fun onPanelLongPress(panel: PanelGeometry, position: Offset) = onEvent(HomeEvent.OpenOverlay(Overlay.PanelMenu(panel.panel.id)))
 
-                    override fun onPanelSwipe(panel: PanelGeometry, toLeft: Boolean) = onEvent(HomeEvent.SwipePanel(panel.panel.id, toLeft))
+                    override fun onPanelSwipe(panel: PanelGeometry, toLeft: Boolean) {
+                        if (currentState.value.player?.panelId == panel.panel.id) {
+                            flash = PlayerFlashEvent(if (toLeft) PlayerFlash.NEXT else PlayerFlash.PREVIOUS, System.nanoTime())
+                        }
+                        onEvent(HomeEvent.SwipePanel(panel.panel.id, toLeft))
+                    }
 
                     override fun onGesture(kind: GestureKind, position: Offset) = onEvent(HomeEvent.Gesture(kind))
                 }
@@ -231,7 +247,18 @@ fun HomeScreen(
                         parallax = parallax,
                         label = state.folders.byPanel[g.panel.id.value]?.name ?: g.panel.label,
                         highlight = if (hovered == g.panel.id) Color(state.settings.appearance.highlightColor) else null,
+                        player = state.player?.takeIf { it.panelId == g.panel.id }?.let { p -> artFade to p.playing },
                     )
+                    state.player?.takeIf { it.panelId == g.panel.id }?.let { p ->
+                        PlayerLayer(
+                            g = g,
+                            motion = motions.getValue(g.panel.id),
+                            playing = p.playing,
+                            barColor = Color(state.settings.appearance.highlightColor),
+                            spectrum = media?.spectrum,
+                            flash = flash,
+                        )
+                    }
                     if (g.panel.content is PanelContent.Widget) {
                         PanelBox(g.inscribed.left, g.inscribed.top, g.inscribed.width, g.inscribed.height, motions.getValue(g.panel.id)) {
                             slots.widget(g)
@@ -274,10 +301,14 @@ fun HomeScreen(
                         g,
                         state.folders.byPanel[g.panel.id.value]?.name ?: g.panel.label,
                         state.folders.byPanel[g.panel.id.value]?.directLaunch == true,
+                        musicPlayer = state.folders.byPanel[g.panel.id.value]?.musicPlayer == true,
+                        showingPlayer = state.player?.panelId == g.panel.id,
                         slots.panelMenuItems(g),
                         onEvent,
                     )
                 }
+
+                Overlay.MusicAccess -> MusicAccessSheet(onEvent)
 
                 is Overlay.Rename -> RenameSheet(o.panelId, state.folders.byPanel[o.panelId.value]?.name ?: state.layout.panel(o.panelId)?.label, onEvent)
 
@@ -304,12 +335,14 @@ fun HomeScreen(
 
 /** 画面座標の長方形に、コマの動きに合わせて置く箱。 */
 @Composable
-private fun PanelBox(
+internal fun PanelBox(
     left: Float,
     top: Float,
     width: Float,
     height: Float,
     motion: PanelMotion,
+    /** null でなければ、この形で切り抜く（外接長方形の左上が原点）。 */
+    clipShape: androidx.compose.ui.graphics.Shape? = null,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
@@ -323,6 +356,10 @@ private fun PanelBox(
                 scaleX = motion.scale.value
                 scaleY = motion.scale.value
                 alpha = motion.alpha.value
+                if (clipShape != null) {
+                    shape = clipShape
+                    clip = true
+                }
             },
     ) { content() }
 }
@@ -342,6 +379,8 @@ private fun PanelLayer(
     parallax: ParallaxAmounts,
     label: String?,
     highlight: Color?,
+    /** 再生中のコマなら、ジャケットのクロスフェードと、再生中か（false なら一時停止中）。 */
+    player: Pair<ArtFade, Boolean>? = null,
 ) {
     val density = LocalDensity.current
     val b = g.bounds
@@ -365,6 +404,8 @@ private fun PanelLayer(
                 // 絵は傾けた向きへ、文字と時計は逆へ動かし、絵・文字・時計の 3 層に見せる（モックアップと同じ）
                 val artShift = Offset(t.x * parallax.art, t.y * parallax.art)
                 with(g.face) { drawArt(art, artShift) }
+                // ジャケットはコマの絵の上、文字の下に描く（時計と大見出しを残すため）
+                player?.let { (fade, playing) -> drawPlayerArt(fade, playing) }
                 if (texts != null) {
                     val r = g.art
                     val (mo, ms) = r?.let { localPlacement(g.bounds, it) } ?: (null to null)
@@ -390,7 +431,7 @@ private fun PanelLayer(
             },
     ) {
         // 絵が無いコマ（見本や、画像をまだ置いていないコマ）だけ、仮の色の上に名前を表示する
-        if (art == null && label != null) {
+        if (art == null && label != null && player == null) {
             BasicText(
                 label,
                 style = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
@@ -448,3 +489,5 @@ private fun rememberShownTilt(
     }
     return shown
 }
+
+private val NO_ART = kotlinx.coroutines.flow.MutableStateFlow<androidx.compose.ui.graphics.ImageBitmap?>(null)

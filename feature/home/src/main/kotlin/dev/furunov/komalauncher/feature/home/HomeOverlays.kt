@@ -159,6 +159,8 @@ internal fun PanelMenuSheet(
     panel: PanelGeometry,
     name: String?,
     directLaunch: Boolean,
+    musicPlayer: Boolean,
+    showingPlayer: Boolean,
     extra: List<PanelMenuItem>,
     onEvent: (HomeEvent) -> Unit,
 ) {
@@ -171,11 +173,15 @@ internal fun PanelMenuSheet(
         )
         if (panel.panel.content is PanelContent.Folder) {
             val id = panel.panel.id
-            // 直接起動にしたフォルダは押しても開かないので、中身を並べ替える入口をここに置く
-            if (directLaunch) MenuRow("フォルダを開く") { onEvent(HomeEvent.OpenOverlay(Overlay.Folder(id))) }
+            // 直接起動のフォルダと再生中のコマは押しても開かないので、中身を並べ替える入口をここに置く
+            if (directLaunch || showingPlayer) MenuRow("フォルダを開く") { onEvent(HomeEvent.OpenOverlay(Overlay.Folder(id))) }
+            if (showingPlayer) MenuRow("再生中のアプリを開く") { onEvent(HomeEvent.OpenPlayerApp) }
             MenuRow(if (directLaunch) "直接起動: オン" else "直接起動: オフ") {
                 onEvent(HomeEvent.EditFolders { FolderEdits.setDirectLaunch(it, id.value, !directLaunch) })
                 onEvent(HomeEvent.Dismiss)
+            }
+            MenuRow(if (musicPlayer) "音楽プレイヤー: オン" else "音楽プレイヤー: オフ") {
+                onEvent(HomeEvent.SetMusicPlayer(id, !musicPlayer))
             }
             MenuRow("名前を変更") { onEvent(HomeEvent.OpenOverlay(Overlay.Rename(id))) }
         }
@@ -187,6 +193,29 @@ internal fun PanelMenuSheet(
         }
         Divider()
         MenuRow("ランチャーの設定") { onEvent(HomeEvent.Perform(LauncherAction.OpenSettings)) }
+    }
+}
+
+/** 音楽プレイヤーに必要な「通知へのアクセス」の説明。 */
+@Composable
+internal fun MusicAccessSheet(onEvent: (HomeEvent) -> Unit) {
+    BackHandler { onEvent(HomeEvent.Dismiss) }
+    Sheet(onDismiss = { onEvent(HomeEvent.Dismiss) }) {
+        BasicText(
+            "通知へのアクセスが必要です",
+            style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.padding(16.dp),
+        )
+        BasicText(
+            "再生中の曲を表示するには、通知へのアクセスを許可してください。" +
+                "許可できないときは、アプリ情報の右上のメニューから「制限付き設定を許可」を選んでから、もう一度お試しください。",
+            style = TextStyle(color = Color(0xFFCCCCD4), fontSize = 14.sp),
+            modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp),
+        )
+        MenuRow("通知へのアクセスを開く") { onEvent(HomeEvent.OpenMusicAccess) }
+        MenuRow("アプリ情報を開く") { onEvent(HomeEvent.OpenAppInfoForAccess) }
+        Divider()
+        MenuRow("キャンセル") { onEvent(HomeEvent.Dismiss) }
     }
 }
 
