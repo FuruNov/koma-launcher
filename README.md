@@ -4,6 +4,33 @@
 
 目標の端末は POCO X7 Pro（1220×2712、HyperOS、Android 15 以降）。確認には Waydroid（Android 13、1080×1920）を使う。
 
+> An Android home-screen launcher that divides the screen into manga-style panels. Each panel holds its own picture and opens an app folder or hosts a widget. The UI and documentation are in Japanese. Licensed under MIT.
+
+## 状態
+
+作者が自分の端末で使うために作ったアプリで、版はすべてプレリリース。ほかの端末でも動くはずだが、作者が確かめたのは上の 2 つだけ。画像は同梱していない（初めて開くと、仮の色のコマ割りが表示される）。
+
+## 使い始める
+
+1. [Releases](https://github.com/FuruNov/koma-launcher/releases) から最新の APK を端末に入れる。
+2. 端末の設定の「デフォルトのアプリ」→「ホームアプリ」で Koma Launcher を選ぶ。
+3. ホームのコマの間の余白を長押しし、「コマ割りを編集」でコマを分割して画像を選ぶ。
+
+使う権限は次のとおり。どれも、使う機能をオンにしたときだけ求める。
+
+| 権限 | 使う機能 |
+|---|---|
+| 通知へのアクセス | 音楽プレイヤーのコマ（再生中のアプリと曲のジャケットを知るため。通知の中身は読まない） |
+| マイク | 設定の「音に合わせて動かす」（ビジュアライザーの棒を音に合わせる。録音はしない） |
+
+ブラウザで APK を入れた端末では、通知へのアクセスを許可する前に、アプリ情報の右上のメニューから「制限付き設定を許可」を選ぶ。
+
+起動回数とバックアップは端末の中と利用者が選んだフォルダにだけ書き、ネットワークへは何も送らない（`INTERNET` の権限を持たない）。
+
+### フォークして使う
+
+AI のエージェント（Claude Code など）に作業を頼む前提で、手順を `AGENTS.md` と `.claude/skills/` に書いてある。フォークした直後は `fork-setup`（パッケージ名・アプリ名・署名の鍵の変更）、自分の画像でコマ割りを作るなら `make-layout` から始める。
+
 ## ビルドと確認
 
 ```sh
@@ -185,9 +212,9 @@ Waydroid（Android 13）では、選んだフォルダが端末内の共有ス�
 
 工夫は次のとおり。背景の絵は画面の大きさに縮小して `ALLOCATOR_HARDWARE` で読み、GPU 側に置く。アニメーションの値は `graphicsLayer` の中で読み、画面の作り直しを起こさない。アイコンは見えている分だけ読む。ホームが裏に回ったら（`onTrimMemory`）アイコンのキャッシュを空にする。
 
-## 公式の Android スキル
+## AI のエージェント向けのスキル
 
-`.claude/skills/` に github.com/android/skills（Apache-2.0）の 4 つを写してある（`edge-to-edge`、`testing-setup`、`android-intent-security`、`jetpack-compose-performance`）。出所は `.claude/skills/README.md`。
+`.claude/skills/` に、このリポジトリの手順のスキル 5 つ（`fork-setup`、`build-and-install`、`change-feature`、`make-layout`、`export-mockup`）と、github.com/android/skills（Apache-2.0）から写した 4 つ（`edge-to-edge`、`testing-setup`、`android-intent-security`、`jetpack-compose-performance`）を置いた。使い分けは `AGENTS.md`、出所は `.claude/skills/README.md` にある。
 
 ## まだ実機で確かめていないこと
 
@@ -195,3 +222,10 @@ Waydroid（Android 13）では、選んだフォルダが端末内の共有ス�
 - リフレクションで通知センターを開けるか。開けなければ AccessibilityService の実装に切り替える
 - HyperOS の設定でホームアプリを切り替えられるか、ジェスチャーナビゲーションで戻る・ホーム・履歴が動くか
 - 導入は `adb install`。HyperOS は「USB 経由のインストール」の許可が別に要る
+
+## ライセンス
+
+コードと文書は MIT License（`LICENSE`）。次のものはそれぞれのライセンスに従う。
+
+- `core/ui/src/main/res/font/` の書体 2 つ: SIL Open Font License 1.1（`licenses/`）
+- `.claude/skills/` の Android の公式スキル 4 つ: Apache License 2.0（`.claude/skills/LICENSE.txt`）

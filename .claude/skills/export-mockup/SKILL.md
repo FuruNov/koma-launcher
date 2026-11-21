@@ -14,7 +14,7 @@ description: claude.ai の Artifact で作ったコマ割りのモックアッ�
 
 ## 手順
 
-1. モックアップの URL を確かめる。利用者に聞くか、`Artifact` の `action: "list"` で探す。
+1. モックアップの URL を確かめる。利用者に聞くか、`Artifact` の `action: "list"` で探す。まだ無ければ、`docs/mockups/editor.template.html` の `{{IMAGES_JSON}}`・`{{MASKS_JSON}}`・`{{INVMASKS_JSON}}` を、利用者の画像の data URI の JSON（`{"<名前>": "data:image/webp;base64,..."}`、切り抜きが無ければ `{}`）に置き換え、Artifact として公開する。保存に db を使うので、公開のときに db の capability を付ける。テンプレートの見本のコマ（`TEMPLATES` の `pic-a-5` など）は、利用者の画像の名前に書き換える。
 2. 保存状態を取り出す。`ArtifactData` で `action: "get"`、`collection: "editor"`、`doc_id: "current"`、`out_dir: <スクラッチパッド>/db` とすると、`<out_dir>/editor/current.json` に `{ "state": {...}, "at": ... }` が書かれる。
 3. ページの HTML を取り出す。`Artifact` の `action: "read"` に URL を渡すと、結果の先頭に「full HTML saved to <パス>」と保存先が書かれる。画像を含むので数 MB あり、`Read` で全体を読まない。
 4. 画像を書き出す。
