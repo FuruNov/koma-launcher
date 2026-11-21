@@ -188,6 +188,12 @@ class EditorViewModel(
         commit(LayoutEdits.setDim(local.value.layout, id, value))
     }
 
+    /** 選んでいるコマの人物を、枠の外へはみ出させるか（立体感の E）。 */
+    fun setPop(value: Boolean) {
+        val id = local.value.selected ?: return
+        edit { l -> LayoutEdits.updatePanel(l, id) { it.copy(pop = value) } }
+    }
+
     fun removeImage() {
         val id = local.value.selected ?: return
         edit { l -> LayoutEdits.updatePanel(l, id) { it.copy(art = null) } }

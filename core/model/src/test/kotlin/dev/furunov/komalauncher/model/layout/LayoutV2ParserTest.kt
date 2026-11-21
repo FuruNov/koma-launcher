@@ -132,6 +132,32 @@ class LayoutV2ParserTest {
         assertTrue(err("""{"version":2,"frame":{"gutter":5000},"tree":{"panel":{"id":"x","kind":"folder"}}}""").contains("gutter"))
         assertTrue(err("""{"version":1,"aspect":1e40,"panels":[{"id":"a","kind":"widget","polygon":[[0,0],[1,0],[1,1]]}]}""").contains("aspect"))
     }
+
+    @Test
+    fun depthDefaultsToOffAndRoundTrips() {
+        val layout = assertIs<LayoutResult.Ok>(LayoutParser.parse(valid)).layout
+        val shape = assertIs<LayoutShape.Tree>(layout.shape)
+        assertEquals(DepthSpec(), shape.depth)
+        assertTrue(layout.panels.none { it.pop })
+        // 既定のままなら depth を書かない（既存の layout.json の見た目を変えない）
+        assertTrue("depth" !in LayoutParser.encode(layout))
+        val changed =
+            Layout(
+                shape.copy(
+                    root = shape.root.mapPanels { if (it.id.value == "p43") it.copy(pop = true) else it },
+                    depth = DepthSpec(shadow = ShadowFx(true, 0.4f, 30f, 12f), rim = RimFx(true, 0.5f, 6f), blur = BackBlurFx(true, 0.8f, 0.2f), outline = OutlineFx(true, 3f, 1f), pop = PopFx(55f)),
+                ),
+            )
+        val again = assertIs<LayoutResult.Ok>(LayoutParser.parse(LayoutParser.encode(changed))).layout
+        assertEquals(changed, again)
+    }
+
+    @Test
+    fun depthOutOfRangeIsAnError() {
+        fun err(depth: String) = assertIs<LayoutResult.Error>(LayoutParser.parse(valid.replaceFirst("\"tree\"", "\"depth\": $depth, \"tree\""))).message
+        assertTrue("alpha" in err("""{ "shadow": { "on": true, "alpha": 1.5 } }"""))
+        assertTrue("width" in err("""{ "pop": { "width": 9999 } }"""))
+    }
 }
 
 class SampleLayoutTest {

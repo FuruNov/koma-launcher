@@ -75,7 +75,10 @@ import dev.furunov.komalauncher.model.geometry.Point
 import dev.furunov.komalauncher.model.layout.Border
 import dev.furunov.komalauncher.model.layout.BorderStyle
 import dev.furunov.komalauncher.model.layout.CutEnd
+import dev.furunov.komalauncher.model.layout.DepthSpec
 import dev.furunov.komalauncher.model.layout.LabelMode
+import dev.furunov.komalauncher.model.layout.LayerKind
+import dev.furunov.komalauncher.model.layout.LayerOrder
 import dev.furunov.komalauncher.model.layout.LayoutEdits
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.Panel
@@ -84,15 +87,24 @@ import dev.furunov.komalauncher.model.layout.PanelId
 import dev.furunov.komalauncher.model.layout.ResolvedLayout
 import dev.furunov.komalauncher.model.layout.ResolvedPanel
 import dev.furunov.komalauncher.model.layout.SplitDirection
+import dev.furunov.komalauncher.model.layout.Tilt
 import dev.furunov.komalauncher.model.layout.Tone
 import dev.furunov.komalauncher.ui.apps.AppPicker
+import dev.furunov.komalauncher.ui.art.DepthStyle
 import dev.furunov.komalauncher.ui.art.PanelFace
 import dev.furunov.komalauncher.ui.art.PanelStyle
 import dev.furunov.komalauncher.ui.art.PanelTextSpec
 import dev.furunov.komalauncher.ui.art.buildPanelTexts
+import dev.furunov.komalauncher.ui.art.depthRequests
+import dev.furunov.komalauncher.ui.art.drawHaze
 import dev.furunov.komalauncher.ui.art.drawPanelTexts
+import dev.furunov.komalauncher.ui.art.drawPersonFront
+import dev.furunov.komalauncher.ui.art.drawPersonPop
 import dev.furunov.komalauncher.ui.art.localPlacement
+import dev.furunov.komalauncher.ui.art.only
 import dev.furunov.komalauncher.ui.art.rememberArts
+import dev.furunov.komalauncher.ui.art.rememberBlurredArts
+import dev.furunov.komalauncher.ui.art.rememberDepthMaps
 import dev.furunov.komalauncher.ui.art.rememberMasks
 import dev.furunov.komalauncher.ui.icons.rememberIconBitmaps
 import java.time.LocalDateTime
@@ -224,6 +236,12 @@ private fun PanelControls(
         Chip("画像を削除", enabled = panel.art != null, onClick = vm::removeImage)
     }
     panel.art?.let { art ->
+        // 人物の切り抜きがある絵だけ、枠の外へはみ出させられる（はみ出す量は「全体」の「立体感」で決める）
+        if (art.image in state.masks) {
+            ChipRow("はみ出し") {
+                Chip("枠の外へはみ出す", selected = panel.pop) { vm.setPop(!panel.pop) }
+            }
+        }
         Hint("ドラッグで移動、ピンチで拡大・縮小")
         // 透過させたウィジェットや名前を、明るい絵の上でも読めるようにする
         SliderRow("暗さ", art.dim * 100f, 0f..100f, step = 5f) { v -> vm.setDim(v / 100f) }
@@ -336,6 +354,46 @@ private fun WholeControls(
     }
     SliderRow("内側の影", look.inner * 100f, 0f..100f, step = 5f) { v -> vm.setLook(record = false) { it.copy(inner = v / 100f) } }
     SliderRow("光沢", look.sheen * 100f, 0f..100f, step = 5f) { v -> vm.setLook(record = false) { it.copy(sheen = v / 100f) } }
+    DepthControls(vm, tree.depth)
+}
+
+/**
+ * 前景の人物の立体感。人物の切り抜きがある絵にだけ掛かる。効果ごとに入れ外しと値を変える。
+ * 長さは基準の幅（1220 など）のときの画素。
+ */
+@Composable
+private fun DepthControls(
+    vm: EditorViewModel,
+    d: DepthSpec,
+) {
+    fun set(
+        record: Boolean = true,
+        transform: (DepthSpec) -> DepthSpec,
+    ) = vm.setTree(record) { it.copy(depth = transform(it.depth)) }
+    Hint("立体感: 人物の切り抜きがある絵にだけ掛かります")
+    ChipRow("人物の影") { Chip("オン", selected = d.shadow.enabled) { set { it.copy(shadow = it.shadow.copy(enabled = !it.shadow.enabled)) } } }
+    if (d.shadow.enabled) {
+        SliderRow("濃さ", d.shadow.alpha * 100f, 0f..100f, step = 5f, mark = 55f) { v -> set(false) { it.copy(shadow = it.shadow.copy(alpha = v / 100f)) } }
+        SliderRow("ずらし", d.shadow.distance, 0f..60f, step = 1f, mark = 22f) { v -> set(false) { it.copy(shadow = it.shadow.copy(distance = v)) } }
+        SliderRow("ぼかし", d.shadow.blur, 2f..30f, step = 1f, tick = 4f, mark = 10f) { v -> set(false) { it.copy(shadow = it.shadow.copy(blur = v)) } }
+    }
+    ChipRow("輪郭の光") { Chip("オン", selected = d.rim.enabled) { set { it.copy(rim = it.rim.copy(enabled = !it.rim.enabled)) } } }
+    if (d.rim.enabled) {
+        SliderRow("強さ", d.rim.alpha * 100f, 0f..100f, step = 5f, mark = 70f) { v -> set(false) { it.copy(rim = it.rim.copy(alpha = v / 100f)) } }
+        SliderRow("幅", d.rim.width, 1f..14f, step = 0.5f, tick = 1f, mark = 4f) { v -> set(false) { it.copy(rim = it.rim.copy(width = v)) } }
+    }
+    ChipRow("背景のぼかし") { Chip("オン", selected = d.blur.enabled) { set { it.copy(blur = it.blur.copy(enabled = !it.blur.enabled)) } } }
+    if (d.blur.enabled) {
+        SliderRow("ぼかし", d.blur.amount * 100f, 0f..100f, step = 5f, mark = 60f) { v -> set(false) { it.copy(blur = it.blur.copy(amount = v / 100f)) } }
+        SliderRow("かすみ", d.blur.haze * 100f, 0f..40f, step = 2f, tick = 4f, mark = 12f) { v -> set(false) { it.copy(blur = it.blur.copy(haze = v / 100f)) } }
+    }
+    ChipRow("縁取り") { Chip("オン", selected = d.outline.enabled) { set { it.copy(outline = it.outline.copy(enabled = !it.outline.enabled)) } } }
+    if (d.outline.enabled) {
+        SliderRow("太さ", d.outline.width, 1f..12f, step = 0.5f, tick = 1f, mark = 4f) { v -> set(false) { it.copy(outline = it.outline.copy(width = v)) } }
+        SliderRow("不透明度", d.outline.alpha * 100f, 0f..100f, step = 5f, mark = 90f) { v -> set(false) { it.copy(outline = it.outline.copy(alpha = v / 100f)) } }
+    }
+    SliderRow("はみ出し量", d.pop.width, 0f..80f, step = 2f, mark = 40f) { v -> set(false) { it.copy(pop = it.pop.copy(width = v)) } }
+    Hint("はみ出させるコマは、「選択中のコマ」で選びます")
 }
 
 private const val BLACK = 0xFF111111
@@ -382,6 +440,13 @@ private fun Preview(
         }
     val measurer = rememberTextMeasurer(cacheSize = 16)
     val masks by rememberMasks(state.masks, state.imagesRevision)
+    // 前景の人物の立体感（ホームと同じ描き方。傾きは 0 として描く）
+    val depth = remember(state.layout, screenWidth) { DepthStyle.of(state.layout, screenWidth) }
+    val depthRequests = remember(depth, resolved, masks) { depthRequests(depth, resolved.panels.mapNotNull { p -> p.panel.art?.image?.let { id -> p.art?.let { id to it.width } } }, masks) }
+    val depthMaps by rememberDepthMaps(masks, depthRequests)
+    val blurIds = remember(depth, resolved, masks) { if (depth.spec.blur.enabled) resolved.panels.mapNotNull { it.panel.art?.image }.filter { it in masks }.toSet() else emptySet() }
+    val blurred by rememberBlurredArts(state.images, blurIds, state.imagesRevision)
+    val light = DepthStyle.lightDirection(Tilt.ZERO)
     val texts =
         remember(resolved, state.layout, masks, names, iconApps) { buildPanelTexts(state.layout, resolved.panels, screenWidth, names, masks, iconApps.mapValues { it.value.size }) }
     // アイコンの画像。全部のコマの分を 1 つの並びで読み込み、描くときにコマごとに切り分ける
@@ -485,11 +550,30 @@ private fun Preview(
                     iconIndex += iconCount
                     translate(b.left, b.top) {
                         clipPath(face.path) {
-                            with(face) { drawArt(p.panel.art?.image?.let(arts::get)) }
-                            texts[p.panel.id]?.let { spec ->
-                                val (mo, ms) = p.art?.let { localPlacement(b, it) } ?: (null to null)
-                                drawPanelTexts(spec, Size(b.width, b.height), measurer, now, p.panel.art?.image?.let(masks::get)?.bitmap, mo, ms, icons = panelIcons, iconFilter = face.toneFilter)
+                            val image = p.panel.art?.image
+                            val art = image?.let(arts::get)
+                            val person = image?.let(masks::get)
+                            val withDepth = art != null && person != null && depth.spec.any
+                            with(face) { drawArt(art, blurred = image?.let(blurred::get), blurAlpha = if (withDepth && depth.spec.blur.enabled) depth.spec.blur.amount else 0f) }
+                            if (withDepth) drawHaze(face, depth)
+                            // コマの重ね順どおりに描く。人物より後ろのものは人物の形で抜き、前のものはそのまま重ねる（ホームと同じ）
+                            val order = LayerOrder.of(p.panel.order)
+                            val personAt = order.indexOf(LayerKind.PERSON)
+                            val spec = texts[p.panel.id]
+                            val (mo, ms) = p.art?.let { localPlacement(b, it) } ?: (null to null)
+                            fun parts(
+                                kinds: List<LayerKind>,
+                                behind: Boolean,
+                            ) {
+                                spec ?: return
+                                kinds.forEach { k ->
+                                    val icons = if (k == LayerKind.ICONS) panelIcons else emptyList()
+                                    drawPanelTexts(spec.only(k), Size(b.width, b.height), measurer, now, if (behind) person?.bitmap else null, mo, ms, icons = icons, iconFilter = face.toneFilter)
+                                }
                             }
+                            parts(order.take(personAt), behind = true)
+                            if (withDepth) drawPersonFront(face, art!!, person!!, depthMaps[image], depth, Offset.Zero, light)
+                            parts(order.drop(personAt + 1), behind = false)
                             with(face) { drawOverlay() }
                         }
                     }
@@ -508,6 +592,14 @@ private fun Preview(
                         )
                     val c = b.center
                     drawText(layout, topLeft = Offset(c.x - layout.size.width / 2f, c.y - layout.size.height / 2f))
+                }
+                // 枠の外へはみ出す人物は、どのコマよりも上に描く（ホームの PopLayer と同じ）
+                for ((p, face) in resolved.panels.zip(faces)) {
+                    if (!p.panel.pop) continue
+                    val image = p.panel.art?.image ?: continue
+                    val art = arts[image] ?: continue
+                    val person = masks[image] ?: continue
+                    translate(face.bounds.left, face.bounds.top) { drawPersonPop(face, p.polygon, art, person, depthMaps[image], depth, Offset.Zero, light) }
                 }
                 val sel = resolved.panels.firstOrNull { it.panel.id == state.selected }
                 if (sel != null) {

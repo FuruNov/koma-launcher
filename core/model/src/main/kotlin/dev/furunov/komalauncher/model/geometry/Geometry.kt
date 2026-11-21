@@ -152,6 +152,50 @@ class Polygon(
         return best
     }
 
+    /**
+     * 各辺を外へ [d] だけ平行に動かした多角形（負なら内へ）。隣どうしの辺の交点を新しい頂点にする。
+     * 凸多角形を前提にする（コマは直線で割ってできるので凸）。人物を枠の外へはみ出させる範囲に使う。
+     */
+    fun offset(d: Float): Polygon {
+        val n = points.size
+        var area = 0f
+        for (i in 0 until n) {
+            val p = points[i]
+            val q = points[(i + 1) % n]
+            area += p.x * q.y - q.x * p.y
+        }
+        // 頂点の向きで、辺の外側が法線のどちら向きかが変わる
+        val s = if (area > 0f) 1f else -1f
+        val starts = ArrayList<Point>(n)
+        val dirs = ArrayList<Point>(n)
+        for (i in 0 until n) {
+            val p = points[i]
+            val q = points[(i + 1) % n]
+            val dx = q.x - p.x
+            val dy = q.y - p.y
+            val len = kotlin.math.hypot(dx, dy).takeIf { it > 0f } ?: 1f
+            starts.add(Point(p.x + s * dy / len * d, p.y - s * dx / len * d))
+            dirs.add(Point(dx, dy))
+        }
+        return Polygon(
+            List(n) { i ->
+                val j = (i + n - 1) % n
+                val pp = starts[j]
+                val pd = dirs[j]
+                val lp = starts[i]
+                val ld = dirs[i]
+                val den = pd.x * ld.y - pd.y * ld.x
+                // 平行な隣どうし（頂点が辺の途中にある）は、動かした辺の始点をそのまま使う
+                if (abs(den) < 1e-6f) {
+                    lp
+                } else {
+                    val t = ((lp.x - pp.x) * ld.y - (lp.y - pp.y) * ld.x) / den
+                    Point(pp.x + pd.x * t, pp.y + pd.y * t)
+                }
+            },
+        )
+    }
+
     override fun toString(): String = "Polygon($points)"
 
     private companion object {

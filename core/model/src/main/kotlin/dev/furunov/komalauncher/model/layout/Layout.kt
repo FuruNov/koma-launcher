@@ -56,7 +56,86 @@ data class Panel(
     val labelScale: Float = 1f,
     /** アイコンの大きさの倍率（自動で決めた大きさに掛ける）。編集画面でピンチして決める。 */
     val iconScale: Float = 1f,
+    /** true なら、人物を枠の外へはみ出させて描く（[DepthSpec.pop]）。タップの判定はコマの形のまま変えない。 */
+    val pop: Boolean = false,
+    /** コマの中の重ね順（先頭が背景の絵のすぐ上）。null なら [LayerOrder.DEFAULT]。ホームの「配置を調整」で変える。 */
+    val order: List<LayerKind>? = null,
 )
+
+/** コマの中で重ねるもの。背景の絵は常にいちばん下で、ここには含めない（どれも背景より後ろには置けない）。 */
+enum class LayerKind {
+    ICONS,
+    LABEL,
+    MASTHEAD,
+    CLOCK,
+
+    /** 人物。これより後ろのものは人物の形で抜き、人物の後ろに見せる。 */
+    PERSON,
+}
+
+/** 重ね順の計算。 */
+object LayerOrder {
+    /** 今までの見た目と同じ順（文字とアイコンはすべて人物の後ろ）。 */
+    val DEFAULT = listOf(LayerKind.ICONS, LayerKind.LABEL, LayerKind.MASTHEAD, LayerKind.CLOCK, LayerKind.PERSON)
+
+    enum class Move {
+        /** 1 つ前へ。 */
+        FORWARD,
+
+        /** いちばん前へ。 */
+        FRONT,
+
+        /** 1 つ後ろへ。 */
+        BACKWARD,
+
+        /** いちばん後ろ（背景の絵のすぐ上）へ。 */
+        BACK,
+    }
+
+    /** 重複を除き、足りないものを既定の順で後ろに付けて、5 つがそろった並びにする。 */
+    fun of(order: List<LayerKind>?): List<LayerKind> {
+        val given = order.orEmpty().distinct()
+        return given + DEFAULT.filter { it !in given }
+    }
+
+    /**
+     * [layer] を [move] の向きへ動かした並び。1 つ前・後ろへ動かすときは、そのコマに無いもの（[present] に無いもの）を飛ばす。
+     * 飛ばさないと、見えないものと入れ替わるだけで、見た目が変わらない操作になるため。
+     */
+    fun move(
+        order: List<LayerKind>?,
+        layer: LayerKind,
+        move: Move,
+        present: Set<LayerKind>,
+    ): List<LayerKind> {
+        val list = of(order).toMutableList()
+        val i = list.indexOf(layer)
+        when (move) {
+            Move.FRONT -> {
+                list.removeAt(i)
+                list.add(layer)
+            }
+
+            Move.BACK -> {
+                list.removeAt(i)
+                list.add(0, layer)
+            }
+
+            Move.FORWARD -> {
+                val j = (i + 1 until list.size).firstOrNull { list[it] in present } ?: return list
+                list.removeAt(i)
+                list.add(j, layer)
+            }
+
+            Move.BACKWARD -> {
+                val j = (i - 1 downTo 0).firstOrNull { list[it] in present } ?: return list
+                list.removeAt(i)
+                list.add(j, layer)
+            }
+        }
+        return list
+    }
+}
 
 /**
  * コマ割りの木。モックアップと同じく、コマを線で 2 つに割ることを繰り返して作る。
@@ -197,6 +276,58 @@ data class FxSpec(
     fun iconShift(): Float = if (parallax) 16f * strength else 0f
 }
 
+/**
+ * 前景の人物の立体感。人物の切り抜きがある絵にだけ掛ける。どれも既定は切ってある。
+ * 長さは基準の幅（refWidth）のときの画素で持ち、描くときに画面の幅に合わせる。
+ * 値の既定は、モックアップ（2026-11-21、実機の絵で比べたもの）の初めの値。
+ */
+data class DepthSpec(
+    val shadow: ShadowFx = ShadowFx(),
+    val rim: RimFx = RimFx(),
+    val blur: BackBlurFx = BackBlurFx(),
+    val outline: OutlineFx = OutlineFx(),
+    val pop: PopFx = PopFx(),
+) {
+    /** 人物を背景と分けて描き直す必要があるか（影・背景のぼかし・縁取りは、人物の後ろに描いてから人物を重ねる）。 */
+    val redrawsPerson: Boolean get() = shadow.enabled || blur.enabled || outline.enabled
+
+    val any: Boolean get() = redrawsPerson || rim.enabled
+}
+
+/** A. 人物の影。人物の形をぼかし、光と反対へずらして、背景と文字の上に落とす。 */
+data class ShadowFx(
+    val enabled: Boolean = false,
+    val alpha: Float = 0.55f,
+    val distance: Float = 22f,
+    val blur: Float = 10f,
+)
+
+/** B. 輪郭の光。光の側の輪郭を細く明るく描く。光の向きは傾きで回る。 */
+data class RimFx(
+    val enabled: Boolean = false,
+    val alpha: Float = 0.7f,
+    val width: Float = 4f,
+)
+
+/** C. 背景のぼかしとかすみ。人物以外をぼかし（[amount] はぼかした絵を重ねる割合）、紙の色を [haze] だけ重ねる。 */
+data class BackBlurFx(
+    val enabled: Boolean = false,
+    val amount: Float = 0.6f,
+    val haze: Float = 0.12f,
+)
+
+/** D. 人物の縁取り。人物の外側に白い縁を付ける。 */
+data class OutlineFx(
+    val enabled: Boolean = false,
+    val width: Float = 4f,
+    val alpha: Float = 0.9f,
+)
+
+/** E. 枠の外へはみ出させる量。はみ出させるかはコマごとに決める（[Panel.pop]）。 */
+data class PopFx(
+    val width: Float = 40f,
+)
+
 /** コマの形の決め方。version 1 と 2 の違いはここに閉じ込め、描画は [LayoutResolver] の結果だけを見る。 */
 sealed interface LayoutShape {
     /** version 2。線の木とコマごとの画像。 */
@@ -207,6 +338,7 @@ sealed interface LayoutShape {
         val text: TextSpec = TextSpec(),
         val clock: ClockSpec = ClockSpec(),
         val fx: FxSpec = FxSpec(),
+        val depth: DepthSpec = DepthSpec(),
     ) : LayoutShape
 
     /** version 1。1 枚の絵と、絵に対する 0〜1 の相対座標の多角形。 */

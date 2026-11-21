@@ -49,3 +49,28 @@ class PartEditsTest {
         assertEquals(1.6f, PartEdits.scaleOf(PartEdits.setScale(layout, clock, 3f), clock))
     }
 }
+
+class LayerOrderTest {
+    private val all = LayerKind.entries.toSet()
+
+    @Test
+    fun movesSkippingWhatThePanelDoesNotHave() {
+        val d = LayerOrder.DEFAULT
+        // 時計と大見出しの無いコマで、アイコンを 1 つ前へ: 名前の前、人物の後ろ
+        val present = setOf(LayerKind.ICONS, LayerKind.LABEL, LayerKind.PERSON)
+        assertEquals(listOf(LayerKind.LABEL, LayerKind.ICONS, LayerKind.MASTHEAD, LayerKind.CLOCK, LayerKind.PERSON), LayerOrder.move(d, LayerKind.ICONS, LayerOrder.Move.FORWARD, present))
+        // もう 1 つ前へ: 無い大見出しと時計を飛ばして、人物の前
+        val twice = LayerOrder.move(LayerOrder.move(d, LayerKind.ICONS, LayerOrder.Move.FORWARD, present), LayerKind.ICONS, LayerOrder.Move.FORWARD, present)
+        assertEquals(listOf(LayerKind.LABEL, LayerKind.MASTHEAD, LayerKind.CLOCK, LayerKind.PERSON, LayerKind.ICONS), twice)
+        assertEquals(LayerKind.CLOCK, LayerOrder.move(d, LayerKind.CLOCK, LayerOrder.Move.FRONT, all).last())
+        assertEquals(listOf(LayerKind.CLOCK, LayerKind.ICONS, LayerKind.LABEL, LayerKind.MASTHEAD, LayerKind.PERSON), LayerOrder.move(d, LayerKind.CLOCK, LayerOrder.Move.BACK, all))
+        // いちばん後ろより後ろへは行かない（背景の絵より後ろには置けない）
+        assertEquals(d, LayerOrder.move(d, LayerKind.ICONS, LayerOrder.Move.BACKWARD, all))
+        assertEquals(d, LayerOrder.move(d, LayerKind.ICONS, LayerOrder.Move.BACK, all))
+    }
+
+    @Test
+    fun fillsMissingAndDropsDuplicates() {
+        assertEquals(listOf(LayerKind.PERSON, LayerKind.ICONS, LayerKind.LABEL, LayerKind.MASTHEAD, LayerKind.CLOCK), LayerOrder.of(listOf(LayerKind.PERSON, LayerKind.PERSON)))
+    }
+}

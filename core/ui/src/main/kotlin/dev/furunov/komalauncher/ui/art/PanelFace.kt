@@ -74,7 +74,7 @@ class PanelFace(
     val placeholder: Color,
     style: PanelStyle = PanelStyle.NONE,
     /** 絵の上に重ねる黒の不透明度（PanelArt.dim）。文字より前に塗るので、名前・時計は暗くならない。 */
-    private val dim: Float = 0f,
+    val dim: Float = 0f,
 ) {
     val bounds: Rect = polygon.bounds
 
@@ -85,8 +85,9 @@ class PanelFace(
             close()
         }
 
-    private val artOffset = art?.let { IntOffset((it.left - bounds.left).roundToInt(), (it.top - bounds.top).roundToInt()) }
-    private val artSize = art?.let { IntSize(it.width.roundToInt().coerceAtLeast(1), it.height.roundToInt().coerceAtLeast(1)) }
+    /** 絵を描く長方形（[bounds] の左上が原点）。null なら絵を描かない。 */
+    val artOffset = art?.let { IntOffset((it.left - bounds.left).roundToInt(), (it.top - bounds.top).roundToInt()) }
+    val artSize = art?.let { IntSize(it.width.roundToInt().coerceAtLeast(1), it.height.roundToInt().coerceAtLeast(1)) }
 
     /** 淡い色合い。GPU が画素ごとに掛けるので、画像を作り直さない。コマに置くアプリのアイコンにも同じものを掛け、絵の中で浮かないようにする。色調が無ければ null。 */
     val toneFilter: ColorFilter? = ToneMatrix.of(style.look)?.let { ColorFilter.colorMatrix(ColorMatrix(it)) }
@@ -140,11 +141,19 @@ class PanelFace(
     fun DrawScope.drawArt(
         bitmap: ImageBitmap?,
         shift: Offset = Offset.Zero,
+        /** ぼかした絵（立体感の C）。[blurAlpha] の割合で重ねる。暗さより前に描き、ぼかしても暗さが変わらないようにする。 */
+        blurred: ImageBitmap? = null,
+        blurAlpha: Float = 0f,
+        /** false なら暗さを塗らない（ホームでは絵だけを動く層に描き、暗さは動かない層に塗る）。 */
+        withDim: Boolean = true,
     ) {
         if (bitmap != null && artOffset != null && artSize != null) {
-            translate(shift.x, shift.y) { drawImage(bitmap, dstOffset = artOffset, dstSize = artSize, colorFilter = toneFilter) }
+            translate(shift.x, shift.y) {
+                drawImage(bitmap, dstOffset = artOffset, dstSize = artSize, colorFilter = toneFilter)
+                if (blurred != null && blurAlpha > 0f) drawImage(blurred, dstOffset = artOffset, dstSize = artSize, alpha = blurAlpha, colorFilter = toneFilter)
+            }
             // 絵の移動（視差）の外で塗る。動かしても暗い部分がずれないように
-            if (dim > 0f) drawRect(Color.Black.copy(alpha = dim), size = Size(bounds.width, bounds.height))
+            if (withDim && dim > 0f) drawRect(Color.Black.copy(alpha = dim), size = Size(bounds.width, bounds.height))
         } else {
             drawRect(placeholder)
         }
@@ -152,14 +161,26 @@ class PanelFace(
 
     /** 絵の上に重ねるもの（内側の影・光の反射・枠線）。[sheenShift] は光の反射をずらす量（段階 5 の視差）。 */
     fun DrawScope.drawOverlay(sheenShift: Offset = Offset.Zero) {
+        drawInnerShadow()
+        translate(sheenShift.x, sheenShift.y) { drawSheen() }
+        drawBorder()
+    }
+
+    /** 暗さ（PanelArt.dim）だけを塗る。 */
+    fun DrawScope.drawDim() {
+        if (dim > 0f) drawRect(Color.Black.copy(alpha = dim), size = Size(bounds.width, bounds.height))
+    }
+
+    fun DrawScope.drawInnerShadow() {
         shadowPaint?.let { p -> drawIntoCanvas { it.nativeCanvas.drawPath(androidPath, p) } }
+    }
+
+    /** 光の反射。ずらすときは呼び出し側で座標ごと動かす。 */
+    fun DrawScope.drawSheen() {
         sheenBrush?.let { brush ->
             // グラデーションは座標に固定されるので、座標ごとずらして流す。途切れないよう、コマより大きい長方形に塗る
-            translate(sheenShift.x, sheenShift.y) {
-                drawRect(brush, topLeft = Offset(-bounds.width, -bounds.height), size = Size(bounds.width * 3f, bounds.height * 3f), blendMode = BlendMode.Screen)
-            }
+            drawRect(brush, topLeft = Offset(-bounds.width, -bounds.height), size = Size(bounds.width * 3f, bounds.height * 3f), blendMode = BlendMode.Screen)
         }
-        drawBorder()
     }
 
     /** 枠の線だけを描く。コマの上に重ねる層（音楽プレイヤーの棒など）を、枠の後ろに見せたいときに、その層の上から描き直す。 */

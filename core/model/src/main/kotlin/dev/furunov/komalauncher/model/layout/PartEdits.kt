@@ -164,4 +164,37 @@ object PartEdits {
         is Part.Clock -> LayoutEdits.setTree(layout) { it.copy(clock = it.clock.copy(size = ClockSpec().size)) }
         is Part.Masthead -> LayoutEdits.setTree(layout) { it.copy(text = it.text.copy(mastheadScale = 1f)) }
     }
+
+    /** [part] が属するコマと、重ね順の上での種類。時計と大見出しは、置いてあるコマのもの。 */
+    fun layerOf(
+        layout: Layout,
+        panels: List<ResolvedPanel>,
+        part: Part,
+    ): Pair<PanelId, LayerKind>? {
+        val tree = layout.shape as? LayoutShape.Tree ?: return null
+        return when (part) {
+            is Part.Icons -> part.panel to LayerKind.ICONS
+            is Part.Label -> part.panel to LayerKind.LABEL
+            is Part.Clock -> PanelText.clockPanel(panels, tree.clock)?.let { it to LayerKind.CLOCK }
+            is Part.Masthead -> PanelText.mastheadPanel(panels, tree.text, tree.clock)?.let { it to LayerKind.MASTHEAD }
+        }
+    }
+
+    /**
+     * [part] の重ね順を [move] の向きへ変える。[present] はコマごとの、そこにあるものの集まり（無いものは飛ばす）。
+     * 既定の順と同じになったら null に戻し、layout.json に書かないようにする。
+     */
+    fun reorder(
+        layout: Layout,
+        panels: List<ResolvedPanel>,
+        part: Part,
+        move: LayerOrder.Move,
+        present: (PanelId) -> Set<LayerKind>,
+    ): Layout {
+        val (id, layer) = layerOf(layout, panels, part) ?: return layout
+        return LayoutEdits.updatePanel(layout, id) { p ->
+            val next = LayerOrder.move(p.order, layer, move, present(id))
+            p.copy(order = next.takeIf { it != LayerOrder.DEFAULT })
+        }
+    }
 }

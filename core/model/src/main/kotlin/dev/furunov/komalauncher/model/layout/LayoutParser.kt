@@ -148,6 +148,14 @@ object LayoutParser {
             if (t.masthead.length > 40) return "text.masthead は 40 文字までにしてください"
         }
         dto.fx?.let { if (!it.strength.isFinite() || it.strength !in 0f..3f) return "fx.strength は 0〜3 にしてください" }
+        dto.depth?.let { d ->
+            if (listOf(d.shadow.alpha, d.rim.alpha, d.blur.amount, d.blur.haze, d.outline.alpha).any { !it.isFinite() || it !in 0f..1f }) {
+                return "depth の alpha・amount・haze は 0〜1 にしてください"
+            }
+            if (listOf(d.shadow.distance, d.shadow.blur, d.rim.width, d.outline.width, d.pop.width).any { !it.isFinite() || it < 0f || it > maxLength }) {
+                return "depth の distance・blur・width は 0〜${maxLength.toInt()} にしてください"
+            }
+        }
         dto.clock?.let { c ->
             if (listOf(c.x, c.y).any { !it.isFinite() || it !in 0f..1f }) return "clock.x・y は 0〜1 にしてください"
             if (!c.size.isFinite() || c.size !in 0.2f..3f) return "clock.size は 0.2〜3 にしてください"
@@ -189,9 +197,10 @@ object LayoutParser {
         val text: TextDto? = null,
         val clock: ClockDto? = null,
         val fx: FxDto? = null,
+        val depth: DepthDto? = null,
     ) {
         fun toModel(): Layout = if (version >= 2) {
-            Layout(LayoutShape.Tree(requireNotNull(tree).toModel(), (frame ?: FrameDto()).toModel(), (look ?: LookDto()).toModel(), (text ?: TextDto()).toModel(), (clock ?: ClockDto()).toModel(), (fx ?: FxDto()).toModel()))
+            Layout(LayoutShape.Tree(requireNotNull(tree).toModel(), (frame ?: FrameDto()).toModel(), (look ?: LookDto()).toModel(), (text ?: TextDto()).toModel(), (clock ?: ClockDto()).toModel(), (fx ?: FxDto()).toModel(), (depth ?: DepthDto()).toModel()))
         } else {
             Layout(
                 LayoutShape.Fixed(
@@ -204,7 +213,7 @@ object LayoutParser {
 
         companion object {
             fun of(layout: Layout): LayoutDto = when (val s = layout.shape) {
-                is LayoutShape.Tree -> LayoutDto(version = 2, frame = FrameDto.of(s.frame), tree = NodeDto.of(s.root), look = LookDto.of(s.look), text = TextDto.of(s.text), clock = ClockDto.of(s.clock), fx = FxDto(s.fx.parallax, s.fx.strength))
+                is LayoutShape.Tree -> LayoutDto(version = 2, frame = FrameDto.of(s.frame), tree = NodeDto.of(s.root), look = LookDto.of(s.look), text = TextDto.of(s.text), clock = ClockDto.of(s.clock), fx = FxDto(s.fx.parallax, s.fx.strength), depth = DepthDto.of(s.depth).takeIf { it != DepthDto() })
 
                 is LayoutShape.Fixed ->
                     LayoutDto(
@@ -261,6 +270,31 @@ object LayoutParser {
     }
 
     @Serializable
+    private enum class LayerDto(
+        val model: LayerKind,
+    ) {
+        @SerialName("icons")
+        ICONS(LayerKind.ICONS),
+
+        @SerialName("label")
+        LABEL(LayerKind.LABEL),
+
+        @SerialName("masthead")
+        MASTHEAD(LayerKind.MASTHEAD),
+
+        @SerialName("clock")
+        CLOCK(LayerKind.CLOCK),
+
+        @SerialName("person")
+        PERSON(LayerKind.PERSON),
+        ;
+
+        companion object {
+            fun of(l: LayerKind) = entries.first { it.model == l }
+        }
+    }
+
+    @Serializable
     private enum class LabelDto {
         @SerialName("none")
         NONE,
@@ -279,6 +313,68 @@ object LayoutParser {
     ) {
         fun toModel() = FxSpec(parallax, strength)
     }
+
+    /** 前景の人物の立体感。省いた項目は既定の値（どの効果も切ってある）。 */
+    @Serializable
+    private data class DepthDto(
+        val shadow: ShadowDto = ShadowDto(),
+        val rim: RimDto = RimDto(),
+        val blur: BlurDto = BlurDto(),
+        val outline: OutlineDto = OutlineDto(),
+        val pop: PopDto = PopDto(),
+    ) {
+        fun toModel() = DepthSpec(
+            ShadowFx(shadow.on, shadow.alpha, shadow.distance, shadow.blur),
+            RimFx(rim.on, rim.alpha, rim.width),
+            BackBlurFx(blur.on, blur.amount, blur.haze),
+            OutlineFx(outline.on, outline.width, outline.alpha),
+            PopFx(pop.width),
+        )
+
+        companion object {
+            fun of(d: DepthSpec) = DepthDto(
+                ShadowDto(d.shadow.enabled, d.shadow.alpha, d.shadow.distance, d.shadow.blur),
+                RimDto(d.rim.enabled, d.rim.alpha, d.rim.width),
+                BlurDto(d.blur.enabled, d.blur.amount, d.blur.haze),
+                OutlineDto(d.outline.enabled, d.outline.width, d.outline.alpha),
+                PopDto(d.pop.width),
+            )
+        }
+    }
+
+    @Serializable
+    private data class ShadowDto(
+        val on: Boolean = false,
+        val alpha: Float = 0.55f,
+        val distance: Float = 22f,
+        val blur: Float = 10f,
+    )
+
+    @Serializable
+    private data class RimDto(
+        val on: Boolean = false,
+        val alpha: Float = 0.7f,
+        val width: Float = 4f,
+    )
+
+    @Serializable
+    private data class BlurDto(
+        val on: Boolean = false,
+        val amount: Float = 0.6f,
+        val haze: Float = 0.12f,
+    )
+
+    @Serializable
+    private data class OutlineDto(
+        val on: Boolean = false,
+        val width: Float = 4f,
+        val alpha: Float = 0.9f,
+    )
+
+    @Serializable
+    private data class PopDto(
+        val width: Float = 40f,
+    )
 
     @Serializable
     private data class ClockDto(
@@ -426,6 +522,10 @@ object LayoutParser {
         val iconAt: List<Float>? = null,
         val labelScale: Float = 1f,
         val iconScale: Float = 1f,
+        /** true なら人物を枠の外へはみ出させる（depth.pop）。 */
+        val pop: Boolean = false,
+        /** 重ね順（先頭が背景の絵のすぐ上）。"icons"・"label"・"masthead"・"clock"・"person"。省くと既定の順。 */
+        val order: List<LayerDto>? = null,
         val apps: List<String>? = null,
         val art: ArtDto? = null,
         // version 1 だけ
@@ -444,6 +544,8 @@ object LayoutParser {
             iconAt = iconAt?.takeIf { it.size == 2 }?.let { Point(it[0].coerceIn(0f, 1f), it[1].coerceIn(0f, 1f)) },
             labelScale = labelScale.coerceIn(0.5f, 2f),
             iconScale = iconScale.coerceIn(0.5f, 2f),
+            pop = pop,
+            order = order?.map { it.model },
             art = art?.let { PanelArt(it.image, it.aspect, it.zoom, it.dx, it.dy, it.dim.coerceIn(0f, 1f)) },
         )
 
@@ -461,6 +563,8 @@ object LayoutParser {
                 iconAt = p.iconAt?.let { listOf(it.x, it.y) },
                 labelScale = p.labelScale,
                 iconScale = p.iconScale,
+                pop = p.pop,
+                order = p.order?.map { LayerDto.of(it) },
                 apps = (p.content as? PanelContent.Folder)?.initialApps?.takeIf { it.isNotEmpty() },
                 art = p.art?.let { ArtDto(it.image, it.aspect, it.zoom, it.dx, it.dy, it.dim) },
             )

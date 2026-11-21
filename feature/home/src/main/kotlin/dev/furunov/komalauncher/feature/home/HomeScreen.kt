@@ -28,11 +28,16 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextMeasurer
@@ -51,19 +56,30 @@ import dev.furunov.komalauncher.feature.home.anim.PanelMotion
 import dev.furunov.komalauncher.model.apps.AppKey
 import dev.furunov.komalauncher.model.geometry.Rect
 import dev.furunov.komalauncher.model.layout.EditHistory
+import dev.furunov.komalauncher.model.layout.LayerKind
+import dev.furunov.komalauncher.model.layout.LayerOrder
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.layout.PanelId
+import dev.furunov.komalauncher.model.layout.Part
+import dev.furunov.komalauncher.model.layout.PartEdits
 import dev.furunov.komalauncher.model.layout.ResolvedPanel
 import dev.furunov.komalauncher.model.layout.Tilt
 import dev.furunov.komalauncher.model.ports.TiltSource
 import dev.furunov.komalauncher.model.settings.GestureKind
+import dev.furunov.komalauncher.ui.art.DepthMaps
+import dev.furunov.komalauncher.ui.art.DepthStyle
 import dev.furunov.komalauncher.ui.art.PanelTextSpec
+import dev.furunov.komalauncher.ui.art.PersonMask
 import dev.furunov.komalauncher.ui.art.buildPanelTexts
+import dev.furunov.komalauncher.ui.art.depthRequests
+import dev.furunov.komalauncher.ui.art.drawHaze
 import dev.furunov.komalauncher.ui.art.drawPanelTexts
 import dev.furunov.komalauncher.ui.art.localPlacement
 import dev.furunov.komalauncher.ui.art.rememberArts
+import dev.furunov.komalauncher.ui.art.rememberBlurredArts
+import dev.furunov.komalauncher.ui.art.rememberDepthMaps
 import dev.furunov.komalauncher.ui.art.rememberMasks
 import dev.furunov.komalauncher.ui.dnd.DragDropState
 import dev.furunov.komalauncher.ui.dnd.DragItem
@@ -124,6 +140,12 @@ fun HomeScreen(
         val scope = rememberCoroutineScope()
         val arts by rememberArts(state.images, geometry.artSizes, state.imagesRevision)
         val masks by rememberMasks(state.masks, state.imagesRevision)
+        // 前景の人物の立体感。影と縁取りの形、ぼかした絵は、その効果を入れているときだけ作る
+        val depth = remember(state.layout, wPx) { DepthStyle.of(state.layout, wPx) }
+        val depthRequests = remember(depth, geometry, masks) { depthRequests(depth, geometry.panels.mapNotNull { g -> g.image?.let { id -> g.art?.let { id to it.width } } }, masks) }
+        val depthMaps by rememberDepthMaps(masks, depthRequests)
+        val blurIds = remember(depth, geometry, masks) { if (depth.spec.blur.enabled) geometry.panels.mapNotNull { it.image }.filter { it in masks }.toSet() else emptySet() }
+        val blurred by rememberBlurredArts(state.images, blurIds, state.imagesRevision)
         val folderNames = remember(state.folders) { state.folders.byPanel.mapNotNull { (id, f) -> f.name?.let { id to it } }.toMap() }
         // アイコンを置くコマと、置けるアイコンの数（フォルダはアプリの数、全アプリ一覧は記号 1 つ）
         val iconPanels =
@@ -157,6 +179,8 @@ fun HomeScreen(
         // 「配置を調整」の間の元に戻す履歴。調整を始めるたびに空にする
         val adjustHistory = remember(state.adjusting) { EditHistory<Layout>() }
         var adjustCanUndo by remember(state.adjusting) { mutableStateOf(false) }
+        // 「配置を調整」で最後に触ったコンポーネント。重ね順のボタンはこれに掛ける
+        var adjustSelected by remember(state.adjusting) { mutableStateOf<Part?>(null) }
         val dropInfo = remember { FolderDropInfo() }
         val removeZoneBottom = with(density) { REMOVE_ZONE_HEIGHT.toPx() } + WindowInsets.statusBars.getTop(density)
 
@@ -272,7 +296,7 @@ fun HomeScreen(
             }
             val gestures =
                 if (state.adjusting) {
-                    Modifier.adjustGestures(currentAdjust, adjustRecord, editLayout)
+                    Modifier.adjustGestures(currentAdjust, adjustRecord, editLayout, onSelect = { adjustSelected = it })
                 } else {
                     Modifier.homeGestures(geometryState, gesturesEnabled, handler)
                 }
@@ -282,7 +306,10 @@ fun HomeScreen(
                         g = g,
                         motion = motions.getValue(g.panel.id),
                         art = g.image?.let(arts::get),
-                        mask = g.image?.let(masks::get)?.bitmap,
+                        person = g.image?.let(masks::get),
+                        depth = depth,
+                        depthMaps = g.image?.let(depthMaps::get),
+                        blurred = g.image?.let(blurred::get),
                         texts = texts[g.panel.id],
                         icons = panelIcons(g, texts[g.panel.id], state),
                         measurer = measurer,
@@ -308,6 +335,13 @@ fun HomeScreen(
                             slots.widget(g)
                         }
                     }
+                }
+                // 枠の外へはみ出す人物は、どのコマよりも上に描く（隣のコマにかかる分も見せる）。タップの判定はコマの形のまま
+                for (g in geometry.panels) {
+                    if (!g.panel.pop || state.player?.panelId == g.panel.id) continue
+                    val art = g.image?.let(arts::get) ?: continue
+                    val person = g.image.let(masks::get) ?: continue
+                    PopLayer(g, motions.getValue(g.panel.id), art, person, depthMaps[g.image], depth, { shownTilt.value }, parallax)
                 }
             }
 
@@ -370,6 +404,26 @@ fun HomeScreen(
                         adjustCanUndo = adjustHistory.canUndo
                     },
                     onDone = { onEvent(HomeEvent.Adjust(false)) },
+                    selected = adjustSelected,
+                    onReorder = { move ->
+                        adjustSelected?.let { part ->
+                            adjustRecord()
+                            val t = adjustTarget
+                            // そのコマにあるもの。無いものは 1 つ前・後ろへ動かすときに飛ばす
+                            val present = { id: PanelId ->
+                                val spec = t.texts[id]
+                                val image = t.panels.firstOrNull { it.panel.id == id }?.panel?.art?.image
+                                setOfNotNull(
+                                    LayerKind.ICONS.takeIf { spec?.icons?.isNotEmpty() == true },
+                                    LayerKind.LABEL.takeIf { spec?.labels?.isNotEmpty() == true },
+                                    LayerKind.MASTHEAD.takeIf { spec?.masthead != null },
+                                    LayerKind.CLOCK.takeIf { spec?.clock != null },
+                                    LayerKind.PERSON.takeIf { image != null && image in masks },
+                                )
+                            }
+                            editLayout { PartEdits.reorder(it, t.panels, part, move, present) }
+                        }
+                    },
                 )
             }
             if (dnd.isDragging && dnd.item?.source is DragSource.Folder) {
@@ -424,7 +478,12 @@ private fun PanelLayer(
     g: PanelGeometry,
     motion: PanelMotion,
     art: ImageBitmap?,
-    mask: ImageBitmap?,
+    /** 人物の切り抜き。文字を人物の後ろに回すのと、立体感の効果に使う。 */
+    person: PersonMask?,
+    depth: DepthStyle,
+    depthMaps: DepthMaps?,
+    /** ぼかした絵（立体感の C）。 */
+    blurred: ImageBitmap?,
     texts: PanelTextSpec?,
     /** 先頭のアプリと、そのアイコンを置く場所（コマの左上が原点の画素）。 */
     icons: List<PanelIcon>,
@@ -458,42 +517,63 @@ private fun PanelLayer(
                 shadowElevation = 4.dp.toPx() + motion.press.value * 10.dp.toPx()
                 shape = g.shape
                 clip = true
-            }.drawBehind {
-                // 絵の長方形はコマの外へはみ出す。はみ出た分は graphicsLayer の shape で切り抜く
-                val t = tilt()
-                // 絵は傾けた向きへ、文字と時計は逆へ動かし、絵・文字・時計の 3 層に見せる（モックアップと同じ）
-                val artShift = Offset(t.x * parallax.art, t.y * parallax.art)
-                with(g.face) { drawArt(art, artShift) }
-                // ジャケットはコマの絵の上、文字の下に描く（時計と大見出しを残すため）
-                player?.let { (fade, playing) -> drawPlayerArt(fade, playing) }
-                if (texts != null) {
-                    val r = g.art
-                    val (mo, ms) = r?.let { localPlacement(g.bounds, it) } ?: (null to null)
-                    drawPanelTexts(
-                        texts,
-                        Size(g.bounds.width, g.bounds.height),
-                        measurer,
-                        now(),
-                        mask,
-                        mo,
-                        ms,
-                        textShift = Offset(-t.x * parallax.text, -t.y * parallax.text),
-                        clockShift = Offset(-t.x * parallax.clock, -t.y * parallax.clock),
-                        mastheadShift = Offset(-t.x * parallax.masthead, -t.y * parallax.masthead),
-                        iconShift = Offset(-t.x * parallax.icon, -t.y * parallax.icon),
-                        artShift = artShift,
-                        icons = if (player == null) iconBitmaps.value else emptyList(),
-                        iconFilter = g.face.toneFilter,
-                    )
-                }
-                // 光の反射は傾きと逆へ流す（手に持った紙に光が当たっているように見せる）
-                val sheen = if (parallax.art > 0f) Offset(-t.x * g.bounds.width * 0.35f, -t.y * g.bounds.height * 0.2f) else Offset.Zero
-                with(g.face) { drawOverlay(sheen) }
-                // 押している間は少し暗くする
-                if (motion.press.value > 0f) drawRect(Color.Black.copy(alpha = 0.18f * motion.press.value))
-                if (highlight != null) drawRect(highlight.copy(alpha = 0.35f))
             },
     ) {
+        // 傾きは層の位置（graphicsLayer）でだけ読む。中身は傾きを読まないので、傾きが変わっても描画の命令を作り直さない
+        val artShift = { tilt().let { t -> Offset(t.x * parallax.art, t.y * parallax.art) } }
+        fun shift(k: Float): () -> Offset = { tilt().let { t -> Offset(-t.x * k, -t.y * k) } }
+        val zero = { Offset.Zero }
+        val margin = parallax.art + 2f
+        // 立体感の効果は、切り抜きのある絵にだけ掛ける。再生中はジャケットで絵が隠れるので掛けない
+        val withDepth = art != null && person != null && player == null && depth.spec.any
+        val blurAlpha = if (withDepth && depth.spec.blur.enabled) depth.spec.blur.amount else 0f
+        // 1. 絵（絵の長方形はコマの外へはみ出す。はみ出た分は外側の graphicsLayer の shape で切り抜く）
+        if (art != null) {
+            TiltLayer(artShift, pad = margin, cache = true) { with(g.face) { drawArt(art, blurred = blurred, blurAlpha = blurAlpha, withDim = false) } }
+        } else {
+            TiltLayer(zero) { with(g.face) { drawArt(null) } }
+        }
+        // 2. 暗さとかすみは絵と一緒に動かさない（動かすと端に塗っていない帯が見える）
+        if (art != null && (g.face.dim > 0f || withDepth)) {
+            TiltLayer(zero) {
+                with(g.face) { drawDim() }
+                if (withDepth) drawHaze(g.face, depth)
+            }
+        }
+        // 3. ジャケットはコマの絵の上、文字の下に描く（時計と大見出しを残すため）
+        player?.let { (fade, playing) -> TiltLayer(zero) { drawPlayerArt(fade, playing) } }
+        // 4. 文字・アイコンと人物を、コマの重ね順どおりに重ねる。部分ごとに動かす量が違うので層を分ける。
+        // 人物より後ろのものはまとめて人物の形で抜き（人物の後ろに見える）、人物より前のものはそのまま上に重ねる
+        val order = LayerOrder.of(g.panel.order)
+        val personAt = order.indexOf(LayerKind.PERSON)
+        val shownIcons = if (player == null) iconBitmaps.value else emptyList()
+        val part: @Composable (LayerKind) -> Unit = { kind -> if (texts != null) TextPart(kind, texts, g, measurer, now, shownIcons, ::shift, parallax) }
+        val behind = order.take(personAt)
+        val (mo, ms) = g.art?.let { localPlacement(g.bounds, it) } ?: (null to null)
+        if (texts != null && person != null && mo != null && ms != null) {
+            LayerGroup {
+                behind.forEach { part(it) }
+                TiltLayer(artShift, pad = margin, cache = true, blendMode = BlendMode.DstIn) { drawImage(person.bitmap, dstOffset = mo, dstSize = ms) }
+            }
+        } else {
+            behind.forEach { part(it) }
+        }
+        // 5. 人物の前の効果
+        if (withDepth) PersonLayers(g.face, art!!, person!!, depthMaps, depth, artShift, { DepthStyle.lightDirection(tilt()) }, parallax.art)
+        order.drop(personAt + 1).forEach { part(it) }
+        // 6. 内側の影・光の反射・枠線。光の反射は傾きと逆へ流す（手に持った紙に光が当たっているように見せる）
+        TiltLayer(zero) { with(g.face) { drawInnerShadow() } }
+        if (parallax.art > 0f) {
+            TiltLayer({ tilt().let { t -> Offset(-t.x * g.bounds.width * 0.35f, -t.y * g.bounds.height * 0.2f) } }) { with(g.face) { drawSheen() } }
+        } else {
+            TiltLayer(zero) { with(g.face) { drawSheen() } }
+        }
+        TiltLayer(zero) {
+            with(g.face) { drawBorder() }
+            // 押している間は少し暗くする
+            if (motion.press.value > 0f) drawRect(Color.Black.copy(alpha = 0.18f * motion.press.value))
+            if (highlight != null) drawRect(highlight.copy(alpha = 0.35f))
+        }
         // 絵が無いコマ（見本や、画像をまだ置いていないコマ）だけ、仮の色の上に名前を表示する
         if (art == null && label != null && player == null) {
             BasicText(
@@ -503,6 +583,93 @@ private fun PanelLayer(
             )
         }
     }
+}
+
+/** 文字・アイコンの 1 つの部分を、視差の量だけ動く層に描く。そのコマに無い部分なら何も置かない。 */
+@Composable
+private fun TextPart(
+    kind: LayerKind,
+    texts: PanelTextSpec,
+    g: PanelGeometry,
+    measurer: TextMeasurer,
+    now: () -> LocalDateTime,
+    icons: List<ImageBitmap?>,
+    shift: (Float) -> () -> Offset,
+    parallax: ParallaxAmounts,
+) {
+    val area = Size(g.bounds.width, g.bounds.height)
+    when (kind) {
+        LayerKind.ICONS ->
+            if (icons.isNotEmpty() && texts.icons.isNotEmpty()) {
+                TiltLayer(shift(parallax.icon)) { drawPanelTexts(PanelTextSpec(icons = texts.icons), area, measurer, now(), null, null, null, icons = icons, iconFilter = g.face.toneFilter) }
+            }
+
+        LayerKind.LABEL -> if (texts.labels.isNotEmpty()) TiltLayer(shift(parallax.text)) { drawPanelTexts(PanelTextSpec(labels = texts.labels), area, measurer, now(), null, null, null) }
+
+        LayerKind.MASTHEAD -> texts.masthead?.let { m -> TiltLayer(shift(parallax.masthead)) { drawPanelTexts(PanelTextSpec(masthead = m), area, measurer, now(), null, null, null) } }
+
+        LayerKind.CLOCK -> texts.clock?.let { c -> TiltLayer(shift(parallax.clock)) { drawPanelTexts(PanelTextSpec(clock = c), area, measurer, now(), null, null, null) } }
+
+        LayerKind.PERSON -> Unit
+    }
+}
+
+/**
+ * 枠の外へはみ出した人物（立体感の E）。コマより [DepthStyle.popWidth] だけ大きい層に、コマと同じ動き（登場・押したとき）を付けて描く。
+ * 層は指の操作を受けないので、タップはその下のコマが受ける（判定はコマの形のまま）。
+ */
+@Composable
+private fun PopLayer(
+    g: PanelGeometry,
+    motion: PanelMotion,
+    art: ImageBitmap,
+    person: PersonMask,
+    maps: DepthMaps?,
+    depth: DepthStyle,
+    tilt: () -> Tilt,
+    parallax: ParallaxAmounts,
+) {
+    val density = LocalDensity.current
+    val b = g.bounds
+    val pad = depth.popWidth
+    Box(
+        Modifier
+            .offset { IntOffset((b.left - pad).roundToInt(), (b.top - pad).roundToInt()) }
+            .size(with(density) { (b.width + 2 * pad).toDp() }, with(density) { (b.height + 2 * pad).toDp() })
+            .graphicsLayer {
+                // 層はコマと同じ中心を持つので、拡大縮小の中心もコマと同じになる
+                translationX = motion.dx.value
+                translationY = motion.dy.value
+                scaleX = motion.scale.value
+                scaleY = motion.scale.value
+                alpha = motion.alpha.value
+            }.drawWithContent {
+                // 枠線の内側の縁から、外へ pad までの帯だけに描く（コマの中は PanelLayer で描き終えている）
+                val ring =
+                    Path().apply {
+                        fillType = PathFillType.EvenOdd
+                        addPolygonAt(g.polygon.offset(pad), b.left - pad, b.top - pad)
+                        addPolygonAt(g.polygon.offset(-depth.borderWidth), b.left - pad, b.top - pad)
+                    }
+                clipPath(ring) { this@drawWithContent.drawContent() }
+            },
+    ) {
+        // 中の層の原点をコマの左上に戻す
+        Box(Modifier.offset { IntOffset(pad.roundToInt(), pad.roundToInt()) }.size(with(density) { b.width.toDp() }, with(density) { b.height.toDp() })) {
+            val artShift = { tilt().let { t -> Offset(t.x * parallax.art, t.y * parallax.art) } }
+            // 枠と間隔に落ちる影は、コマの中より近い（人物と枠の間が狭い）ので、短く薄くする
+            PersonLayers(g.face, art, person, maps, depth, artShift, { DepthStyle.lightDirection(tilt()) }, parallax.art, extra = pad, shadowScale = 0.6f, shadowAlpha = 0.8f)
+        }
+    }
+}
+
+private fun Path.addPolygonAt(
+    p: dev.furunov.komalauncher.model.geometry.Polygon,
+    originX: Float,
+    originY: Float,
+) {
+    p.points.forEachIndexed { i, pt -> if (i == 0) moveTo(pt.x - originX, pt.y - originY) else lineTo(pt.x - originX, pt.y - originY) }
+    close()
 }
 
 /** 毎分 0 秒に進む時計。ホームが見えている間だけ進める（裏では描かないので）。 */

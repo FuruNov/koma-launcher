@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.furunov.komalauncher.model.geometry.Point
 import dev.furunov.komalauncher.model.geometry.Rect
+import dev.furunov.komalauncher.model.layout.LayerOrder
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.PanelId
@@ -103,6 +104,8 @@ internal fun Modifier.adjustGestures(
     target: State<AdjustTarget?>,
     record: () -> Unit,
     edit: ((Layout) -> Layout) -> Unit,
+    /** 触ったコンポーネントを知らせる（重ね順のボタンの対象にする）。何も無い所なら null。 */
+    onSelect: (Part?) -> Unit = {},
 ): Modifier = pointerInput(Unit) {
     var lastTapAt = 0L
     var lastTapPart: Part? = null
@@ -110,7 +113,9 @@ internal fun Modifier.adjustGestures(
         val down = awaitFirstDown()
         val t = target.value ?: return@awaitEachGesture
         val p0 = Point(down.position.x, down.position.y)
-        val part = partAt(t, p0) ?: return@awaitEachGesture
+        val part = partAt(t, p0)
+        onSelect(part)
+        if (part == null) return@awaitEachGesture
         var began = false
         var pinching = false
         var startSpread = 0f
@@ -170,28 +175,37 @@ internal fun AdjustOverlay(
     canUndo: Boolean,
     onUndo: () -> Unit,
     onDone: () -> Unit,
+    /** 最後に触ったコンポーネント。null なら重ね順のボタンを出さない。 */
+    selected: Part? = null,
+    onReorder: (LayerOrder.Move) -> Unit = {},
 ) {
     BackHandler(onBack = onDone)
     val tree = target.layout.shape as? LayoutShape.Tree
     Canvas(Modifier.fillMaxSize()) {
         val stroke = Stroke(width = 2.dp.toPx())
         val color = Color(0xCCFFD54F)
-        fun frame(r: Rect) = drawRect(color, topLeft = Offset(r.left, r.top), size = Size(r.width, r.height), style = stroke)
+        // 選んでいるコンポーネントは太い線で囲む
+        val strong = Stroke(width = 4.dp.toPx())
+        val selectedColor = Color(0xFF4FC3F7)
+        fun frame(
+            r: Rect,
+            on: Boolean = false,
+        ) = drawRect(if (on) selectedColor else color, topLeft = Offset(r.left, r.top), size = Size(r.width, r.height), style = if (on) strong else stroke)
         for (panel in target.panels) {
             val spec = target.texts[panel.panel.id]
-            iconGroupRect(panel, spec)?.let(::frame)
-            spec?.labels?.forEach { frame(labelRect(panel.polygon.bounds, it)) }
+            iconGroupRect(panel, spec)?.let { frame(it, (selected as? Part.Icons)?.panel == panel.panel.id) }
+            spec?.labels?.forEach { frame(labelRect(panel.polygon.bounds, it), (selected as? Part.Label)?.panel == panel.panel.id) }
         }
         if (tree != null) {
             val k = tree.clock.size * target.viewWidth / tree.frame.refWidth
-            PartEdits.clockCenter(target.layout, target.panels)?.let { c -> frame(Rect(c.x - 450f * k, c.y - 240f * k, c.x + 450f * k, c.y + 170f * k)) }
+            PartEdits.clockCenter(target.layout, target.panels)?.let { c -> frame(Rect(c.x - 450f * k, c.y - 240f * k, c.x + 450f * k, c.y + 170f * k), selected is Part.Clock) }
             if (tree.text.masthead.isNotBlank()) {
                 val id = dev.furunov.komalauncher.model.layout.PanelText.mastheadPanel(target.panels, tree.text, tree.clock)
                 val b = target.panels.firstOrNull { it.panel.id == id }?.polygon?.bounds
                 val c = PartEdits.mastheadCenter(target.layout, target.panels)
                 if (b != null && c != null) {
                     val half = dev.furunov.komalauncher.model.layout.PanelText.mastheadSize(b) * tree.text.mastheadScale * 0.6f
-                    frame(Rect(c.x - b.width * 0.45f, c.y - half, c.x + b.width * 0.45f, c.y + half))
+                    frame(Rect(c.x - b.width * 0.45f, c.y - half, c.x + b.width * 0.45f, c.y + half), selected is Part.Masthead)
                 }
             }
         }
@@ -206,8 +220,20 @@ internal fun AdjustOverlay(
             Button("元に戻す", enabled = canUndo, onClick = onUndo)
             Button("完了", accent = true, onClick = onDone)
         }
+        if (selected != null) {
+            // 重ね順。背景の絵より後ろには行かない（最背面は背景の絵のすぐ上）
+            Row(
+                Modifier.padding(top = 6.dp).fillMaxWidth().background(Color(0xE61E1E24), RoundedCornerShape(14.dp)).padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Button("最背面", onClick = { onReorder(LayerOrder.Move.BACK) })
+                Button("背面", onClick = { onReorder(LayerOrder.Move.BACKWARD) })
+                Button("前面", onClick = { onReorder(LayerOrder.Move.FORWARD) })
+                Button("最前面", onClick = { onReorder(LayerOrder.Move.FRONT) })
+            }
+        }
         BasicText(
-            "ドラッグで移動、2 本指でつまんで拡大縮小、ダブルタップで自動に戻す",
+            "ドラッグで移動、2 本指でつまんで拡大縮小、ダブルタップで自動に戻す。触ったものの重ね順を、上のボタンで変える",
             style = TextStyle(color = Color.White, fontSize = 12.sp),
             modifier = Modifier.padding(top = 6.dp).background(Color(0x991E1E24), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
         )

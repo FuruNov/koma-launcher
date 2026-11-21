@@ -97,4 +97,17 @@ class PolygonTest {
         val moved = square.map { Point(it.x * 2, it.y + 1) }
         assertEquals(Rect(0f, 1f, 20f, 11f), moved.bounds)
     }
+
+    @Test
+    fun offsetMovesEveryEdgeOutward() {
+        val out = square.offset(2f)
+        assertEquals(Rect(-2f, -2f, 12f, 12f), out.bounds)
+        // 頂点の向きが逆でも外へ広がる
+        assertEquals(Rect(-2f, -2f, 12f, 12f), Polygon(square.points.reversed()).offset(2f).bounds)
+        assertEquals(Rect(1f, 1f, 9f, 9f), square.offset(-1f).bounds)
+        // 斜めの辺も、辺からの距離がちょうど広げた量になる
+        val wide = slanted.offset(1f)
+        assertTrue(wide.contains(Point(8.5f, 5f)))
+        assertFalse(wide.contains(Point(9.2f, 5f)))
+    }
 }

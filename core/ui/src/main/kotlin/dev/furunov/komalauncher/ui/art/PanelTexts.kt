@@ -39,6 +39,7 @@ import dev.furunov.komalauncher.model.geometry.Point
 import dev.furunov.komalauncher.model.geometry.Polygon
 import dev.furunov.komalauncher.model.geometry.Rect
 import dev.furunov.komalauncher.model.layout.LabelMode
+import dev.furunov.komalauncher.model.layout.LayerKind
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.MaskMath
@@ -72,8 +73,15 @@ object KomaFonts {
 /** 人物の切り抜き。描くための画像と、名前の置き場所を探すための粗い地図（1 が人物）。 */
 @Immutable
 class PersonMask(
+    /** 「残す」形（白で、透明度が人物以外の 1）。文字を人物の後ろに回すのに使う。 */
     val bitmap: ImageBitmap,
     val grid: FloatArray,
+    /** 人物の形（白で、透明度が人物の 1）。立体感の効果（輪郭の光など）に使う。 */
+    val person: ImageBitmap,
+    /** 人物の濃さ（0〜255、[width]×[height]）。影と縁取りの形を作るのに使う。 */
+    val alpha: ByteArray,
+    val width: Int,
+    val height: Int,
 ) {
     companion object {
         const val COLUMNS = 64
@@ -100,7 +108,8 @@ private fun decodeMask(path: String): PersonMask? = try {
     val grid = MaskMath.coverGrid(keep, w, h, PersonMask.COLUMNS, PersonMask.ROWS)
     val hw = soft.copy(Bitmap.Config.HARDWARE, false)
     soft.recycle()
-    PersonMask(hw.asImageBitmap(), grid)
+    val alpha = MaskMath.personFromKeep(ByteArray(px.size) { (px[it] ushr 24).toByte() })
+    PersonMask(hw.asImageBitmap(), grid, alphaBitmap(alpha, w, h), alpha, w, h)
 } catch (e: Exception) {
     Log.w("PersonMask", "$path を読めない", e)
     null
@@ -150,6 +159,15 @@ data class PanelTextSpec(
 ) {
     /** 文字が無いか（アイコンは文字の層では描かないので数えない）。 */
     val isEmpty: Boolean get() = labels.isEmpty() && masthead == null && clock == null
+}
+
+/** [kind] の部分だけを残した指定。重ね順どおりに 1 つずつ描くのに使う。 */
+fun PanelTextSpec.only(kind: LayerKind): PanelTextSpec = when (kind) {
+    LayerKind.ICONS -> PanelTextSpec(icons = icons)
+    LayerKind.LABEL -> PanelTextSpec(labels = labels)
+    LayerKind.MASTHEAD -> PanelTextSpec(masthead = masthead)
+    LayerKind.CLOCK -> PanelTextSpec(clock = clock)
+    LayerKind.PERSON -> PanelTextSpec()
 }
 
 /** 文字の層の Paint。描くたびに作らないよう 1 つを使い回す（中身は変えない）。 */

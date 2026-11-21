@@ -18,4 +18,32 @@ class MaskMathTest {
         assertEquals(1f, grid[0], 1e-5f)
         assertEquals(0f, grid[1], 1e-5f)
     }
+
+    @Test
+    fun personIsTheInverseOfKeep() {
+        val person = MaskMath.personFromKeep(byteArrayOf(0, 255.toByte(), 100))
+        assertEquals(listOf(255, 0, 155), person.map { it.toInt() and 0xFF })
+    }
+
+    @Test
+    fun boxBlurKeepsTheTotalAndSpreads() {
+        val w = 21
+        val src = ByteArray(w) { if (it == 10) 210.toByte() else 0 }
+        val out = MaskMath.boxBlur(src, w, 1, radius = 2, passes = 1).map { it.toInt() and 0xFF }
+        // 半径 2 の箱は 5 画素に均す
+        assertEquals(listOf(0, 42, 42, 42, 42, 42, 0), out.subList(7, 14))
+        assertEquals(src.toList(), MaskMath.boxBlur(src, w, 1, radius = 0).toList())
+    }
+
+    @Test
+    fun dilateGrowsByTheRadius() {
+        val w = 21
+        val src = ByteArray(w * w) { if (it == 10 * w + 10) 255.toByte() else 0 }
+        val out = MaskMath.dilate(src, w, w, 4f)
+        fun at(x: Int, y: Int) = out[y * w + x].toInt() and 0xFF
+        assertEquals(255, at(14, 10))
+        assertEquals(255, at(12, 10))
+        assertEquals(255, at(10, 6))
+        assertEquals(0, at(16, 10))
+    }
 }
