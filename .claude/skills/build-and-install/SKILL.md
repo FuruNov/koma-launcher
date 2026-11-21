@@ -64,10 +64,10 @@ GitHub Actions は使わない（署名の鍵を GitHub に預けないため）
    (cd <スクラッチパッド>/rel && nix develop -c ./gradlew assembleRelease)
    ```
 
-3. APK の名前を `koma-launcher-<版>.apk` にして公開する。`--target` には完全な SHA を渡す（短い SHA は受け付けない）。
+3. APK の名前を `koma-launcher-v<版>.apk` にして公開する。`--target` には完全な SHA を渡す（短い SHA は受け付けない）。
 
    ```sh
-   gh release create v<版> koma-launcher-<版>.apk --target "$(git rev-parse HEAD)" --prerelease \
+   gh release create v<版> koma-launcher-v<版>.apk --target "$(git rev-parse HEAD)" --prerelease \
      --title "v<版>（<主な変更>）" --notes-file <ノート>
    ```
 
