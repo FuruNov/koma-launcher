@@ -97,8 +97,9 @@ restore() {
   [ -n "$prev_home" ] && adb shell cmd package set-home-activity "$prev_home" >/dev/null
 }
 trap restore EXIT
+# インストール直後と同じ状態から始める。フォルダの割り当てが残っていると、見本のフォルダに初期のアプリが入らない。
 # 起動の記録があると、全アプリ一覧の上に「よく使う」の行が加わり、アイコンの位置が変わる
-su_sh "rm -rf $FILES/layout.json $FILES/art $FILES/launches.json"
+su_sh "rm -rf $FILES/layout.json $FILES/art $FILES/launches.json $FILES/folders.json $FILES/widgets.json $FILES/settings.json"
 # park の force-stop の直後に、システムがこのアプリを起動し直すことがある（2026-11-21 に Waydroid で確認。原因は未確認）。
 # そのプロセスは消す前のファイルを読み込んでいるので、もう一度止めて、消した後の状態から起動させる
 adb shell am force-stop "$PKG"
@@ -291,6 +292,8 @@ open_editor() {
   sleep 2
 }
 # 編集画面の縮小図（content-desc）の中の、割合 (fx, fy) の位置を叩く
+# 保存されたレイアウトのコマの数。新しいコマには名前を付けないので、画面の文字では数えられない
+panel_count() { su_sh "cat $FILES/layout.json" | grep -o "\"kind\"" | wc -l | tr -d " "; }
 tap_preview() { # fx fy
   texts >/dev/null
   local b
@@ -310,7 +313,7 @@ tap_text 元に戻す
 sleep 1
 tap_text 閉じる
 sleep 1.5
-! has 新しいコマ
+[ "$(panel_count)" -eq 5 ]
 check "元に戻すで割る前に戻る" $?
 open_editor
 tap_preview 0.5 0.2
@@ -320,8 +323,8 @@ sleep 1
 tap_text 閉じる
 sleep 1.5
 shot editor-split
-waitfor 'has 新しいコマ'
-check "コマを割ると、ホームに新しいコマが現れる" $?
+waitfor '[ "$(panel_count)" -eq 6 ]'
+check "コマを割ると、保存したレイアウトのコマが 1 つ増える" $?
 
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
