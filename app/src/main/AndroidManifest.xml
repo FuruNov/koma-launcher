@@ -45,6 +45,17 @@
             android:exported="false"
             android:screenOrientation="portrait"
             android:taskAffinity="dev.furunov.komalauncher.editor" />
+        <!-- ブラウザなどからの「ホーム画面に追加」の依頼（PWA など）を受ける -->
+        <activity
+            android:name=".PinShortcutActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Koma.Translucent">
+            <intent-filter>
+                <action android:name="android.content.pm.action.CONFIRM_PIN_SHORTCUT" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".SettingsActivity"
             android:exported="false"

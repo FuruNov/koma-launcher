@@ -4,4 +4,12 @@
         <item name="android:windowBackground">@android:color/black</item>
         <item name="android:windowShowWallpaper">false</item>
     </style>
+
+    <!-- ホーム画面への追加の依頼を受ける画面。ホームの上に重ねて表示する -->
+    <style name="Theme.Koma.Translucent" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
 </resources>

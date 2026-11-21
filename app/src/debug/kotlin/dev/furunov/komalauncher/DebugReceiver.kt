@@ -3,6 +3,9 @@ package dev.furunov.komalauncher
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
+import android.graphics.drawable.Icon
 import dev.furunov.komalauncher.model.layout.Tilt
 
 /** Waydroid にはロック画面が無いので、adb からロック解除のアニメーションを再生する。 */
@@ -21,6 +24,19 @@ class DebugReceiver : BroadcastReceiver() {
         // 音楽アプリにログインできない Waydroid で、再生中のコマを確かめる。例: am broadcast -a dev.furunov.komalauncher.DEBUG_MEDIA --es state play
         if (intent.action == "dev.furunov.komalauncher.DEBUG_MEDIA") {
             DebugMediaSession.handle(context, intent.getStringExtra("state"))
+        }
+        // ブラウザの無い Waydroid で、ホーム画面への追加の依頼を確かめる。自分自身のショートカットの固定を依頼する。
+        // 例: am broadcast -p dev.furunov.komalauncher -a dev.furunov.komalauncher.DEBUG_PIN --ei n 1
+        if (intent.action == "dev.furunov.komalauncher.DEBUG_PIN") {
+            val n = intent.getIntExtra("n", 1)
+            val shortcut =
+                ShortcutInfo
+                    .Builder(context, "debug-pin-$n")
+                    .setShortLabel("テスト $n")
+                    .setIcon(Icon.createWithResource(context, R.mipmap.ic_launcher))
+                    .setIntent(Intent(context, MainActivity::class.java).setAction(Intent.ACTION_MAIN))
+                    .build()
+            context.getSystemService(ShortcutManager::class.java).requestPinShortcut(shortcut, null)
         }
         if (intent.action == "dev.furunov.komalauncher.DEBUG_VIS") {
             DebugVisualizer.handle(
