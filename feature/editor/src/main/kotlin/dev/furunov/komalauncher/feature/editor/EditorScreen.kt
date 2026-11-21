@@ -107,6 +107,7 @@ import dev.furunov.komalauncher.ui.art.rememberBlurredArts
 import dev.furunov.komalauncher.ui.art.rememberDepthMaps
 import dev.furunov.komalauncher.ui.art.rememberMasks
 import dev.furunov.komalauncher.ui.icons.rememberIconBitmaps
+import dev.furunov.komalauncher.ui.icons.rememberIconShadows
 import java.time.LocalDateTime
 import kotlin.math.hypot
 import kotlin.math.roundToInt
@@ -452,6 +453,7 @@ private fun Preview(
     // アイコンの画像。全部のコマの分を 1 つの並びで読み込み、描くときにコマごとに切り分ける
     val iconKeys = resolved.panels.flatMap { p -> texts[p.panel.id]?.icons.orEmpty().zip(iconApps[p.panel.id.value].orEmpty()) { r, app -> app to r.width.roundToInt() } }
     val iconBitmaps by rememberIconBitmaps(iconKeys)
+    val iconShadows by rememberIconShadows(iconKeys)
     val now = remember { LocalDateTime.now() }
     val density = LocalDensity.current
     val handleRadius = with(density) { 22.dp.toPx() }
@@ -547,6 +549,7 @@ private fun Preview(
                     val b = face.bounds
                     val iconCount = minOf(texts[p.panel.id]?.icons?.size ?: 0, iconApps[p.panel.id.value]?.size ?: 0)
                     val panelIcons = iconBitmaps.drop(iconIndex).take(iconCount)
+                    val panelShadows = iconShadows.drop(iconIndex).take(iconCount)
                     iconIndex += iconCount
                     translate(b.left, b.top) {
                         clipPath(face.path) {
@@ -568,7 +571,7 @@ private fun Preview(
                                 spec ?: return
                                 kinds.forEach { k ->
                                     val icons = if (k == LayerKind.ICONS) panelIcons else emptyList()
-                                    drawPanelTexts(spec.only(k), Size(b.width, b.height), measurer, now, if (behind) person?.bitmap else null, mo, ms, icons = icons, iconFilter = face.toneFilter, ink = face.inkText)
+                                    drawPanelTexts(spec.only(k), Size(b.width, b.height), measurer, now, if (behind) person?.bitmap else null, mo, ms, icons = icons, iconFilter = face.toneFilter, ink = face.inkText, iconShadows = if (k == LayerKind.ICONS) panelShadows else emptyList())
                                 }
                             }
                             parts(order.take(personAt), behind = true)

@@ -3,6 +3,8 @@ package dev.furunov.komalauncher.feature.settings
 import dev.furunov.komalauncher.model.apps.AppEntry
 import dev.furunov.komalauncher.model.settings.AnimationCatalog
 import dev.furunov.komalauncher.model.settings.GestureKind
+import dev.furunov.komalauncher.model.settings.IconRim
+import dev.furunov.komalauncher.model.settings.IconShape
 import dev.furunov.komalauncher.model.settings.LauncherAction
 import dev.furunov.komalauncher.model.settings.Settings
 
@@ -119,6 +121,28 @@ fun settingsSections(): List<SettingSection> = listOf(
                 ),
                 get = { it.appearance.highlightColor.toString(16).uppercase() },
             ) { s, v -> s.copy(appearance = s.appearance.copy(highlightColor = v.toLong(16))) },
+            // 端末の標準の形は取得できないので、縁か影を付けると角丸の四角として切り抜く（IconOutline）
+            SettingRow.Choice(
+                "アイコンの形",
+                listOf(
+                    Option(IconShape.SYSTEM.name, "端末の標準"),
+                    Option(IconShape.CIRCLE.name, "円"),
+                    Option(IconShape.ROUNDED.name, "角丸の四角"),
+                    Option(IconShape.SQUIRCLE.name, "スクワークル"),
+                    Option(IconShape.TEAR.name, "涙形"),
+                    Option(IconShape.BUBBLE.name, "吹き出し"),
+                    Option(IconShape.KOMA.name, "コマ形"),
+                ),
+                get = { it.appearance.iconShape.name },
+            ) { s, v -> s.copy(appearance = s.appearance.copy(iconShape = IconShape.valueOf(v))) },
+            SettingRow.Choice(
+                "アイコンの縁",
+                listOf(Option(IconRim.NONE.name, "なし"), Option(IconRim.INK.name, "墨の線"), Option(IconRim.STICKER.name, "白フチ")),
+                get = { it.appearance.iconRim.name },
+            ) { s, v -> s.copy(appearance = s.appearance.copy(iconRim = IconRim.valueOf(v))) },
+            SettingRow.Toggle("アイコンの影", { it.appearance.iconShadow }) { s, v ->
+                s.copy(appearance = s.appearance.copy(iconShadow = v))
+            },
             // すき間の色はコマ割りの編集画面の「全体」で変える。レイアウトの色が設定の色より優先され、
             // 見本から書き出したレイアウトはいつも色を持つので、ここで変えても反映されなかった
         ),

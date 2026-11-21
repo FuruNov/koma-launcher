@@ -21,9 +21,10 @@ import dev.furunov.komalauncher.model.apps.AppKey
 @Composable
 fun rememberIconBitmaps(keys: List<Pair<AppKey?, Int>>): State<List<ImageBitmap?>> {
     val loader = LocalIconLoader.current
-    // 固定したショートカットを含むときだけ、アイコンの変更（shortcutRevision）で読み直す
+    // 固定したショートカットを含むときだけ、アイコンの変更（shortcutRevision）で読み直す。形・縁・影の設定が変わったら必ず読み直す
     val revision by loader.shortcutRevision.collectAsState()
-    val rev = if (keys.any { it.first?.isShortcut == true }) revision else 0L
+    val styleRevision by loader.styleRevision.collectAsState()
+    val rev = (if (keys.any { it.first?.isShortcut == true }) revision else 0L) to styleRevision
     val state =
         remember(keys, rev) {
             mutableStateOf(
@@ -40,6 +41,25 @@ fun rememberIconBitmaps(keys: List<Pair<AppKey?, Int>>): State<List<ImageBitmap?
         keys.forEachIndexed { i, (app, px) ->
             if (state.value[i] == null && app != null && px > 0) {
                 val bitmap = loader.load(app, px)
+                state.value = state.value.toMutableList().also { it[i] = bitmap }
+            }
+        }
+    }
+    return state
+}
+
+/**
+ * コマに置くアイコンの影の画像（[rememberIconBitmaps] と同じ順）。影の無い設定か、全アプリ一覧の記号なら null。
+ */
+@Composable
+fun rememberIconShadows(keys: List<Pair<AppKey?, Int>>): State<List<ImageBitmap?>> {
+    val loader = LocalIconLoader.current
+    val styleRevision by loader.styleRevision.collectAsState()
+    val state = remember(keys, styleRevision) { mutableStateOf(keys.map { (app, px) -> if (app != null && px > 0) loader.cachedShadow(app, px) else null }) }
+    LaunchedEffect(keys, styleRevision) {
+        keys.forEachIndexed { i, (app, px) ->
+            if (state.value[i] == null && app != null && px > 0) {
+                val bitmap = loader.loadShadow(app, px) ?: return@forEachIndexed
                 state.value = state.value.toMutableList().also { it[i] = bitmap }
             }
         }

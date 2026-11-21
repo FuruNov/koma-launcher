@@ -88,6 +88,7 @@ import dev.furunov.komalauncher.ui.dnd.DragShadow
 import dev.furunov.komalauncher.ui.dnd.DragSource
 import dev.furunov.komalauncher.ui.dnd.LocalDragDrop
 import dev.furunov.komalauncher.ui.icons.rememberIconBitmaps
+import dev.furunov.komalauncher.ui.icons.rememberIconShadows
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -506,6 +507,7 @@ private fun PanelLayer(
     // どのコマに何のアプリがあるか分かるよう、フォルダの先頭のアプリのアイコンを背景の空いた所に描く。
     // 文字と同じ層で描き、人物の切り抜きで抜いて人物の後ろに回す（描画の段階で読むので、読み込めたら描き直す）
     val iconBitmaps = rememberIconBitmaps(icons.map { it.app to it.rect.width.roundToInt() })
+    val iconShadows = rememberIconShadows(icons.map { it.app to it.rect.width.roundToInt() })
     Box(
         Modifier
             .offset { IntOffset(b.left.roundToInt(), b.top.roundToInt()) }
@@ -550,7 +552,7 @@ private fun PanelLayer(
         val order = LayerOrder.of(g.panel.order)
         val personAt = order.indexOf(LayerKind.PERSON)
         val shownIcons = if (player == null) iconBitmaps.value else emptyList()
-        val part: @Composable (LayerKind) -> Unit = { kind -> if (texts != null) TextPart(kind, texts, g, measurer, now, shownIcons, ::shift, parallax) }
+        val part: @Composable (LayerKind) -> Unit = { kind -> if (texts != null) TextPart(kind, texts, g, measurer, now, shownIcons, iconShadows.value, ::shift, parallax, { DepthStyle.lightDirection(tilt()) }) }
         val behind = order.take(personAt)
         val (mo, ms) = g.art?.let { localPlacement(g.bounds, it) } ?: (null to null)
         if (texts != null && person != null && mo != null && ms != null) {
@@ -597,14 +599,17 @@ private fun TextPart(
     measurer: TextMeasurer,
     now: () -> LocalDateTime,
     icons: List<ImageBitmap?>,
+    /** アイコンの影（[icons] と同じ順）。影は光の向き（[light]、傾きで回る）と反対へずらす。 */
+    iconShadows: List<ImageBitmap?>,
     shift: (Float) -> () -> Offset,
     parallax: ParallaxAmounts,
+    light: () -> Offset,
 ) {
     val area = Size(g.bounds.width, g.bounds.height)
     when (kind) {
         LayerKind.ICONS ->
             if (icons.isNotEmpty() && texts.icons.isNotEmpty()) {
-                TiltLayer(shift(parallax.icon)) { drawPanelTexts(PanelTextSpec(icons = texts.icons), area, measurer, now(), null, null, null, icons = icons, iconFilter = g.face.toneFilter, ink = g.face.inkText) }
+                TiltLayer(shift(parallax.icon)) { drawPanelTexts(PanelTextSpec(icons = texts.icons), area, measurer, now(), null, null, null, icons = icons, iconFilter = g.face.toneFilter, ink = g.face.inkText, iconShadows = iconShadows, shadowDir = -light()) }
             }
 
         LayerKind.LABEL -> if (texts.labels.isNotEmpty()) TiltLayer(shift(parallax.text)) { drawPanelTexts(PanelTextSpec(labels = texts.labels), area, measurer, now(), null, null, null, ink = g.face.inkText) }

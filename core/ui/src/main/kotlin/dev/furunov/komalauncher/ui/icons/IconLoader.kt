@@ -1,5 +1,6 @@
 package dev.furunov.komalauncher.ui.icons
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -19,10 +20,13 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import dev.furunov.komalauncher.model.apps.AppKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.math.roundToInt
 
 /** アイコンを表示する大きさで読む。実装は少数だけを保持し、メモリが逼迫したら [trim] で捨てる。 */
 interface IconLoader {
@@ -75,15 +79,33 @@ fun AppIcon(
     val loader = LocalIconLoader.current
     val px = with(LocalDensity.current) { size.roundToPx() }
     val revision by loader.shortcutRevision.collectAsState()
-    // アプリのアイコンは revision で読み直さない（読み直す必要のあるショートカットだけが変わったとき、全てのアイコンを読み直さないように）
-    val rev = if (key.isShortcut) revision else 0L
+    val styleRevision by loader.styleRevision.collectAsState()
+    // アプリのアイコンはショートカットの revision で読み直さない（読み直す必要のあるショートカットだけが変わったとき、全てのアイコンを読み直さないように）
+    val rev = (if (key.isShortcut) revision else 0L) to styleRevision
     var bitmap by remember(key, px, rev) { mutableStateOf(loader.cached(key, px)) }
+    var shadow by remember(key, px, rev) { mutableStateOf(loader.cachedShadow(key, px)) }
     LaunchedEffect(key, px, rev) {
         if (bitmap == null) bitmap = loader.load(key, px)
+        if (shadow == null) shadow = loader.loadShadow(key, px)
     }
     val b = bitmap
     if (b != null) {
-        Image(b, contentDescription = null, modifier = modifier.size(size), colorFilter = colorFilter)
+        Box(modifier.size(size)) {
+            // 影は傾きに追従させず、光が左上から当たる向き（右下）に固定する。大きさは変えず、アイコンの下に重ねる
+            shadow?.let { sh ->
+                Canvas(Modifier.matchParentSize()) {
+                    val pad = this.size.width * SHADOW_PAD
+                    val d = this.size.width * SHADOW_SHIFT
+                    drawImage(
+                        sh,
+                        dstOffset = IntOffset((d * 0.64f - pad).roundToInt(), (d * 0.77f - pad).roundToInt()),
+                        dstSize = IntSize((this.size.width + pad * 2).roundToInt(), (this.size.height + pad * 2).roundToInt()),
+                        alpha = SHADOW_ALPHA,
+                    )
+                }
+            }
+            Image(b, contentDescription = null, modifier = Modifier.matchParentSize(), colorFilter = colorFilter)
+        }
     } else {
         // 読み込み中は同じ大きさの影を置き、並びがずれないようにする
         Box(modifier.size(size).background(Color(0x33FFFFFF), RoundedCornerShape(size / 4)))
@@ -96,3 +118,7 @@ private val NO_REVISION: StateFlow<Long> = MutableStateFlow(0L)
 
 /** 影の画像の、ぼかしがはみ出す分の余白（アイコンの一辺に対する割合）。影はこの分だけ四方に広げて描く。 */
 const val SHADOW_PAD = 0.1f
+
+/** 影をずらす量（アイコンの一辺に対する割合）と不透明度。2026-11-21 に実機で見比べた試作の値。 */
+const val SHADOW_SHIFT = 0.1f
+const val SHADOW_ALPHA = 0.7f

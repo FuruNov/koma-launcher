@@ -46,6 +46,9 @@ import dev.furunov.komalauncher.model.layout.MaskMath
 import dev.furunov.komalauncher.model.layout.PanelId
 import dev.furunov.komalauncher.model.layout.PanelText
 import dev.furunov.komalauncher.model.layout.ResolvedPanel
+import dev.furunov.komalauncher.ui.icons.SHADOW_ALPHA
+import dev.furunov.komalauncher.ui.icons.SHADOW_PAD
+import dev.furunov.komalauncher.ui.icons.SHADOW_SHIFT
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -202,16 +205,31 @@ fun DrawScope.drawPanelTexts(
     /** アイコンの画像（[PanelTextSpec.icons] と同じ順。読み込み中は null）と、掛ける色調。文字と同じ層で描き、人物の後ろに回す。 */
     icons: List<ImageBitmap?> = emptyList(),
     iconFilter: ColorFilter? = null,
+    /** アイコンの影の画像（[icons] と同じ順）と、影をずらす向き（光の向きと反対の単位ベクトル）。影の無い設定なら空。 */
+    iconShadows: List<ImageBitmap?> = emptyList(),
+    shadowDir: Offset = Offset(0.64f, 0.77f),
     /** true なら白い紙のコマ（BlankPage.LIGHT）の上なので、名前・大見出し・時計を墨で描く。 */
     ink: Boolean = false,
 ) {
-    val shownIcons = spec.icons.zip(icons).filter { it.second != null }
+    val shownIcons = spec.icons.zip(icons).withIndex().filter { it.value.second != null }
     if (spec.isEmpty && shownIcons.isEmpty()) return
     val behind = mask != null && maskOffset != null && maskSize != null
     // 層はコマの外接長方形の大きさ（編集画面では縮小図のキャンバスより大きいことがあるので、size は使わない）
     if (behind) drawIntoCanvas { it.saveLayer(androidx.compose.ui.geometry.Rect(Offset.Zero, area), layerPaint) }
     translate(iconShift.x, iconShift.y) {
-        shownIcons.forEach { (r, bitmap) ->
+        shownIcons.forEach { (i, pair) ->
+            val (r, bitmap) = pair
+            // 影はアイコンの直前に描く（人物の後ろに回すときも、アイコンと一緒に抜かれる）
+            iconShadows.getOrNull(i)?.let { sh ->
+                val pad = r.width * SHADOW_PAD
+                val d = r.width * SHADOW_SHIFT
+                drawImage(
+                    sh,
+                    dstOffset = IntOffset((r.left - pad + shadowDir.x * d).roundToInt(), (r.top - pad + shadowDir.y * d).roundToInt()),
+                    dstSize = IntSize((r.width + pad * 2).roundToInt(), (r.height + pad * 2).roundToInt()),
+                    alpha = SHADOW_ALPHA,
+                )
+            }
             drawImage(
                 bitmap!!,
                 dstOffset = IntOffset(r.left.roundToInt(), r.top.roundToInt()),
