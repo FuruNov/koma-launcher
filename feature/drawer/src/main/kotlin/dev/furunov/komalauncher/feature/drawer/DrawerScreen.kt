@@ -110,7 +110,8 @@ fun DrawerScreen(
             if (q.isEmpty()) emptyList() else AppSearch.rankShortcuts(q, shortcuts.filter { it.packageName in visiblePackages }).take(MAX_SHORTCUTS)
         }
     // ショートカットの行に表示するアプリの名前とアイコン
-    val appOf = remember(visible) { visible.associateBy { it.key.packageName } }
+    // 追加したショートカット（PWA など）はブラウザと同じパッケージを持つので、アプリだけから引く
+    val appOf = remember(visible) { visible.filterNot { it.key.isShortcut }.associateBy { it.key.packageName } }
     val grid = rememberLazyGridState()
     val dnd = LocalDragDrop.current
     val slide = remember { Animatable(1f) }
@@ -209,7 +210,8 @@ fun DrawerScreen(
     }
 }
 
-private fun AppKey.id() = "$packageName/$className"
+// 同じアプリの追加したショートカットどうしが重ならないよう、ショートカットの id も含める
+private fun AppKey.id() = "$packageName/$className/${shortcutId.orEmpty()}"
 
 private fun LazyGridScope.header(text: String) {
     item(span = { GridItemSpan(maxLineSpan) }, key = "header/$text") {

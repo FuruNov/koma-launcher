@@ -89,7 +89,7 @@ fun AppPicker(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         )
         LazyColumn(Modifier.fillMaxWidth().weight(1f).padding(top = 8.dp)) {
-            items(shown, key = { "${it.key.packageName}/${it.key.className}" }) { app ->
+            items(shown, key = { "${it.key.packageName}/${it.key.className}/${it.key.shortcutId.orEmpty()}" }) { app ->
                 val on = app.key in checked
                 Row(
                     Modifier
