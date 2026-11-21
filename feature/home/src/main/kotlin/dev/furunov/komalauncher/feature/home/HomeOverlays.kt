@@ -208,6 +208,7 @@ internal fun PanelMenuSheet(
 internal fun ConfirmRemoveSheet(
     app: AppKey,
     label: String,
+    failed: Boolean,
     onEvent: (HomeEvent) -> Unit,
 ) {
     BackHandler { onEvent(HomeEvent.Dismiss) }
@@ -217,6 +218,13 @@ internal fun ConfirmRemoveSheet(
             style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold),
             modifier = Modifier.padding(16.dp),
         )
+        if (failed) {
+            BasicText(
+                "削除できませんでした。もう一度お試しください。",
+                style = TextStyle(color = Color(0xFFEF9A9A), fontSize = 14.sp),
+                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp),
+            )
+        }
         MenuRow("キャンセル") { onEvent(HomeEvent.Dismiss) }
         MenuRow("削除", color = Color(0xFFEF9A9A)) { onEvent(HomeEvent.ConfirmRemoveShortcut(app)) }
     }

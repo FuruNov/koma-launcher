@@ -53,8 +53,8 @@ interface AppCatalog {
 
     fun launchShortcut(shortcut: AppShortcut)
 
-    /** 固定したショートカット [key] の固定を解除する。アプリなら何もしない。 */
-    fun unpin(key: AppKey)
+    /** 固定したショートカット [key] の固定を解除する。解除できれば true。アプリなら何もせず false。問い合わせを伴うので、裏のスレッドで行う。 */
+    suspend fun unpin(key: AppKey): Boolean
 
     /** ホームが前面に戻ったときに呼ぶ。既定のホームアプリに戻った後など、取り直しが要るときだけ一覧を作り直す。 */
     fun refresh() = Unit

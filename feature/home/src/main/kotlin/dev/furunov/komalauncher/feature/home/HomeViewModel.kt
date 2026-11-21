@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /** ホームの上に重ねて表示するもの。同時に 1 つだけ。 */
 sealed interface Overlay {
@@ -68,6 +69,8 @@ sealed interface Overlay {
     /** 追加したショートカット（PWA など）の削除の確認。固定の解除はランチャーから戻せないので、押す前に尋ねる。 */
     data class ConfirmRemove(
         val app: AppKey,
+        /** true なら、前回の解除に失敗した。確認の画面にそのことを表示する。 */
+        val failed: Boolean = false,
     ) : Overlay
 
     /** 音楽プレイヤーに必要な「通知へのアクセス」の説明。 */
@@ -415,12 +418,17 @@ class HomeViewModel(
 
             is HomeEvent.RemoveShortcut -> overlay.value = Overlay.ConfirmRemove(event.app)
 
-            is HomeEvent.ConfirmRemoveShortcut -> {
-                apps.unpin(event.app)
-                // 全てのコマと「割り当てなし」から外す。残すと、一覧に無いのでパッケージ名だけの行になる
-                folderStore.update { f -> f.byPanel.keys.fold(f) { acc, panel -> FolderEdits.remove(acc, panel, event.app) }.let { it.copy(unassigned = it.unassigned - event.app) } }
-                overlay.value = Overlay.None
-            }
+            is HomeEvent.ConfirmRemoveShortcut ->
+                viewModelScope.launch {
+                    // 解除できたときだけフォルダから外す。失敗したら、確認の画面に残して知らせる
+                    if (!apps.unpin(event.app)) {
+                        overlay.value = Overlay.ConfirmRemove(event.app, failed = true)
+                        return@launch
+                    }
+                    // 全てのコマと「割り当てなし」から外す
+                    folderStore.update { f -> f.byPanel.keys.fold(f) { acc, panel -> FolderEdits.remove(acc, panel, event.app) }.let { it.copy(unassigned = it.unassigned - event.app) } }
+                    overlay.value = Overlay.None
+                }
 
             is HomeEvent.SwipePanel ->
                 if (state.value.player?.panelId == event.panelId) {

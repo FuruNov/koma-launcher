@@ -64,6 +64,6 @@ class LaunchesTest {
 
         override fun allShortcuts(): List<AppShortcut> = emptyList()
 
-        override fun unpin(key: AppKey) = Unit
+        override suspend fun unpin(key: AppKey) = true
     }
 }

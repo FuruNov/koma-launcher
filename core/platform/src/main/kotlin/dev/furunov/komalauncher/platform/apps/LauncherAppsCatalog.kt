@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.Collator
 import java.util.concurrent.atomic.AtomicLong
 
@@ -188,13 +189,17 @@ class LauncherAppsCatalog(
         if (!hadShortcutAccess && launcherApps.hasShortcutHostPermission()) reload()
     }
 
-    override fun unpin(key: AppKey) {
-        val id = key.shortcutId ?: return
-        try {
-            val remaining = pinned(key.packageName).map { it.id }.filter { it != id }
-            launcherApps.pinShortcuts(key.packageName, remaining, user)
-        } catch (_: Exception) {
-            // ロック中などで解除できない。一覧はそのまま
+    override suspend fun unpin(key: AppKey): Boolean {
+        val id = key.shortcutId ?: return false
+        return withContext(Dispatchers.IO) {
+            try {
+                val remaining = pinned(key.packageName).map { it.id }.filter { it != id }
+                launcherApps.pinShortcuts(key.packageName, remaining, user)
+                true
+            } catch (_: Exception) {
+                // ロック中などで解除できない。呼び出し側が利用者に知らせる
+                false
+            }
         }
     }
 

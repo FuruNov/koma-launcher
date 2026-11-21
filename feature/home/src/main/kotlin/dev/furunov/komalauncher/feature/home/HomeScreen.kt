@@ -389,7 +389,7 @@ fun HomeScreen(
 
                 Overlay.MusicAccess -> MusicAccessSheet(onEvent)
 
-                is Overlay.ConfirmRemove -> ConfirmRemoveSheet(o.app, state.labelOf(o.app), onEvent)
+                is Overlay.ConfirmRemove -> ConfirmRemoveSheet(o.app, state.labelOf(o.app), o.failed, onEvent)
 
                 is Overlay.Rename -> RenameSheet(o.panelId, state.folders.byPanel[o.panelId.value]?.name ?: state.layout.panel(o.panelId)?.label, onEvent)
 

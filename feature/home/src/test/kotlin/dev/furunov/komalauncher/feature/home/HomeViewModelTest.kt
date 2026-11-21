@@ -79,6 +79,7 @@ class HomeViewModelTest {
     private inner class FakeApps : AppCatalog {
         val launched = mutableListOf<AppKey>()
         val unpinned = mutableListOf<AppKey>()
+        var unpinSucceeds = true
         val list = MutableStateFlow(listOf(AppEntry(chrome, "Chrome")))
         override val apps: StateFlow<List<AppEntry>> = list
 
@@ -98,8 +99,9 @@ class HomeViewModelTest {
 
         override fun allShortcuts(): List<dev.furunov.komalauncher.model.apps.AppShortcut> = emptyList()
 
-        override fun unpin(key: AppKey) {
+        override suspend fun unpin(key: AppKey): Boolean {
             unpinned += key
+            return unpinSucceeds
         }
     }
 
@@ -510,5 +512,15 @@ class HomeViewModelTest {
         folders.flow.value = folders.flow.value.copy(unassigned = listOf(sc))
         vm.onEvent(HomeEvent.ConfirmRemoveShortcut(sc))
         assertEquals(emptyList(), folders.flow.value.unassigned)
+    }
+
+    @Test
+    fun failedUnpinKeepsFoldersAndTellsUser() {
+        withShortcutInTwoFolders()
+        val before = folders.flow.value
+        appsFake.unpinSucceeds = false
+        vm.onEvent(HomeEvent.ConfirmRemoveShortcut(sc))
+        assertEquals(before, folders.flow.value)
+        assertEquals(Overlay.ConfirmRemove(sc, failed = true), vm.state.value.overlay)
     }
 }
