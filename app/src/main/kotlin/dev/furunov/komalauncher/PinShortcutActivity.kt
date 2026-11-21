@@ -22,8 +22,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,8 +74,10 @@ class PinShortcutActivity : ComponentActivity() {
                     d.draw(Canvas(it))
                 }.asImageBitmap()
             }
-        // ホームは画面全体に描くので、同じ大きさで縮小図を作る
+        // ホームは縦向きに固定して画面全体に描くので、縮小図も縦向きの大きさで作る。この画面は回転するので、横向きのときは幅と高さを入れ替える
         val bounds = windowManager.currentWindowMetrics.bounds
+        val homeWidth = minOf(bounds.width(), bounds.height()).toFloat()
+        val homeHeight = maxOf(bounds.width(), bounds.height()).toFloat()
         val gutter = container.settingsStore.settings.value.appearance.gutterColor
 
         setContent {
@@ -93,6 +97,8 @@ class PinShortcutActivity : ComponentActivity() {
                         .padding(24.dp)
                         .background(Color(0xFF1E1E24), RoundedCornerShape(16.dp))
                         .clickable(enabled = false) {}
+                        // 横向きでは高さが足りず、下のボタンが画面の外に出るので、中身をスクロールできるようにする
+                        .verticalScroll(rememberScrollState())
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -108,8 +114,8 @@ class PinShortcutActivity : ComponentActivity() {
                         images = loaded?.images.orEmpty(),
                         revision = loaded?.revision ?: 0L,
                         defaultGutter = gutter,
-                        screenWidth = bounds.width().toFloat(),
-                        screenHeight = bounds.height().toFloat(),
+                        screenWidth = homeWidth,
+                        screenHeight = homeHeight,
                         selected = selected,
                         onSelect = { selectedId = it.value },
                         modifier = Modifier.heightIn(max = 360.dp).align(Alignment.CenterHorizontally),
