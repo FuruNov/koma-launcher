@@ -81,7 +81,61 @@ data class Appearance(
     val highlightColor: Long = 0xFFFFD54F,
     /** コマの間の余白の色（ARGB）。 */
     val gutterColor: Long = 0xFF111111,
-)
+    /** アイコンの形。既定は端末の標準（Android のアイコンをそのまま描く）。 */
+    val iconShape: IconShape = IconShape.SYSTEM,
+    /** アイコンの縁。形の縁の内側に描く。 */
+    val iconRim: IconRim = IconRim.NONE,
+    /** true なら、アイコンの下に光の向きと反対の影を落とす。 */
+    val iconShadow: Boolean = false,
+) {
+    val iconStyle: IconStyle get() = IconStyle(iconShape, iconRim, iconShadow)
+}
+
+@Serializable
+enum class IconShape {
+    @SerialName("system")
+    SYSTEM,
+
+    @SerialName("circle")
+    CIRCLE,
+
+    @SerialName("rounded")
+    ROUNDED,
+
+    @SerialName("squircle")
+    SQUIRCLE,
+
+    @SerialName("tear")
+    TEAR,
+
+    @SerialName("bubble")
+    BUBBLE,
+
+    @SerialName("koma")
+    KOMA,
+}
+
+@Serializable
+enum class IconRim {
+    @SerialName("none")
+    NONE,
+
+    @SerialName("ink")
+    INK,
+
+    @SerialName("sticker")
+    STICKER,
+}
+
+/** アイコンの描き方。設定から作り、アイコンのキャッシュのキーにも使う。 */
+data class IconStyle(
+    val shape: IconShape,
+    val rim: IconRim,
+    val shadow: Boolean,
+) {
+    /** 端末の標準で、縁も影も無い（Android のアイコンをそのまま描く）。 */
+    val isPlain: Boolean get() = shape == IconShape.SYSTEM && rim == IconRim.NONE && !shadow
+}
 
 @Serializable
 data class AnimationSettings(

@@ -42,4 +42,10 @@ class SettingsTest {
         val s = json.decodeFromString(Settings.serializer(), """{"version":1,"drawer":{"columns":4}}""")
         assertEquals(MusicSettings(pauseTimeoutMinutes = 30, reactToAudio = false), s.music)
     }
+
+    @Test
+    fun oldSettingsWithoutIconFieldsDecode() {
+        val s = json.decodeFromString(Settings.serializer(), """{"appearance":{"iconSizeDp":52}}""")
+        assertEquals(IconStyle(IconShape.SYSTEM, IconRim.NONE, false), s.appearance.iconStyle)
+    }
 }
