@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.LauncherApps
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import android.os.Process
 import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
@@ -38,7 +39,7 @@ class LauncherIconLoader(
     private fun cacheKey(
         key: AppKey,
         sizePx: Int,
-    ) = "${key.packageName}/${key.className}@$sizePx"
+    ) = "${key.packageName}/${key.className}/${key.shortcutId.orEmpty()}@$sizePx"
 
     override fun cached(
         key: AppKey,
@@ -50,12 +51,7 @@ class LauncherIconLoader(
         sizePx: Int,
     ): ImageBitmap? = withContext(Dispatchers.IO) {
         cached(key, sizePx)?.let { return@withContext it }
-        val info =
-            launcherApps.resolveActivity(
-                Intent(Intent.ACTION_MAIN).setComponent(ComponentName(key.packageName, key.className)),
-                user,
-            ) ?: return@withContext null
-        val drawable = info.getBadgedIcon(density)
+        val drawable = (if (key.isShortcut) shortcutIcon(key) else activityIcon(key)) ?: return@withContext null
         val bitmap =
             Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).also {
                 drawable.setBounds(0, 0, sizePx, sizePx)
@@ -66,4 +62,21 @@ class LauncherIconLoader(
     }
 
     override fun trim() = cache.evictAll()
+
+    private fun activityIcon(key: AppKey): Drawable? = launcherApps
+        .resolveActivity(Intent(Intent.ACTION_MAIN).setComponent(ComponentName(key.packageName, key.className)), user)
+        ?.getBadgedIcon(density)
+
+    /** 固定したショートカットのアイコン。ショートカットが消えていたり、ロック中で問い合わせられなければ null。 */
+    private fun shortcutIcon(key: AppKey): Drawable? = try {
+        val query =
+            LauncherApps
+                .ShortcutQuery()
+                .setPackage(key.packageName)
+                .setShortcutIds(listOfNotNull(key.shortcutId))
+                .setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED)
+        launcherApps.getShortcuts(query, user)?.firstOrNull()?.let { launcherApps.getShortcutIconDrawable(it, density) }
+    } catch (_: Exception) {
+        null
+    }
 }

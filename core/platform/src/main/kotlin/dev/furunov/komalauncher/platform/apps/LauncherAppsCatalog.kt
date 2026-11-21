@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.LauncherApps
+import android.content.pm.ShortcutInfo
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -64,6 +65,13 @@ class LauncherAppsCatalog(
                     user: UserHandle,
                     replacing: Boolean,
                 ) = reload()
+
+                // 固定したショートカットの追加・解除・アプリによる無効化に追従する
+                override fun onShortcutsChanged(
+                    packageName: String,
+                    shortcuts: MutableList<ShortcutInfo>,
+                    user: UserHandle,
+                ) = reload()
             },
             Handler(Looper.getMainLooper()),
         )
@@ -72,27 +80,40 @@ class LauncherAppsCatalog(
     private fun reload() {
         scope.launch(Dispatchers.IO) {
             val collator = Collator.getInstance()
-            state.value =
+            // 自分のパッケージを除くのは Activity だけ（debug の DEBUG_PIN で固定した自分のショートカットは並べる）
+            val activities =
                 launcherApps
                     .getActivityList(null, user)
                     .filter { it.componentName.packageName != context.packageName }
                     .map { AppEntry(AppKey(it.componentName.packageName, it.componentName.className), it.label.toString()) }
-                    .sortedWith(compareBy(collator) { it.label })
+            state.value = (activities + pinnedShortcuts()).sortedWith(compareBy(collator) { it.label })
         }
     }
 
-    override fun resolve(packageName: String): AppKey? = state.value.firstOrNull { it.key.packageName == packageName }?.key
+    override fun resolve(packageName: String): AppKey? = state.value.firstOrNull { it.key.packageName == packageName && !it.key.isShortcut }?.key
         ?: launcherApps.getActivityList(packageName, user).firstOrNull()?.componentName?.let { AppKey(it.packageName, it.className) }
 
     override fun launch(key: AppKey) {
+        // ショートカットは必ず id で起動し、作ったアプリ（ブラウザ）の起動の命令をそのまま使う。URL を取り出して開くと、PWA がタブで開くことがある
+        val id = key.shortcutId
+        if (id != null) {
+            try {
+                launcherApps.startShortcut(key.packageName, id, null, null, user)
+            } catch (_: Exception) {
+                // ショートカットが消えていた。何もしない
+            }
+            return
+        }
         launcherApps.startMainActivity(key.component(), user, null, null)
     }
 
     override fun openAppInfo(key: AppKey) {
+        if (key.isShortcut) return
         launcherApps.startAppDetailsActivity(key.component(), user, null, null)
     }
 
     override fun requestUninstall(key: AppKey) {
+        if (key.isShortcut) return
         context.startActivity(
             Intent(Intent.ACTION_DELETE, Uri.fromParts("package", key.packageName, null))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -100,7 +121,7 @@ class LauncherAppsCatalog(
     }
 
     override fun shortcuts(key: AppKey): List<AppShortcut> {
-        if (!launcherApps.hasShortcutHostPermission()) return emptyList()
+        if (key.isShortcut || !launcherApps.hasShortcutHostPermission()) return emptyList()
         val query =
             LauncherApps
                 .ShortcutQuery()
@@ -150,6 +171,36 @@ class LauncherAppsCatalog(
         } catch (_: Exception) {
             // ショートカットが消えていた。何もしない
         }
+    }
+
+    override fun unpin(key: AppKey) {
+        val id = key.shortcutId ?: return
+        try {
+            val remaining = pinned(key.packageName).map { it.id }.filter { it != id }
+            launcherApps.pinShortcuts(key.packageName, remaining, user)
+        } catch (_: Exception) {
+            // ロック中などで解除できない。一覧はそのまま
+        }
+    }
+
+    /**
+     * 固定したショートカット（このランチャーが固定を受け付けたもの）。既定のホームアプリでなければ空。
+     * ロック中などで問い合わせが失敗したら空を返し、Activity だけで一覧を作る（フォルダのデータには触れない）。
+     */
+    private fun pinnedShortcuts(): List<AppEntry> = try {
+        if (!launcherApps.hasShortcutHostPermission()) {
+            emptyList()
+        } else {
+            pinned(null).filter { it.isEnabled }.map { AppEntry(AppKey.shortcut(it.`package`, it.id), (it.shortLabel ?: it.longLabel ?: it.id).toString()) }
+        }
+    } catch (_: Exception) {
+        emptyList()
+    }
+
+    private fun pinned(packageName: String?): List<ShortcutInfo> {
+        val query = LauncherApps.ShortcutQuery().setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED)
+        if (packageName != null) query.setPackage(packageName)
+        return launcherApps.getShortcuts(query, user).orEmpty()
     }
 
     private fun AppKey.component() = ComponentName(packageName, className)
