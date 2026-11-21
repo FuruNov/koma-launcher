@@ -99,6 +99,9 @@ restore() {
 trap restore EXIT
 # 起動の記録があると、全アプリ一覧の上に「よく使う」の行が加わり、アイコンの位置が変わる
 su_sh "rm -rf $FILES/layout.json $FILES/art $FILES/launches.json"
+# park の force-stop の直後に、システムがこのアプリを起動し直すことがある（2026-11-21 に Waydroid で確認。原因は未確認）。
+# そのプロセスは消す前のファイルを読み込んでいるので、もう一度止めて、消した後の状態から起動させる
+adb shell am force-stop "$PKG"
 adb shell cmd package set-home-activity "$PKG/.MainActivity" >/dev/null
 adb shell am start -n "$PKG/.MainActivity" >/dev/null
 sleep 2
