@@ -65,6 +65,11 @@ sealed interface Overlay {
         val shortcuts: List<AppShortcut>,
     ) : Overlay
 
+    /** 追加したショートカット（PWA など）の削除の確認。固定の解除はランチャーから戻せないので、押す前に尋ねる。 */
+    data class ConfirmRemove(
+        val app: AppKey,
+    ) : Overlay
+
     /** 音楽プレイヤーに必要な「通知へのアクセス」の説明。 */
     data object MusicAccess : Overlay
 
@@ -121,6 +126,9 @@ data class HomeUiState(
     val adjusting: Boolean = false,
 ) {
     fun labelOf(app: AppKey): String = labels[app] ?: app.packageName
+
+    /** 表示するフォルダの中身。一覧に無いショートカットを隠す（Folders.shownAppsOf）。 */
+    fun shownAppsOf(panelId: String): List<AppKey> = folders.shownAppsOf(panelId, labels.keys)
 }
 
 sealed interface HomeEvent {
@@ -145,6 +153,16 @@ sealed interface HomeEvent {
     ) : HomeEvent
 
     data object Dismiss : HomeEvent
+
+    /** 長押しのメニューの「削除」。確認を出すだけで、まだ解除しない。 */
+    data class RemoveShortcut(
+        val app: AppKey,
+    ) : HomeEvent
+
+    /** 確認の「削除」。固定を解除し、全てのフォルダから外す。 */
+    data class ConfirmRemoveShortcut(
+        val app: AppKey,
+    ) : HomeEvent
 
     /** フォルダの中身の編集。編集の規則は FolderEdits にあり、ここでは適用と「元に戻す」の記録だけをする。 */
     data class EditFolders(
@@ -395,6 +413,14 @@ class HomeViewModel(
                 overlay.value = Overlay.None
             }
 
+            is HomeEvent.RemoveShortcut -> overlay.value = Overlay.ConfirmRemove(event.app)
+
+            is HomeEvent.ConfirmRemoveShortcut -> {
+                apps.unpin(event.app)
+                folderStore.update { f -> f.byPanel.keys.fold(f) { acc, panel -> FolderEdits.remove(acc, panel, event.app) } }
+                overlay.value = Overlay.None
+            }
+
             is HomeEvent.SwipePanel ->
                 if (state.value.player?.panelId == event.panelId) {
                     // 右へ払うと次の曲、左へ払うと前の曲（利用者が実機で試し、こちらが直感に合うとした。2026-11-20）
@@ -424,8 +450,13 @@ class HomeViewModel(
     }
 
     private fun drop(e: HomeEvent.Drop) {
-        val target = e.target
         val before = folderStore.folders.value
+        // フォルダの画面の位置は、一覧に無いショートカットを隠した並びの位置なので、データの中の位置に直す
+        val target =
+            (e.target as? DropTarget.Panel)?.takeIf { it.index != null }?.let { t ->
+                val available = apps.apps.value.mapTo(HashSet()) { it.key }
+                t.copy(index = FolderEdits.dataIndex(before.appsOf(t.panelId), t.index!!) { !it.isShortcut || it in available })
+            } ?: e.target
         val after =
             when {
                 target is DropTarget.Remove && e.fromPanel != null -> FolderEdits.remove(before, e.fromPanel, e.app)

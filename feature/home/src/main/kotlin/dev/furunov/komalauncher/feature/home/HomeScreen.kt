@@ -389,6 +389,8 @@ fun HomeScreen(
 
                 Overlay.MusicAccess -> MusicAccessSheet(onEvent)
 
+                is Overlay.ConfirmRemove -> ConfirmRemoveSheet(o.app, state.labelOf(o.app), onEvent)
+
                 is Overlay.Rename -> RenameSheet(o.panelId, state.folders.byPanel[o.panelId.value]?.name ?: state.layout.panel(o.panelId)?.label, onEvent)
 
                 Overlay.None -> Unit
@@ -761,5 +763,5 @@ private fun panelIcons(
 ): List<PanelIcon> {
     val rects = spec?.icons.orEmpty()
     if (g.panel.content == PanelContent.Drawer) return rects.take(1).map { PanelIcon(null, it) }
-    return rects.zip(state.folders.appsOf(g.panel.id.value)) { r, app -> PanelIcon(app, r) }
+    return rects.zip(state.shownAppsOf(g.panel.id.value)) { r, app -> PanelIcon(app, r) }
 }

@@ -3,6 +3,7 @@ package dev.furunov.komalauncher.feature.home
 import dev.furunov.komalauncher.model.apps.AppCatalog
 import dev.furunov.komalauncher.model.apps.AppEntry
 import dev.furunov.komalauncher.model.apps.AppKey
+import dev.furunov.komalauncher.model.folders.Folder
 import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.folders.Folders
@@ -436,5 +437,70 @@ class HomeViewModelTest {
         vm.onEvent(HomeEvent.SwipePanel(PanelId("p1"), toLeft = true))
         assertEquals(emptyList(), media.calls)
         assertEquals(Overlay.None, vm.state.value.overlay)
+    }
+
+    private val sc = AppKey.shortcut("com.vivaldi.browser", "pwa-1")
+
+    /** 一覧に [sc] を並べ（固定したショートカットとして）、p1 と p2 に入れておく。 */
+    private fun withShortcutInTwoFolders() {
+        appsFake.list.value = appsFake.list.value + AppEntry(sc, "アイマスイントロ")
+        folders.flow.value = Folders(byPanel = mapOf("p1" to Folder(listOf(chrome, sc)), "p2" to Folder(listOf(sc))), seeded = setOf("p1"))
+    }
+
+    @Test
+    fun removeShortcutAsksBeforeUnpinning() {
+        withShortcutInTwoFolders()
+        val before = folders.flow.value
+        vm.onEvent(HomeEvent.RemoveShortcut(sc))
+        assertEquals(Overlay.ConfirmRemove(sc), vm.state.value.overlay)
+        assertEquals(emptyList(), appsFake.unpinned)
+        assertEquals(before, folders.flow.value)
+    }
+
+    @Test
+    fun confirmRemoveUnpinsAndRemovesFromAllFolders() {
+        withShortcutInTwoFolders()
+        vm.onEvent(HomeEvent.RemoveShortcut(sc))
+        vm.onEvent(HomeEvent.ConfirmRemoveShortcut(sc))
+        assertEquals(listOf(sc), appsFake.unpinned)
+        assertEquals(listOf(chrome), folders.flow.value.appsOf("p1"))
+        assertEquals(emptyList(), folders.flow.value.appsOf("p2"))
+        assertEquals(Overlay.None, vm.state.value.overlay)
+    }
+
+    @Test
+    fun cancelRemoveKeepsEverything() {
+        withShortcutInTwoFolders()
+        val before = folders.flow.value
+        vm.onEvent(HomeEvent.RemoveShortcut(sc))
+        vm.onEvent(HomeEvent.Dismiss)
+        assertEquals(emptyList(), appsFake.unpinned)
+        assertEquals(before, folders.flow.value)
+        assertEquals(Overlay.None, vm.state.value.overlay)
+    }
+
+    @Test
+    fun dropIndexSkipsHiddenShortcuts() {
+        val h1 = AppKey.shortcut("v", "h1")
+        val h2 = AppKey.shortcut("v", "h2")
+        val b = AppKey("b", "B")
+        val x = AppKey("x", "X")
+        appsFake.list.value = listOf(AppEntry(chrome, "Chrome"), AppEntry(b, "B"), AppEntry(x, "X"))
+        folders.flow.value = Folders(byPanel = mapOf("p1" to Folder(listOf(h1, h2, chrome, b))), seeded = setOf("p1"))
+        vm.onEvent(HomeEvent.Drop(x, fromPanel = null, target = DropTarget.Panel("p1", index = 1)))
+        assertEquals(listOf(chrome, x, b), vm.state.value.shownAppsOf("p1"))
+    }
+
+    @Test
+    fun shownAppsHideShortcutMissingFromList() {
+        folders.flow.value = Folders(byPanel = mapOf("p1" to Folder(listOf(sc, chrome))), seeded = setOf("p1"))
+        assertEquals(listOf(chrome), vm.state.value.shownAppsOf("p1"))
+    }
+
+    @Test
+    fun directLaunchSkipsHiddenShortcut() {
+        folders.flow.value = Folders(byPanel = mapOf("p1" to Folder(listOf(sc, chrome), directLaunch = true)), seeded = setOf("p1"))
+        vm.onEvent(HomeEvent.TapPanel(PanelId("p1")))
+        assertEquals(listOf(chrome), appsFake.launched)
     }
 }

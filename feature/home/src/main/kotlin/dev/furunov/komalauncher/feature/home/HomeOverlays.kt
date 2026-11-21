@@ -36,6 +36,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.furunov.komalauncher.model.apps.AppKey
 import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.layout.PanelId
@@ -123,11 +124,16 @@ internal fun AppMenuSheet(
             }
             menu.shortcuts.forEach { sc -> MenuRow(sc.label) { onEvent(HomeEvent.LaunchShortcut(sc)) } }
             if (menu.shortcuts.isNotEmpty()) Divider()
-            MenuRow("アプリ情報") { onEvent(HomeEvent.AppInfo(menu.app)) }
+            // 追加したショートカット（PWA など）には、アプリ情報とアンインストールが無い。代わりに固定を解除する「削除」を出す
+            if (!menu.app.isShortcut) MenuRow("アプリ情報") { onEvent(HomeEvent.AppInfo(menu.app)) }
             menu.fromPanel?.let { panel ->
                 MenuRow("フォルダから削除") { onEvent(HomeEvent.Drop(menu.app, panel, DropTarget.Remove)) }
             }
-            MenuRow("アンインストール", color = Color(0xFFEF9A9A)) { onEvent(HomeEvent.Uninstall(menu.app)) }
+            if (menu.app.isShortcut) {
+                MenuRow("削除", color = Color(0xFFEF9A9A)) { onEvent(HomeEvent.RemoveShortcut(menu.app)) }
+            } else {
+                MenuRow("アンインストール", color = Color(0xFFEF9A9A)) { onEvent(HomeEvent.Uninstall(menu.app)) }
+            }
         }
     }
 }
@@ -194,6 +200,25 @@ internal fun PanelMenuSheet(
         }
         Divider()
         MenuRow("ランチャーの設定") { onEvent(HomeEvent.Perform(LauncherAction.OpenSettings)) }
+    }
+}
+
+/** 追加したショートカットの削除の確認。固定の解除はランチャーから戻せず、ブラウザで追加し直すしかない。 */
+@Composable
+internal fun ConfirmRemoveSheet(
+    app: AppKey,
+    label: String,
+    onEvent: (HomeEvent) -> Unit,
+) {
+    BackHandler { onEvent(HomeEvent.Dismiss) }
+    Sheet(onDismiss = { onEvent(HomeEvent.Dismiss) }) {
+        BasicText(
+            "${label}を削除しますか。",
+            style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.padding(16.dp),
+        )
+        MenuRow("キャンセル") { onEvent(HomeEvent.Dismiss) }
+        MenuRow("削除", color = Color(0xFFEF9A9A)) { onEvent(HomeEvent.ConfirmRemoveShortcut(app)) }
     }
 }
 

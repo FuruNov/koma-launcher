@@ -68,7 +68,7 @@ internal fun FolderPopup(
     val dnd = LocalDragDrop.current
     DisposableEffect(panel.panel.id) { onDispose { dropInfo.clear() } }
     val appearance = state.settings.appearance
-    val apps = state.folders.appsOf(panel.panel.id.value)
+    val apps = state.shownAppsOf(panel.panel.id.value)
     val name = state.folders.byPanel[panel.panel.id.value]?.name ?: panel.panel.label
     val density = LocalDensity.current
     val insets = WindowInsets.safeDrawing
