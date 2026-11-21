@@ -28,9 +28,13 @@ class SensorTiltSource(
     private val angles = FloatArray(3)
     private var base: FloatArray? = null
 
+    /** true の間は、センサーの値で目標を変えない（[simulate] で送った傾きを残す）。次の [start] で戻す。 */
+    private var simulated = false
+
     override fun start() {
         val s = sensor ?: return
         base = null
+        simulated = false
         // UI の間隔（約 60 ms）で十分。画面は目標へ少しずつ寄せて描くので、細かく読んでも見た目は変わらない
         manager?.registerListener(this, s, SensorManager.SENSOR_DELAY_UI)
     }
@@ -40,12 +44,18 @@ class SensorTiltSource(
         mutable.value = Tilt.ZERO
     }
 
-    /** センサーの無い環境で、傾けたときの見た目を確かめる（debug の受け口から呼ぶ）。 */
+    /**
+     * センサーの無い環境で、傾けたときの見た目を確かめる（debug の受け口から呼ぶ）。
+     * 実機ではセンサーも値を出すので、送った後はセンサーの値を無視する。無視しないと、送った傾きが約 60 ms 後に
+     * 机の上の端末の傾き（ほぼ 0）で上書きされ、傾けて動かし続けるときの重さを測れない（2026-11-21）。
+     */
     fun simulate(tilt: Tilt) {
+        simulated = true
         mutable.value = tilt
     }
 
     override fun onSensorChanged(event: SensorEvent) {
+        if (simulated) return
         SensorManager.getRotationMatrixFromVector(rotation, event.values)
         SensorManager.getOrientation(rotation, angles)
         val pitch = Math.toDegrees(angles[1].toDouble()).toFloat()
