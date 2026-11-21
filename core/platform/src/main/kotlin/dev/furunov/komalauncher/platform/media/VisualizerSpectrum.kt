@@ -1,5 +1,6 @@
 package dev.furunov.komalauncher.platform.media
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
@@ -192,6 +193,9 @@ class VisualizerSpectrum(
      * 今の出力先でのメディアの音量（dB）。Visualizer が受け取る音は、すでに音量をかけた後の音なので、その分を戻すのに使う。
      * Bluetooth の機器が音量を受け持つ場合は端末の側で音量をかけないので、実際より大きく戻すことになるが、無音の判断が甘くなるだけで済む。
      */
+    // lint は AudioDeviceInfo.type を入力機器も含む定数として扱い、出力機器の定数を求める getStreamVolumeDb への受け渡しを誤りとする。
+    // ここでは出力機器（isSink）の種類だけを渡し、無ければ内蔵スピーカーにするので、WrongConstant の指摘には該当しない
+    @SuppressLint("WrongConstant")
     private fun mediaVolumeDb(): Float {
         val now = SystemClock.elapsedRealtime()
         if (now - volumeCheckedAt < VOLUME_CHECK_MS) return volumeDb
@@ -199,7 +203,9 @@ class VisualizerSpectrum(
         val a = audio ?: return 0f
         val db =
             runCatching {
-                val device = a.getAudioDevicesForAttributes(MEDIA).firstOrNull()?.type ?: AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                val device =
+                    a.getAudioDevicesForAttributes(MEDIA).firstOrNull { it.isSink }?.type
+                        ?: AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
                 a.getStreamVolumeDb(AudioManager.STREAM_MUSIC, a.getStreamVolume(AudioManager.STREAM_MUSIC), device)
             }.onFailure { Log.i(TAG, "音量を取得できない（$it）") }
                 .getOrDefault(0f)
