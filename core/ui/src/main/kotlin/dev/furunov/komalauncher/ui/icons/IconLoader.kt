@@ -43,6 +43,21 @@ interface IconLoader {
      */
     val shortcutRevision: StateFlow<Long> get() = NO_REVISION
 
+    /** アイコンの形・縁・影の設定が変わるたびに増える数。[AppIcon] とコマのアイコンは、これが変わったら読み直す。 */
+    val styleRevision: StateFlow<Long> get() = NO_REVISION
+
+    /** 影の画像（保持していれば）。影の無い設定なら null。大きさは一辺 × (1 + 2 × [SHADOW_PAD])。 */
+    fun cachedShadow(
+        key: AppKey,
+        sizePx: Int,
+    ): ImageBitmap? = null
+
+    /** 影の画像を読む。影の無い設定なら null。 */
+    suspend fun loadShadow(
+        key: AppKey,
+        sizePx: Int,
+    ): ImageBitmap? = null
+
     fun trim()
 }
 
@@ -78,3 +93,6 @@ fun AppIcon(
 val DefaultIconSize = 52.dp
 
 private val NO_REVISION: StateFlow<Long> = MutableStateFlow(0L)
+
+/** 影の画像の、ぼかしがはみ出す分の余白（アイコンの一辺に対する割合）。影はこの分だけ四方に広げて描く。 */
+const val SHADOW_PAD = 0.1f

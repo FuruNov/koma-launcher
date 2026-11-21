@@ -58,7 +58,7 @@ class AppContainer(
 
     /** 起動を数えるよう包む。ジェスチャーからの起動（DefaultActionPerformer）もここを通る。 */
     val appCatalog: AppCatalog = CountingAppCatalog(LauncherAppsCatalog(context, scope), fileLaunches)
-    val iconLoader: IconLoader = LauncherIconLoader(context)
+    val iconLoader: IconLoader = LauncherIconLoader(context, settingsStore.settings, scope)
     val screenEvents = BroadcastScreenEvents(context)
     val tilt = SensorTiltSource(context)
 

@@ -5,8 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.LauncherApps
 import android.content.pm.ShortcutInfo
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.drawable.Drawable
 import android.os.Handler
 import android.os.Looper
@@ -16,10 +14,16 @@ import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import dev.furunov.komalauncher.model.apps.AppKey
+import dev.furunov.komalauncher.model.settings.IconStyle
+import dev.furunov.komalauncher.model.settings.Settings
 import dev.furunov.komalauncher.ui.icons.IconLoader
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
@@ -30,6 +34,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class LauncherIconLoader(
     context: Context,
+    settings: StateFlow<Settings>,
+    scope: CoroutineScope,
     maxBytes: Int = 4 * 1024 * 1024,
 ) : IconLoader {
     private val launcherApps = context.getSystemService(LauncherApps::class.java)
@@ -41,7 +47,20 @@ class LauncherIconLoader(
     private val revision = MutableStateFlow(0L)
     override val shortcutRevision: StateFlow<Long> = revision
 
+    // アイコンの形・縁・影。変わったらキャッシュを全て消し、styleRevision を増やして表示中のアイコンを読み直させる
+    @Volatile private var style: IconStyle = settings.value.appearance.iconStyle
+    private val styleRev = MutableStateFlow(0L)
+    override val styleRevision: StateFlow<Long> = styleRev
+
     init {
+        scope.launch {
+            settings.map { it.appearance.iconStyle }.distinctUntilChanged().collect { s ->
+                if (s == style) return@collect
+                style = s
+                cache.evictAll()
+                styleRev.value++
+            }
+        }
         launcherApps.registerCallback(
             object : LauncherApps.Callback() {
                 override fun onPackageRemoved(packageName: String, user: UserHandle) = Unit
@@ -80,7 +99,7 @@ class LauncherIconLoader(
     private fun cacheKey(
         key: AppKey,
         sizePx: Int,
-    ) = "${key.packageName}/${key.className}/${key.shortcutId.orEmpty()}@$sizePx"
+    ) = "${key.packageName}/${key.className}/${key.shortcutId.orEmpty()}@$sizePx#$style"
 
     override fun cached(
         key: AppKey,
@@ -93,12 +112,25 @@ class LauncherIconLoader(
     ): ImageBitmap? = withContext(Dispatchers.IO) {
         cached(key, sizePx)?.let { return@withContext it }
         val drawable = (if (key.isShortcut) shortcutIcon(key) else activityIcon(key)) ?: return@withContext null
-        val bitmap =
-            Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).also {
-                drawable.setBounds(0, 0, sizePx, sizePx)
-                drawable.draw(Canvas(it))
-            }.asImageBitmap()
+        val bitmap = IconRenderer.icon(drawable, sizePx, style).asImageBitmap()
         cache.put(cacheKey(key, sizePx), bitmap)
+        bitmap
+    }
+
+    override fun cachedShadow(
+        key: AppKey,
+        sizePx: Int,
+    ): ImageBitmap? = if (style.shadow) cache.get(cacheKey(key, sizePx) + "#shadow") else null
+
+    // 影は形だけで決まる（アイコンの中身に依らない）が、キャッシュの扱いをアイコンとそろえるため、アイコンごとに持つ
+    override suspend fun loadShadow(
+        key: AppKey,
+        sizePx: Int,
+    ): ImageBitmap? = withContext(Dispatchers.IO) {
+        if (!style.shadow) return@withContext null
+        cachedShadow(key, sizePx)?.let { return@withContext it }
+        val bitmap = IconRenderer.shadow(sizePx, style)?.asImageBitmap() ?: return@withContext null
+        cache.put(cacheKey(key, sizePx) + "#shadow", bitmap)
         bitmap
     }
 
