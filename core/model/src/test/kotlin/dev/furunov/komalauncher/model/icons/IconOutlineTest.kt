@@ -1,5 +1,6 @@
 package dev.furunov.komalauncher.model.icons
 
+import dev.furunov.komalauncher.model.settings.IconRim
 import dev.furunov.komalauncher.model.settings.IconShape
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -39,5 +40,28 @@ class IconOutlineTest {
             val ops = IconOutline.of(shape, needsClip = true)
             assertTrue(ops.first() is OutlineOp.Move && ops.last() == OutlineOp.Close, "$shape の輪郭が閉じていない")
         }
+    }
+}
+
+class IconContentBoxTest {
+    @Test
+    fun contentBoxStaysInsideShapeAndRim() {
+        IconShape.entries.forEach { shape ->
+            IconRim.entries.forEach { rim ->
+                val box = IconOutline.contentBox(shape, rim)
+                val poly = IconOutline.polygon(IconOutline.of(shape, needsClip = true))
+                listOf(box.l to box.t, box.r to box.t, box.r to box.b, box.l to box.b).forEach { (x, y) ->
+                    assertTrue(IconOutline.inside(poly, x, y), "$shape/$rim の四角の角 ($x, $y) が形の外にある")
+                    assertTrue(IconOutline.distanceToEdge(poly, x, y) >= IconOutline.rimWidth(rim) - 0.002f, "$shape/$rim の四角の角 ($x, $y) が縁に掛かる")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun roundedWithoutRimKeepsSixteenPercentMargin() {
+        val box = IconOutline.contentBox(IconShape.ROUNDED, IconRim.NONE)
+        assertEquals(0.16f, box.l, 0.001f)
+        assertEquals(0.84f, box.r, 0.001f)
     }
 }

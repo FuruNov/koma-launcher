@@ -50,6 +50,9 @@ class LauncherIconLoader(
     // アイコンの形・縁・影。変わったらキャッシュを全て消し、styleRevision を増やして表示中のアイコンを読み直させる
     @Volatile private var style: IconStyle = settings.value.appearance.iconStyle
     private val styleRev = MutableStateFlow(0L)
+
+    // 影の画像は形と大きさだけで決まり、アイコンの中身に依らないので、形と大きさごとに 1 枚だけ持つ（アイコンのキャッシュを圧迫しないように）
+    private val shadows = ConcurrentHashMap<String, ImageBitmap>()
     override val styleRevision: StateFlow<Long> = styleRev
 
     init {
@@ -58,6 +61,7 @@ class LauncherIconLoader(
                 if (s == style) return@collect
                 style = s
                 cache.evictAll()
+                shadows.clear()
                 styleRev.value++
             }
         }
@@ -99,7 +103,8 @@ class LauncherIconLoader(
     private fun cacheKey(
         key: AppKey,
         sizePx: Int,
-    ) = "${key.packageName}/${key.className}/${key.shortcutId.orEmpty()}@$sizePx#$style"
+        st: IconStyle = style,
+    ) = "${key.packageName}/${key.className}/${key.shortcutId.orEmpty()}@$sizePx#$st"
 
     override fun cached(
         key: AppKey,
@@ -110,31 +115,37 @@ class LauncherIconLoader(
         key: AppKey,
         sizePx: Int,
     ): ImageBitmap? = withContext(Dispatchers.IO) {
-        cached(key, sizePx)?.let { return@withContext it }
+        // 設定は 1 回だけ読む。描く間に設定が変わっても、古い形の画像を新しいキーで残さないように
+        val st = style
+        cache.get(cacheKey(key, sizePx, st))?.let { return@withContext it }
         val drawable = (if (key.isShortcut) shortcutIcon(key) else activityIcon(key)) ?: return@withContext null
-        val bitmap = IconRenderer.icon(drawable, sizePx, style).asImageBitmap()
-        cache.put(cacheKey(key, sizePx), bitmap)
+        val bitmap = IconRenderer.icon(drawable, sizePx, st).asImageBitmap()
+        cache.put(cacheKey(key, sizePx, st), bitmap)
         bitmap
     }
 
     override fun cachedShadow(
         key: AppKey,
         sizePx: Int,
-    ): ImageBitmap? = if (style.shadow) cache.get(cacheKey(key, sizePx) + "#shadow") else null
+    ): ImageBitmap? = style.let { st -> if (st.shadow) shadows["${st.shape}@$sizePx"] else null }
 
-    // 影は形だけで決まる（アイコンの中身に依らない）が、キャッシュの扱いをアイコンとそろえるため、アイコンごとに持つ
     override suspend fun loadShadow(
         key: AppKey,
         sizePx: Int,
     ): ImageBitmap? = withContext(Dispatchers.IO) {
-        if (!style.shadow) return@withContext null
-        cachedShadow(key, sizePx)?.let { return@withContext it }
-        val bitmap = IconRenderer.shadow(sizePx, style)?.asImageBitmap() ?: return@withContext null
-        cache.put(cacheKey(key, sizePx) + "#shadow", bitmap)
+        val st = style
+        if (!st.shadow) return@withContext null
+        val k = "${st.shape}@$sizePx"
+        shadows[k]?.let { return@withContext it }
+        val bitmap = IconRenderer.shadow(sizePx, st)?.asImageBitmap() ?: return@withContext null
+        shadows[k] = bitmap
         bitmap
     }
 
-    override fun trim() = cache.evictAll()
+    override fun trim() {
+        cache.evictAll()
+        shadows.clear()
+    }
 
     private fun activityIcon(key: AppKey): Drawable? = launcherApps
         .resolveActivity(Intent(Intent.ACTION_MAIN).setComponent(ComponentName(key.packageName, key.className)), user)

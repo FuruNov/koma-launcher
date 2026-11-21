@@ -46,20 +46,21 @@ object IconRenderer {
             drawable.background?.apply { setBounds(-pad, -pad, size + pad, size + pad) }?.draw(canvas)
             drawable.foreground?.apply { setBounds(-pad, -pad, size + pad, size + pad) }?.draw(canvas)
         } else {
-            // 2 層に分かれていない古い形式のアイコンは、白い台の上に小さくして載せる
+            // 2 層に分かれていない古い形式のアイコンは、白い台の上に、形の内側で縁に掛からない四角に収めて載せる
             canvas.drawColor(Color.WHITE)
-            val m = (s * 0.16f).toInt()
-            drawable.setBounds(m, m, size - m, size - m)
+            val box = IconOutline.contentBox(style.shape, style.rim)
+            drawable.setBounds((box.l * s).toInt(), (box.t * s).toInt(), (box.r * s).toInt(), (box.b * s).toInt())
             drawable.draw(canvas)
         }
         // 縁は形の縁の内側に描く。線を 2 倍の太さで描き、形で切り抜いて内側の半分を残す
         when (style.rim) {
             IconRim.INK -> {
-                canvas.drawPath(path, stroke(Color.WHITE, s * 0.06f * 2f + s * 0.035f * 2f))
-                canvas.drawPath(path, stroke(INK, s * 0.06f * 2f))
+                // 試作と同じく、外側から白・黒の順に並べる（暗いコマの上でも黒い線が背景に溶けないように）
+                canvas.drawPath(path, stroke(INK, s * IconOutline.rimWidth(IconRim.INK) * 2f))
+                canvas.drawPath(path, stroke(Color.WHITE, s * IconOutline.INK_WHITE * 2f))
             }
 
-            IconRim.STICKER -> canvas.drawPath(path, stroke(Color.WHITE, s * 0.08f * 2f))
+            IconRim.STICKER -> canvas.drawPath(path, stroke(Color.WHITE, s * IconOutline.STICKER * 2f))
 
             IconRim.NONE -> Unit
         }

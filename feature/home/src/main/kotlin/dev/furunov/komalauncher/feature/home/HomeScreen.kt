@@ -609,7 +609,7 @@ private fun TextPart(
     when (kind) {
         LayerKind.ICONS ->
             if (icons.isNotEmpty() && texts.icons.isNotEmpty()) {
-                TiltLayer(shift(parallax.icon)) { drawPanelTexts(PanelTextSpec(icons = texts.icons), area, measurer, now(), null, null, null, icons = icons, iconFilter = g.face.toneFilter, ink = g.face.inkText, iconShadows = iconShadows, shadowDir = -light()) }
+                TiltLayer(shift(parallax.icon)) { drawPanelTexts(PanelTextSpec(icons = texts.icons), area, measurer, now(), null, null, null, icons = icons, iconFilter = g.face.toneFilter, ink = g.face.inkText, iconShadows = iconShadows, shadowDir = if (iconShadows.any { it != null }) -light() else Offset.Zero) }
             }
 
         LayerKind.LABEL -> if (texts.labels.isNotEmpty()) TiltLayer(shift(parallax.text)) { drawPanelTexts(PanelTextSpec(labels = texts.labels), area, measurer, now(), null, null, null, ink = g.face.inkText) }

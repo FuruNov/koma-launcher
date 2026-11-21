@@ -1,8 +1,6 @@
 package dev.furunov.komalauncher
 
 import android.content.pm.LauncherApps
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.os.Bundle
 import android.os.Process
 import android.widget.Toast
@@ -44,6 +42,7 @@ import dev.furunov.komalauncher.model.apps.AppKey
 import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.layout.PanelId
 import dev.furunov.komalauncher.model.ports.LayoutState
+import dev.furunov.komalauncher.platform.apps.IconRenderer
 import dev.furunov.komalauncher.ui.art.PanelPicker
 
 /**
@@ -68,11 +67,9 @@ class PinShortcutActivity : ComponentActivity() {
         val label = (info.shortLabel ?: info.longLabel ?: info.id).toString()
         val iconPx = (48 * resources.displayMetrics.density).toInt()
         val icon =
+            // 追加した後と同じ見た目にするため、設定のアイコンの形で描く
             launcherApps.getShortcutIconDrawable(info, resources.displayMetrics.densityDpi)?.let { d ->
-                Bitmap.createBitmap(iconPx, iconPx, Bitmap.Config.ARGB_8888).also {
-                    d.setBounds(0, 0, iconPx, iconPx)
-                    d.draw(Canvas(it))
-                }.asImageBitmap()
+                IconRenderer.icon(d, iconPx, container.settingsStore.settings.value.appearance.iconStyle).asImageBitmap()
             }
         // ホームは縦向きに固定して画面全体に描くので、縮小図も縦向きの大きさで作る。この画面は回転するので、横向きのときは幅と高さを入れ替える
         val bounds = windowManager.currentWindowMetrics.bounds
