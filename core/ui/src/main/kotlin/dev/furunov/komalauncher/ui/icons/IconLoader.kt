@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,6 +21,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.furunov.komalauncher.model.apps.AppKey
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /** アイコンを表示する大きさで読む。実装は少数だけを保持し、メモリが逼迫したら [trim] で捨てる。 */
 interface IconLoader {
@@ -33,6 +36,12 @@ interface IconLoader {
         key: AppKey,
         sizePx: Int,
     ): ImageBitmap?
+
+    /**
+     * 固定したショートカットのアイコンが作ったアプリの側で変わるたびに増える数。[AppIcon] はショートカットのときだけこれを見て読み直す。
+     * アプリのアイコンには使わない（アプリの更新では一覧ごと作り直されるため）。
+     */
+    val shortcutRevision: StateFlow<Long> get() = NO_REVISION
 
     fun trim()
 }
@@ -50,8 +59,11 @@ fun AppIcon(
 ) {
     val loader = LocalIconLoader.current
     val px = with(LocalDensity.current) { size.roundToPx() }
-    var bitmap by remember(key, px) { mutableStateOf(loader.cached(key, px)) }
-    LaunchedEffect(key, px) {
+    val revision by loader.shortcutRevision.collectAsState()
+    // アプリのアイコンは revision で読み直さない（読み直す必要のあるショートカットだけが変わったとき、全てのアイコンを読み直さないように）
+    val rev = if (key.isShortcut) revision else 0L
+    var bitmap by remember(key, px, rev) { mutableStateOf(loader.cached(key, px)) }
+    LaunchedEffect(key, px, rev) {
         if (bitmap == null) bitmap = loader.load(key, px)
     }
     val b = bitmap
@@ -64,3 +76,5 @@ fun AppIcon(
 }
 
 val DefaultIconSize = 52.dp
+
+private val NO_REVISION: StateFlow<Long> = MutableStateFlow(0L)

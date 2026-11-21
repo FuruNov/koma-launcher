@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
+import android.graphics.Bitmap
 import android.graphics.drawable.Icon
 import dev.furunov.komalauncher.model.layout.Tilt
 
@@ -27,16 +28,19 @@ class DebugReceiver : BroadcastReceiver() {
         }
         // ブラウザの無い Waydroid で、ホーム画面への追加の依頼を確かめる。自分自身のショートカットの固定を依頼する。
         // 例: am broadcast -p dev.furunov.komalauncher -a dev.furunov.komalauncher.DEBUG_PIN --ei n 1
+        // --ez update true を付けると、固定済みのショートカットの名前とアイコンを変える（ブラウザの側でアイコンが変わった場合を再現する）。色は --ei color <ARGB の整数> で変える
         if (intent.action == "dev.furunov.komalauncher.DEBUG_PIN") {
             val n = intent.getIntExtra("n", 1)
+            val update = intent.getBooleanExtra("update", false)
             val shortcut =
                 ShortcutInfo
                     .Builder(context, "debug-pin-$n")
-                    .setShortLabel("テスト $n")
-                    .setIcon(Icon.createWithResource(context, R.mipmap.ic_launcher))
+                    .setShortLabel(if (update) "テスト $n 更新" else "テスト $n")
+                    .setIcon(if (update) Icon.createWithBitmap(Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888).apply { eraseColor(intent.getIntExtra("color", 0xFF2BB5D8.toInt())) }) else Icon.createWithResource(context, R.mipmap.ic_launcher))
                     .setIntent(Intent(context, MainActivity::class.java).setAction(Intent.ACTION_MAIN))
                     .build()
-            context.getSystemService(ShortcutManager::class.java).requestPinShortcut(shortcut, null)
+            val manager = context.getSystemService(ShortcutManager::class.java)
+            if (update) manager.updateShortcuts(listOf(shortcut)) else manager.requestPinShortcut(shortcut, null)
         }
         if (intent.action == "dev.furunov.komalauncher.DEBUG_VIS") {
             DebugVisualizer.handle(

@@ -4,17 +4,24 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.LauncherApps
+import android.content.pm.ShortcutInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
+import android.os.Handler
+import android.os.Looper
 import android.os.Process
+import android.os.UserHandle
 import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import dev.furunov.komalauncher.model.apps.AppKey
 import dev.furunov.komalauncher.ui.icons.IconLoader
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * アイコンを表示する大きさで 1 回だけ Bitmap にし、最近使ったものだけを保持する。
@@ -28,6 +35,40 @@ class LauncherIconLoader(
     private val launcherApps = context.getSystemService(LauncherApps::class.java)
     private val density = context.resources.displayMetrics.densityDpi
     private val user = Process.myUserHandle()
+
+    // 読み込んだショートカットのアイコンの更新時刻（「パッケージ/id」から ShortcutInfo.lastChangedTimestamp）。変わったものだけを読み直す
+    private val stamps = ConcurrentHashMap<String, Long>()
+    private val revision = MutableStateFlow(0L)
+    override val shortcutRevision: StateFlow<Long> = revision
+
+    init {
+        launcherApps.registerCallback(
+            object : LauncherApps.Callback() {
+                override fun onPackageRemoved(packageName: String, user: UserHandle) = Unit
+
+                override fun onPackageAdded(packageName: String, user: UserHandle) = Unit
+
+                override fun onPackageChanged(packageName: String, user: UserHandle) = Unit
+
+                override fun onPackagesAvailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) = Unit
+
+                override fun onPackagesUnavailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) = Unit
+
+                // この通知はどのアプリが動的なショートカットを更新しても届くので、読み込んだ固定のショートカットの時刻が変わったときだけ読み直す
+                override fun onShortcutsChanged(packageName: String, shortcuts: MutableList<ShortcutInfo>, user: UserHandle) {
+                    val changed = shortcuts.filter { s -> stamps["$packageName/${s.id}"]?.let { it != s.lastChangedTimestamp } == true }
+                    if (changed.isEmpty()) return
+                    changed.forEach { s ->
+                        stamps.remove("$packageName/${s.id}")
+                        val prefix = "$packageName//${s.id}@"
+                        cache.snapshot().keys.filter { it.startsWith(prefix) }.forEach(cache::remove)
+                    }
+                    revision.value++
+                }
+            },
+            Handler(Looper.getMainLooper()),
+        )
+    }
     private val cache =
         object : LruCache<String, ImageBitmap>(maxBytes) {
             override fun sizeOf(
@@ -75,7 +116,10 @@ class LauncherIconLoader(
                 .setPackage(key.packageName)
                 .setShortcutIds(listOfNotNull(key.shortcutId))
                 .setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED)
-        launcherApps.getShortcuts(query, user)?.firstOrNull()?.let { launcherApps.getShortcutIconDrawable(it, density) }
+        launcherApps.getShortcuts(query, user)?.firstOrNull()?.let { info ->
+            stamps["${key.packageName}/${info.id}"] = info.lastChangedTimestamp
+            launcherApps.getShortcutIconDrawable(info, density)
+        }
     } catch (_: Exception) {
         null
     }
