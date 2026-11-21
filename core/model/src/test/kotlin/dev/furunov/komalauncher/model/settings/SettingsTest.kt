@@ -46,6 +46,7 @@ class SettingsTest {
     @Test
     fun oldSettingsWithoutIconFieldsDecode() {
         val s = json.decodeFromString(Settings.serializer(), """{"appearance":{"iconSizeDp":52}}""")
-        assertEquals(IconStyle(IconShape.SYSTEM, IconRim.NONE, false), s.appearance.iconStyle)
+        assertEquals(IconStyle(IconShape.SYSTEM, IconRim.NONE, false, rimScale = 1f), s.appearance.iconStyle)
+        assertEquals(100, s.appearance.iconRimPercent)
     }
 }

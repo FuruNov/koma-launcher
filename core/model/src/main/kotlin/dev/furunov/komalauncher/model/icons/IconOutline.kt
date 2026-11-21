@@ -62,7 +62,10 @@ object IconOutline {
     )
 
     /** 縁の幅（一辺に対する割合）。縁は形の縁の内側に描く。墨の線は外側の白 0.035 と内側の黒 0.06。 */
-    fun rimWidth(rim: IconRim): Float = when (rim) {
+    fun rimWidth(
+        rim: IconRim,
+        scale: Float = 1f,
+    ): Float = scale * when (rim) {
         IconRim.NONE -> 0f
         IconRim.INK -> INK_WHITE + INK_BLACK
         IconRim.STICKER -> STICKER
@@ -82,9 +85,10 @@ object IconOutline {
     fun contentBox(
         shape: IconShape,
         rim: IconRim,
+        scale: Float = 1f,
     ): Box {
         val poly = polygon(of(shape, needsClip = true))
-        val w = rimWidth(rim)
+        val w = rimWidth(rim, scale)
         val cx = 0.5f
         val cy = if (shape == IconShape.BUBBLE) 0.45f else 0.5f
         fun fits(h: Float) = listOf(cx - h to cy - h, cx + h to cy - h, cx + h to cy + h, cx - h to cy + h).all { (x, y) -> inside(poly, x, y) && distanceToEdge(poly, x, y) >= w }

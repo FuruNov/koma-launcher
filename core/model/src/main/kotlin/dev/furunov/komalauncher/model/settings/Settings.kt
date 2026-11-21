@@ -87,8 +87,10 @@ data class Appearance(
     val iconRim: IconRim = IconRim.NONE,
     /** true なら、アイコンの下に光の向きと反対の影を落とす。 */
     val iconShadow: Boolean = false,
+    /** アイコンの縁の太さ（標準の太さに対する百分率、50〜200）。 */
+    val iconRimPercent: Int = 100,
 ) {
-    val iconStyle: IconStyle get() = IconStyle(iconShape, iconRim, iconShadow)
+    val iconStyle: IconStyle get() = IconStyle(iconShape, iconRim, iconShadow, iconRimPercent.coerceIn(50, 200) / 100f)
 }
 
 @Serializable
@@ -132,6 +134,8 @@ data class IconStyle(
     val shape: IconShape,
     val rim: IconRim,
     val shadow: Boolean,
+    /** 縁の太さの倍率（1 で標準）。 */
+    val rimScale: Float = 1f,
 ) {
     /** 端末の標準で、縁も影も無い（Android のアイコンをそのまま描く）。 */
     val isPlain: Boolean get() = shape == IconShape.SYSTEM && rim == IconRim.NONE && !shadow

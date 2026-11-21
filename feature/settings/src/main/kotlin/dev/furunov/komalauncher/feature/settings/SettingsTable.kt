@@ -140,6 +140,13 @@ fun settingsSections(): List<SettingSection> = listOf(
                 listOf(Option(IconRim.NONE.name, "なし"), Option(IconRim.INK.name, "墨の線"), Option(IconRim.STICKER.name, "白フチ")),
                 get = { it.appearance.iconRim.name },
             ) { s, v -> s.copy(appearance = s.appearance.copy(iconRim = IconRim.valueOf(v))) },
+            SettingRow.Stepper(
+                "アイコンの縁の太さ",
+                50..200,
+                step = 25,
+                unit = "%",
+                get = { it.appearance.iconRimPercent },
+            ) { s, v -> s.copy(appearance = s.appearance.copy(iconRimPercent = v)) },
             SettingRow.Toggle("アイコンの影", { it.appearance.iconShadow }) { s, v ->
                 s.copy(appearance = s.appearance.copy(iconShadow = v))
             },

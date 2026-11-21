@@ -59,6 +59,22 @@ class IconContentBoxTest {
     }
 
     @Test
+    fun thickRimStillLeavesContentOutsideRim() {
+        IconShape.entries.forEach { shape ->
+            IconRim.entries.forEach { rim ->
+                val box = IconOutline.contentBox(shape, rim, scale = 2f)
+                val poly = IconOutline.polygon(IconOutline.of(shape, needsClip = true))
+                listOf(box.l to box.t, box.r to box.t, box.r to box.b, box.l to box.b).forEach { (x, y) ->
+                    assertTrue(IconOutline.distanceToEdge(poly, x, y) >= IconOutline.rimWidth(rim, 2f) - 0.002f, "$shape/$rim の太い縁に四角の角 ($x, $y) が掛かる")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun rimWidthScales() = assertEquals(IconOutline.rimWidth(IconRim.INK) * 1.5f, IconOutline.rimWidth(IconRim.INK, 1.5f), 0.0001f)
+
+    @Test
     fun roundedWithoutRimKeepsSixteenPercentMargin() {
         val box = IconOutline.contentBox(IconShape.ROUNDED, IconRim.NONE)
         assertEquals(0.16f, box.l, 0.001f)
