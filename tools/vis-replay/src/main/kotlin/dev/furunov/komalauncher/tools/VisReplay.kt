@@ -10,6 +10,8 @@ import java.awt.Font
 import java.awt.image.BufferedImage
 import java.awt.image.DataBufferByte
 import java.io.File
+import kotlin.math.log10
+import kotlin.math.pow
 import kotlin.math.sqrt
 import kotlin.system.exitProcess
 
@@ -18,16 +20,22 @@ private const val USAGE = """
 
 記録は debug 版の DEBUG_VIS（--ei record 秒数）で実機に書き、adb exec-out run-as で取り出す。
 --config を省くと、アプリの既定の値（current）だけを再生する。--config を書くと、current に加えてその設定も再生する。
-キーは SpectrumTuning の名前（windowDb, decayDb, contrast, tauSec, gateDb, minPeakDb, rise, fall, quietDb）。
+キーは SpectrumTuning の名前（windowDb, decayDb, contrast, tauSec, jumpDb, minBins, gateDb, minPeakDb, rise, fall, quietDb）。
 例: --config slow:tauSec=0.15,rise=10 --config low:contrast=4
 """
 
-/** 再生した 1 つの設定の結果。[bars] はフレームごとの棒の高さ、[gated] はそのフレームを無音として扱ったか。 */
+/**
+ * 再生した 1 つの設定の結果。[bars] はフレームごとの棒の高さ、[gated] はそのフレームを無音として扱ったか。
+ * [raw] はフレームごとの、その設定の棒の並びでの帯域の生の大きさ（dB、時間方向に平均せず、最近の最大にも合わせない）で、棒の動きと比べる基準にする。
+ * [lowBars] は、キックの立ち上がりを検出する帯域（[KICK_HZ] まで）に収まる棒の数（最低 1 本）。
+ */
 private class Run(
     val name: String,
     val tuning: SpectrumTuning,
     val bars: List<FloatArray>,
     val gated: BooleanArray,
+    val raw: List<FloatArray>,
+    val lowBars: Int,
 )
 
 fun main(args: Array<String>) {
@@ -57,7 +65,7 @@ fun main(args: Array<String>) {
     println("記録: ${input.name}、${frames.size} フレーム、%.1f 秒、棒 $barCount 本".format(seconds))
     out.mkdirs()
     val runs = configs.map { (name, tuning) -> replay(name, tuning, frames, barCount) }
-    printTable(runs, frames)
+    printTable(runs, frames, kickDb(frames))
     for (r in runs) writeCsv(File(out, "${r.name}.csv"), r, frames)
     if (video) renderVideo(File(out, "bars.mp4"), runs, frames)
     println("出力: ${out.path}")
@@ -74,6 +82,8 @@ private fun parseConfig(s: String): Pair<String, SpectrumTuning> {
                 "decayDb" -> t.copy(decayDb = v)
                 "contrast" -> t.copy(contrast = v)
                 "tauSec" -> t.copy(tauSec = v)
+                "jumpDb" -> t.copy(jumpDb = v)
+                "minBins" -> t.copy(minBins = v.toInt())
                 "gateDb" -> t.copy(gateDb = v)
                 "minPeakDb" -> t.copy(minPeakDb = v)
                 "rise" -> t.copy(rise = v)
@@ -84,6 +94,23 @@ private fun parseConfig(s: String): Pair<String, SpectrumTuning> {
     }
     return name to t
 }
+
+/** フレームごとの、[KICK_HZ] までの区画（1 番目から）のパワーの平均（dB）。棒の並びによらず、キックの立ち上がりの検出に使う。 */
+private fun kickDb(frames: List<SpectrumRecording.Frame>): List<Double> {
+    val ps = PowerSpectrum()
+    var power = FloatArray(0)
+    return frames.map { f ->
+        if (power.size != f.wave.size / 2) power = FloatArray(f.wave.size / 2)
+        ps.compute(f.wave, power)
+        val hi = kickBins(power.size, f.sampleRateHz)
+        10 * log10(1e-12 + (1 until hi).sumOf { power[it].toDouble() } / (hi - 1))
+    }
+}
+
+private fun kickBins(
+    bins: Int,
+    sampleRateHz: Int,
+): Int = (KICK_HZ / (sampleRateHz / 2.0 / bins)).toInt().coerceIn(2, bins)
 
 /** アプリのホーム（PlayerLayer）と同じ順で計算する。無音のフレームは棒の目標を 0 にし、smooth で寄せる。 */
 private fun replay(
@@ -98,36 +125,47 @@ private fun replay(
     val target = FloatArray(count)
     var power = FloatArray(0)
     val bars = ArrayList<FloatArray>(frames.size)
+    val raw = ArrayList<FloatArray>(frames.size)
     val gated = BooleanArray(frames.size)
     for ((i, f) in frames.withIndex()) {
         val dt = if (i == 0) 1f / 60 else (f.timeNanos - frames[i - 1].timeNanos) / 1e9f
         val silent = f.wave.all { it == 0x80.toByte() }
         gated[i] = silent || tuning.isQuiet(f.rmsDb, f.volumeDb)
-        if (gated[i]) {
-            target.fill(0f)
-        } else {
-            if (power.size != f.wave.size / 2) power = FloatArray(f.wave.size / 2)
-            ps.compute(f.wave, power)
-            shaper.shape(power, f.sampleRateHz, dt, target)
-        }
+        if (power.size != f.wave.size / 2) power = FloatArray(f.wave.size / 2)
+        ps.compute(f.wave, power)
+        raw += FloatArray(count).also { shaper.bandDb(power, f.sampleRateHz, it) }
+        if (gated[i]) target.fill(0f) else shaper.shape(power, f.sampleRateHz, dt, target)
         Spectrum.smooth(values, target, dt, tuning)
         bars += values.copyOf()
     }
-    return Run(name, tuning, bars, gated)
+    val f = frames[0]
+    val r = shaper.ranges(f.wave.size / 2, f.sampleRateHz)
+    val lowBars = (0 until count).count { r[2 * it + 1] <= kickBins(f.wave.size / 2, f.sampleRateHz) }.coerceAtLeast(1)
+    return Run(name, tuning, bars, gated, raw, lowBars)
 }
 
 private fun printTable(
     runs: List<Run>,
     frames: List<SpectrumRecording.Frame>,
+    kick: List<Double>,
 ) {
     val t = { i: Int -> (frames[i].timeNanos - frames[0].timeNanos) / 1e9 }
     println()
-    println("%-12s %8s %8s %10s %14s %14s".format("設定", "平均", "9割超", "変化", "0になるまで", "上がるまで"))
+    val onsets = kickOnsets(runs[0].gated, kick, t)
+    // キックで棒が跳ねるのは望ましい動きなので、「変化」は立ち上がりから [ONSET_WINDOW_SEC] 以内のフレームを除いて測る
+    val nearOnset = BooleanArray(frames.size)
+    for (o in onsets) {
+        var j = o
+        while (j < frames.size && t(j) - t(o) <= ONSET_WINDOW_SEC) nearOnset[j++] = true
+    }
+    println("低音（%.0fHz まで）の立ち上がり: ${onsets.size} 回".format(KICK_HZ))
+    println("%-12s %6s %7s %7s %6s %9s %14s %14s".format("設定", "平均", "9割超", "変化", "相関", "キック応答", "0になるまで", "上がるまで"))
     for (r in runs) {
         var sum = 0.0
         var n = 0
         var top = 0
         var change = 0.0
+        var changeN = 0
         for (i in 1 until r.bars.size) {
             if (r.gated[i]) continue
             for (k in r.bars[i].indices) {
@@ -135,8 +173,10 @@ private fun printTable(
                 sum += v
                 n++
                 if (v > 0.9f) top++
+                if (nearOnset[i]) continue
                 val d = v - r.bars[i - 1][k]
                 change += d * d
+                changeN++
             }
         }
         // 0 になるまで: 0.5 秒以上の音の後に無音として扱い始めてから、すべての棒が 0.05 を下回るまでの時間
@@ -155,12 +195,16 @@ private fun printTable(
             (if (r.gated[i]) release else attack) += t(end) - t(i)
         }
         val fmt = { xs: List<Double> -> if (xs.isEmpty()) "-" else "%.2f秒(%d回)".format(xs.average(), xs.size) }
+        val hits = onsets.mapNotNull { kickResponse(r, it, t) }
+        val kickText = if (onsets.isEmpty()) "-" else "%.0f%%/%.0fms".format(100.0 * hits.size / onsets.size, if (hits.isEmpty()) 0.0 else hits.average() * 1000)
         println(
-            "%-12s %8.2f %7.1f%% %10.3f %14s %14s".format(
+            "%-12s %6.2f %6.1f%% %7.3f %6.2f %9s %14s %14s".format(
                 r.name,
                 sum / n,
                 100.0 * top / n,
-                sqrt(change / n),
+                sqrt(change / changeN),
+                correlation(r),
+                "$kickText(${r.lowBars}本)",
                 fmt(release),
                 fmt(attack),
             ),
@@ -170,6 +214,58 @@ private fun printTable(
     println()
     println("無音として扱った時間（current）: %.1f 秒".format(gatedSec))
 }
+
+/** [KICK_HZ] までの帯域の生の大きさ（パワーの平均）が、[ONSET_WINDOW_SEC] 以内に [ONSET_DB] 以上上がったフレーム。間隔を 0.2 秒以上空ける。 */
+private fun kickOnsets(
+    gated: BooleanArray,
+    low: List<Double>,
+    t: (Int) -> Double,
+): List<Int> {
+    val onsets = mutableListOf<Int>()
+    var from = 0
+    for (i in low.indices) {
+        while (t(i) - t(from) > ONSET_WINDOW_SEC) from++
+        if (gated[i] || (from until i).any { gated[it] }) continue
+        val min = (from until i).minOfOrNull { low[it] } ?: continue
+        if (low[i] - min >= ONSET_DB && (onsets.isEmpty() || t(i) - t(onsets.last()) >= 0.2)) onsets += i
+    }
+    return onsets
+}
+
+/** 立ち上がりから [ONSET_WINDOW_SEC] 以内に、低音の棒（[Run.lowBars] 本）の平均が 0.1 以上上がるまでの時間（秒）。上がらなければ null。 */
+private fun kickResponse(
+    r: Run,
+    onset: Int,
+    t: (Int) -> Double,
+): Double? {
+    val h = { i: Int -> (0 until r.lowBars).map { r.bars[i][it] }.average() }
+    val start = h(onset)
+    var i = onset
+    while (i < r.bars.size && t(i) - t(onset) <= ONSET_WINDOW_SEC) {
+        if (h(i) >= start + 0.1) return t(i) - t(onset)
+        i++
+    }
+    return null
+}
+
+/** 棒ごとに、高さと帯域の生の大きさの相関係数を出し、棒の間で平均する。無音として扱ったフレームは除く。 */
+private fun correlation(r: Run): Double {
+    val idx = r.bars.indices.filter { !r.gated[it] }
+    return r.bars[0].indices.map { k ->
+        val x = idx.map { r.bars[it][k].toDouble() }
+        val y = idx.map { r.raw[it][k].toDouble() }
+        val mx = x.average()
+        val my = y.average()
+        val cov = x.indices.sumOf { (x[it] - mx) * (y[it] - my) }
+        val vx = x.sumOf { (it - mx) * (it - mx) }
+        val vy = y.sumOf { (it - my) * (it - my) }
+        if (vx == 0.0 || vy == 0.0) 0.0 else cov / sqrt(vx * vy)
+    }.average()
+}
+
+private const val KICK_HZ = 281.0
+private const val ONSET_DB = 10.0
+private const val ONSET_WINDOW_SEC = 0.15
 
 private fun writeCsv(
     file: File,

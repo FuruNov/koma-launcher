@@ -66,9 +66,9 @@ class SpectrumTest {
     fun barsFollowTheRecentLoudestLevel() {
         val shaper = SpectrumShaper(12)
         val out = FloatArray(12)
-        // -25dB と、10dB 小さい -35dB
-        val loud = FloatArray(512).also { it[1] = 10f.pow(-2.5f) }
-        val quiet = FloatArray(512).also { it[1] = 10f.pow(-3.5f) }
+        // 1 本目の棒が読む 4 区画が、-25dB と、10dB 小さい -35dB
+        val loud = FloatArray(512).also { p -> for (k in 1..4) p[k] = 10f.pow(-2.5f) }
+        val quiet = FloatArray(512).also { p -> for (k in 1..4) p[k] = 10f.pow(-3.5f) }
         shaper.shape(loud, 48_000, 0.016f, out)
         // 時間方向に平均するので、1 回だけでは小さい音まで下がりきらない
         shaper.shape(quiet, 48_000, 0.016f, out)
@@ -80,6 +80,30 @@ class SpectrumTest {
         // 小さい音が 5 秒続くと、最近の最大が下がり（2.65dB）、同じ音でも棒が高くなる
         repeat(300) { shaper.shape(quiet, 48_000, 0.016f, out) }
         assertEquals((22.65f / 30f).pow(3f), out[0], 0.03f)
+    }
+
+    @Test
+    fun suddenRiseIsFollowedAtOnce() {
+        // 時間方向に平均していても、6dB 以上の立ち上がりにはすぐ追従する
+        val shaper = SpectrumShaper(12)
+        val out = FloatArray(12)
+        val quiet = FloatArray(512).also { p -> for (k in 1..4) p[k] = 10f.pow(-3.5f) }
+        val loud = FloatArray(512).also { p -> for (k in 1..4) p[k] = 10f.pow(-2.5f) }
+        repeat(60) { shaper.shape(quiet, 48_000, 0.016f, out) }
+        shaper.shape(loud, 48_000, 0.016f, out)
+        assertEquals(1f, out[0], 1e-3f)
+    }
+
+    @Test
+    fun everyBarReadsAtLeastMinBins() {
+        val r = SpectrumShaper(33).ranges(512, 48_000)
+        for (i in 0 until 33) {
+            assertTrue(r[2 * i + 1] - r[2 * i] >= 4, "棒 $i: ${r[2 * i]}〜${r[2 * i + 1]}")
+            if (i > 0) assertEquals(r[2 * i - 1], r[2 * i])
+        }
+        // 50Hz から 12kHz まで（1 区画は約 47Hz）
+        assertEquals(1, r[0])
+        assertTrue(r[65] in 250..256, r[65].toString())
     }
 
     @Test

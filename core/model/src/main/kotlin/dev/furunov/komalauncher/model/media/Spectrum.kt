@@ -110,6 +110,7 @@ class SpectrumShaper(
 ) {
     private val levelDb = FloatArray(count) { Float.NaN }
     private val peakDb = FloatArray(count) { Float.NaN }
+    private val rawDb = FloatArray(count)
 
     /** [power] を [out]（長さ [count]）に書く。[dtSec] は前の呼び出しからの時間。 */
     fun shape(
@@ -118,23 +119,12 @@ class SpectrumShaper(
         dtSec: Float,
         out: FloatArray,
     ) {
-        val bins = power.size
-        val hzPerBin = sampleRateHz / 2f / bins
-        val ratio = HIGH_HZ / LOW_HZ
+        bandDb(power, sampleRateHz, rawDb)
         val t = tuning
-        // 低い帯域では 1 区画（約 47Hz）より帯域が狭く、複数の棒が同じ区画に当たる。前の棒の区画と重ならないよう、後ろへ詰める
-        var next = 1
         for (i in 0 until count) {
-            val fLo = LOW_HZ * ratio.pow(i.toFloat() / count)
-            val fHi = LOW_HZ * ratio.pow((i + 1).toFloat() / count)
-            val lo = max((fLo / hzPerBin).roundToInt(), next).coerceIn(1, bins - 1)
-            val hi = (fHi / hzPerBin).roundToInt().coerceIn(lo + 1, bins)
-            next = hi
-            var sum = 0f
-            for (k in lo until hi) sum += power[k]
-            val raw = 10f * log10(1e-12f + sum / (hi - lo))
+            val raw = rawDb[i]
             val level = levelDb[i]
-            val db = if (level.isNaN()) raw else level + (raw - level) * min(1f, dtSec / t.tauSec)
+            val db = if (level.isNaN() || raw - level > t.jumpDb) raw else level + (raw - level) * min(1f, dtSec / t.tauSec)
             levelDb[i] = db
             // 最近の最大は、大きい音が来たらすぐ上げ、静かになったら 1 秒に [SpectrumTuning.decayDb] ずつ下げる
             val prev = peakDb[i]
@@ -143,6 +133,66 @@ class SpectrumShaper(
             val v = if (db < t.gateDb) 0f else ((db - (peakDb[i] - t.windowDb)) / t.windowDb).coerceIn(0f, 1f)
             out[i] = v.pow(t.contrast)
         }
+    }
+
+    /** 棒ごとの帯域の平均の大きさ（dB、時間方向には平均しない）を [out]（長さ [count]）に書く。記録の再生で、棒の動きと比べるのにも使う。 */
+    fun bandDb(
+        power: FloatArray,
+        sampleRateHz: Int,
+        out: FloatArray,
+    ) {
+        val r = ranges(power.size, sampleRateHz)
+        for (i in 0 until count) {
+            val lo = r[2 * i]
+            val hi = r[2 * i + 1]
+            var sum = 0f
+            for (k in lo until hi) sum += power[k]
+            out[i] = 10f * log10(1e-12f + sum / (hi - lo))
+        }
+    }
+
+    private var rangesKey = 0L
+    private var rangesCache = IntArray(0)
+
+    /**
+     * 棒 i が読む区画の範囲（[lo, hi)）を、[2i] と [2i + 1] に並べて返す。[bins] は区画の数（波形の長さの半分）。
+     * 毎フレーム呼ぶので、区画の数と標本化周波数が変わったときだけ計算し直す。
+     */
+    fun ranges(
+        bins: Int,
+        sampleRateHz: Int,
+    ): IntArray {
+        val key = bins.toLong() shl 32 or sampleRateHz.toLong()
+        if (key == rangesKey) return rangesCache
+        val out = IntArray(2 * count)
+        val hzPerBin = sampleRateHz / 2f / bins
+        if (tuning.minBins > 0) {
+            var lo = max(1, (LOW_HZ / hzPerBin).roundToInt())
+            val top = (HIGH_HZ / hzPerBin).roundToInt().coerceAtMost(bins)
+            for (i in 0 until count) {
+                val step = (top.toFloat() / lo).pow(1f / (count - i))
+                val hi = max((lo * step).roundToInt(), lo + tuning.minBins).coerceAtMost(bins)
+                out[2 * i] = lo
+                out[2 * i + 1] = hi
+                lo = hi.coerceAtMost(bins - 1)
+            }
+        } else {
+            val ratio = HIGH_HZ / LOW_HZ
+            // 低い帯域では 1 区画（約 47Hz）より帯域が狭く、複数の棒が同じ区画に当たる。前の棒の区画と重ならないよう、後ろへ詰める
+            var next = 1
+            for (i in 0 until count) {
+                val fLo = LOW_HZ * ratio.pow(i.toFloat() / count)
+                val fHi = LOW_HZ * ratio.pow((i + 1).toFloat() / count)
+                val lo = max((fLo / hzPerBin).roundToInt(), next).coerceIn(1, bins - 1)
+                val hi = (fHi / hzPerBin).roundToInt().coerceIn(lo + 1, bins)
+                next = hi
+                out[2 * i] = lo
+                out[2 * i + 1] = hi
+            }
+        }
+        rangesKey = key
+        rangesCache = out
+        return out
     }
 
     private companion object {
