@@ -19,9 +19,13 @@ data class Launches(
     fun asMap(): Map<AppKey, Int> = counts.entries.mapNotNull { (k, v) -> parseId(k)?.let { it to v } }.toMap()
 }
 
-private fun AppKey.id() = "$packageName/$className"
+// 固定したショートカットは「パッケージ/@id」。クラス名は @ で始まらないので、読み戻すときに区別できる
+private fun AppKey.id() = if (shortcutId != null) "$packageName/@$shortcutId" else "$packageName/$className"
 
-private fun parseId(id: String): AppKey? = id.indexOf('/').takeIf { it > 0 }?.let { AppKey(id.substring(0, it), id.substring(it + 1)) }
+private fun parseId(id: String): AppKey? = id.indexOf('/').takeIf { it > 0 }?.let {
+    val rest = id.substring(it + 1)
+    if (rest.startsWith("@")) AppKey.shortcut(id.substring(0, it), rest.substring(1)) else AppKey(id.substring(0, it), rest)
+}
 
 interface LaunchStore {
     val launches: StateFlow<Launches>

@@ -99,6 +99,47 @@ class FolderEditsTest {
         assertEquals(listOf(c), f.unassigned)
         assertEquals(null, f.byPanel["p2"])
     }
+
+    @Test
+    fun oldFoldersJsonWithoutShortcutIdDecodes() {
+        val f = Json { ignoreUnknownKeys = true }.decodeFromString(Folders.serializer(), """{"byPanel":{"p1":{"apps":[{"packageName":"a","className":"A"}]}}}""")
+        assertEquals(listOf(AppKey("a", "A", null)), f.appsOf("p1"))
+    }
+
+    @Test
+    fun shortcutKeyRoundTrips() {
+        val f = Folders(byPanel = mapOf("p1" to Folder(listOf(a, AppKey.shortcut("com.vivaldi.browser", "pwa-1")))))
+        val json = Json { ignoreUnknownKeys = true }
+        assertEquals(f, json.decodeFromString(Folders.serializer(), json.encodeToString(Folders.serializer(), f)))
+    }
+
+    @Test
+    fun shortcutsOfSamePackageAreDistinct() {
+        val s1 = AppKey.shortcut("v", "1")
+        val s2 = AppKey.shortcut("v", "2")
+        val added = FolderEdits.add(FolderEdits.add(Folders(), "p1", s1), "p1", s2)
+        assertEquals(listOf(s1, s2), added.appsOf("p1"))
+        assertEquals(listOf(s2), FolderEdits.remove(added, "p1", s1).appsOf("p1"))
+    }
+
+    @Test
+    fun shownAppsHidesMissingShortcutsOnly() {
+        val s1 = AppKey.shortcut("v", "1")
+        val s2 = AppKey.shortcut("v", "2")
+        val f = Folders(byPanel = mapOf("p1" to Folder(listOf(a, s1, b, s2))))
+        assertEquals(listOf(a, b, s2), f.shownAppsOf("p1", setOf(a, s2)))
+    }
+
+    @Test
+    fun dataIndexSkipsHidden() {
+        val hidden = AppKey.shortcut("v", "h")
+        val apps = listOf(a, hidden, b, c)
+        val shown: (AppKey) -> Boolean = { it != hidden }
+        assertEquals(0, FolderEdits.dataIndex(apps, 0, shown))
+        assertEquals(2, FolderEdits.dataIndex(apps, 1, shown))
+        assertEquals(3, FolderEdits.dataIndex(apps, 2, shown))
+        assertEquals(4, FolderEdits.dataIndex(apps, 3, shown))
+    }
 }
 
 class SampleFolderTest {

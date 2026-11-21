@@ -77,7 +77,9 @@ class HomeViewModelTest {
 
     private inner class FakeApps : AppCatalog {
         val launched = mutableListOf<AppKey>()
-        override val apps: StateFlow<List<AppEntry>> = MutableStateFlow(listOf(AppEntry(chrome, "Chrome")))
+        val unpinned = mutableListOf<AppKey>()
+        val list = MutableStateFlow(listOf(AppEntry(chrome, "Chrome")))
+        override val apps: StateFlow<List<AppEntry>> = list
 
         override fun resolve(packageName: String) = chrome.takeIf { it.packageName == packageName }
 
@@ -94,6 +96,10 @@ class HomeViewModelTest {
         override fun launchShortcut(shortcut: dev.furunov.komalauncher.model.apps.AppShortcut) = Unit
 
         override fun allShortcuts(): List<dev.furunov.komalauncher.model.apps.AppShortcut> = emptyList()
+
+        override fun unpin(key: AppKey) {
+            unpinned += key
+        }
     }
 
     private class FakeMedia : MediaSessions {

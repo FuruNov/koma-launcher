@@ -8,7 +8,19 @@ import kotlinx.serialization.Serializable
 data class AppKey(
     val packageName: String,
     val className: String,
-)
+    /** 固定したショートカット（ブラウザの PWA など）なら、その id。null ならアプリ（Activity）。ショートカットの className は空文字列。 */
+    val shortcutId: String? = null,
+) {
+    /** 固定したショートカットなら true。起動・アイコン・長押しのメニューで分岐する。 */
+    val isShortcut: Boolean get() = shortcutId != null
+
+    companion object {
+        fun shortcut(
+            packageName: String,
+            id: String,
+        ): AppKey = AppKey(packageName, "", id)
+    }
+}
 
 /** アプリが公開しているショートカット（長押しのメニューの項目）。 */
 data class AppShortcut(
@@ -40,6 +52,9 @@ interface AppCatalog {
     fun shortcuts(key: AppKey): List<AppShortcut>
 
     fun launchShortcut(shortcut: AppShortcut)
+
+    /** 固定したショートカット [key] の固定を解除する。アプリなら何もしない。 */
+    fun unpin(key: AppKey)
 
     /** 検索のための、全アプリのショートカット。時間がかかるので IO のスレッドで呼ぶ。ホームアプリでないときは空。 */
     fun allShortcuts(): List<AppShortcut>

@@ -16,6 +16,17 @@ class LaunchesTest {
     fun asMapUsesAppKeys() = assertEquals(mapOf(a to 1), Launches().record(a).asMap())
 
     @Test
+    fun shortcutIdIsSeparateFromApp() {
+        val s1 = AppKey.shortcut("p", "1")
+        val l = Launches().record(s1)
+        assertEquals(1, l.countOf(s1))
+        assertEquals(0, l.countOf(AppKey.shortcut("p", "2")))
+        assertEquals(0, l.countOf(AppKey("p", "Main")))
+        assertEquals(mapOf(s1 to 1), l.asMap())
+        assertEquals(setOf("p/@1"), l.counts.keys)
+    }
+
+    @Test
     fun countingCatalogRecordsLaunchOnly() {
         val inner = FakeCatalog()
         val store = MemoryLaunchStore()
@@ -52,5 +63,7 @@ class LaunchesTest {
         override fun launchShortcut(shortcut: AppShortcut) = Unit
 
         override fun allShortcuts(): List<AppShortcut> = emptyList()
+
+        override fun unpin(key: AppKey) = Unit
     }
 }

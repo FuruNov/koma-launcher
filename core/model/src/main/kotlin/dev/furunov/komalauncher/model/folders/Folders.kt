@@ -29,6 +29,15 @@ data class Folders(
 ) {
     fun appsOf(panelId: String): List<AppKey> = byPanel[panelId]?.apps.orEmpty()
 
+    /**
+     * 表示するフォルダの中身。固定したショートカットのうち、今の一覧 [available] に無いもの（別の端末に復元した、ブラウザの側で消した）を隠す。
+     * データからは外さない。ロックの解除前などで一時的に一覧に無いだけのことがあるため。アプリは今までどおり全て返す。
+     */
+    fun shownAppsOf(
+        panelId: String,
+        available: Set<AppKey>,
+    ): List<AppKey> = appsOf(panelId).filter { !it.isShortcut || it in available }
+
     /** 音楽プレイヤーにしたコマの id。どれもオフなら null。 */
     fun musicPanel(): String? = byPanel.entries.firstOrNull { it.value.musicPlayer }?.key
 }
@@ -74,6 +83,22 @@ object FolderEdits {
         panelId: String,
         app: AppKey,
     ): Folders = if (app in f.appsOf(panelId)) remove(f, panelId, app) else add(f, panelId, app)
+
+    /** 見えている並びの位置 [shownIndex] を、隠れた項目も含む [apps] の中の位置に直す。見えている数以上なら末尾。 */
+    fun dataIndex(
+        apps: List<AppKey>,
+        shownIndex: Int,
+        shown: (AppKey) -> Boolean,
+    ): Int {
+        var seen = 0
+        apps.forEachIndexed { i, app ->
+            if (shown(app)) {
+                if (seen == shownIndex) return i
+                seen++
+            }
+        }
+        return apps.size
+    }
 
     fun reorder(
         f: Folders,
