@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- テーマアイコン用の単色の層。網点は単色にすると読めないので、3 つのコマの形だけにする -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M32,32L76,32L76,47L32,52Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M32,55L57,52.2L51.5,76L32,76Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M60.3,51.8L76,50L76,76L54.5,76Z" />
+</vector>

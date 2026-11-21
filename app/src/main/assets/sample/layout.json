@@ -1,26 +1,35 @@
 {
   "version": 2,
-  "frame": { "refWidth": 1220, "margin": 24, "gutter": 18, "bleed": false,
-             "border": { "style": "single", "width": 10, "color": "#111111" } },
+  "frame": { "refWidth": 1220, "margin": 24, "gutter": 18, "gutterColor": "#111111", "bleed": false,
+             "border": { "style": "single", "width": 6 } },
+  "clock": { "enabled": true, "panel": "sample-1", "y": 0.24 },
   "tree": {
     "cut": { "ta": 0.3246, "tb": 0.7999 },
-    "a": { "panel": { "id": "sample-1", "kind": "folder", "label": "よく使う",
-                      "apps": ["com.android.settings", "com.android.vending", "com.android.documentsui", "com.android.camera2",
-                               "com.android.chrome", "org.lineageos.jelly", "com.android.browser"] } },
+    "a": { "panel": { "id": "sample-1", "kind": "folder",
+                      "apps": ["com.google.android.dialer", "com.android.dialer",
+                               "com.android.chrome", "org.lineageos.jelly", "com.android.browser",
+                               "com.google.android.GoogleCamera", "com.android.camera2",
+                               "com.android.settings", "com.android.vending"] } },
     "b": {
       "cut": { "ta": 0.1477, "tb": 0.6503 },
       "a": {
         "cut": { "ta": 0.9004, "tb": 0.3905 },
-        "a": { "panel": { "id": "sample-2", "kind": "widget", "label": "ウィジェット" } },
-        "b": { "panel": { "id": "sample-3", "kind": "folder", "label": "連絡",
-                          "apps": ["com.android.messaging", "com.android.contacts", "com.google.android.apps.messaging", "com.google.android.contacts"] } }
+        "a": { "panel": { "id": "sample-2", "kind": "widget" } },
+        "b": { "panel": { "id": "sample-3", "kind": "folder",
+                          "apps": ["com.google.android.contacts", "com.android.contacts",
+                                   "com.google.android.apps.messaging", "com.android.messaging",
+                                   "com.google.android.gm", "com.android.email"] } }
       },
       "b": {
         "cut": { "ta": 0.8774, "tb": 0.3196 },
-        "a": { "panel": { "id": "sample-4", "kind": "folder", "label": "ツール",
-                          "apps": ["com.android.calculator2", "com.android.deskclock", "com.android.calendar", "com.google.android.calculator",
-                                   "com.google.android.deskclock", "com.android.gallery3d", "com.android.music", "com.google.android.youtube"] } },
-        "b": { "panel": { "id": "sample-5", "kind": "drawer", "label": "その他" } }
+        "a": { "panel": { "id": "sample-4", "kind": "folder",
+                          "apps": ["com.google.android.calendar", "com.android.calendar",
+                                   "com.google.android.calculator", "com.android.calculator2",
+                                   "com.google.android.deskclock", "com.android.deskclock",
+                                   "com.google.android.apps.photos", "com.android.gallery3d",
+                                   "com.android.documentsui", "com.google.android.apps.maps",
+                                   "com.google.android.youtube", "com.android.music"] } },
+        "b": { "panel": { "id": "sample-5", "kind": "drawer" } }
       }
     }
   }

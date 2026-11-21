@@ -68,6 +68,7 @@ import dev.furunov.komalauncher.model.layout.ResolvedPanel
 import dev.furunov.komalauncher.model.layout.Tilt
 import dev.furunov.komalauncher.model.ports.TiltSource
 import dev.furunov.komalauncher.model.settings.GestureKind
+import dev.furunov.komalauncher.ui.art.BlankPage
 import dev.furunov.komalauncher.ui.art.DepthMaps
 import dev.furunov.komalauncher.ui.art.DepthStyle
 import dev.furunov.komalauncher.ui.art.PanelTextSpec
@@ -574,11 +575,11 @@ private fun PanelLayer(
             if (motion.press.value > 0f) drawRect(Color.Black.copy(alpha = 0.18f * motion.press.value))
             if (highlight != null) drawRect(highlight.copy(alpha = 0.35f))
         }
-        // 絵が無いコマ（見本や、画像をまだ置いていないコマ）だけ、仮の色の上に名前を表示する
+        // 絵が無いコマ（見本や、画像をまだ置いていないコマ）だけ、紙かベタの上に名前を表示する
         if (art == null && label != null && player == null) {
             BasicText(
                 label,
-                style = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
+                style = TextStyle(color = if (g.face.inkText) BlankPage.INK else Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold),
                 modifier = Modifier.align(Alignment.Center),
             )
         }
@@ -601,14 +602,14 @@ private fun TextPart(
     when (kind) {
         LayerKind.ICONS ->
             if (icons.isNotEmpty() && texts.icons.isNotEmpty()) {
-                TiltLayer(shift(parallax.icon)) { drawPanelTexts(PanelTextSpec(icons = texts.icons), area, measurer, now(), null, null, null, icons = icons, iconFilter = g.face.toneFilter) }
+                TiltLayer(shift(parallax.icon)) { drawPanelTexts(PanelTextSpec(icons = texts.icons), area, measurer, now(), null, null, null, icons = icons, iconFilter = g.face.toneFilter, ink = g.face.inkText) }
             }
 
-        LayerKind.LABEL -> if (texts.labels.isNotEmpty()) TiltLayer(shift(parallax.text)) { drawPanelTexts(PanelTextSpec(labels = texts.labels), area, measurer, now(), null, null, null) }
+        LayerKind.LABEL -> if (texts.labels.isNotEmpty()) TiltLayer(shift(parallax.text)) { drawPanelTexts(PanelTextSpec(labels = texts.labels), area, measurer, now(), null, null, null, ink = g.face.inkText) }
 
-        LayerKind.MASTHEAD -> texts.masthead?.let { m -> TiltLayer(shift(parallax.masthead)) { drawPanelTexts(PanelTextSpec(masthead = m), area, measurer, now(), null, null, null) } }
+        LayerKind.MASTHEAD -> texts.masthead?.let { m -> TiltLayer(shift(parallax.masthead)) { drawPanelTexts(PanelTextSpec(masthead = m), area, measurer, now(), null, null, null, ink = g.face.inkText) } }
 
-        LayerKind.CLOCK -> texts.clock?.let { c -> TiltLayer(shift(parallax.clock)) { drawPanelTexts(PanelTextSpec(clock = c), area, measurer, now(), null, null, null) } }
+        LayerKind.CLOCK -> texts.clock?.let { c -> TiltLayer(shift(parallax.clock)) { drawPanelTexts(PanelTextSpec(clock = c), area, measurer, now(), null, null, null, ink = g.face.inkText) } }
 
         LayerKind.PERSON -> Unit
     }
@@ -657,7 +658,7 @@ private fun PopLayer(
         // 中の層の原点をコマの左上に戻す
         Box(Modifier.offset { IntOffset(pad.roundToInt(), pad.roundToInt()) }.size(with(density) { b.width.toDp() }, with(density) { b.height.toDp() })) {
             val artShift = { tilt().let { t -> Offset(t.x * parallax.art, t.y * parallax.art) } }
-            // 枠と間隔に落ちる影は、コマの中より近い（人物と枠の間が狭い）ので、短く薄くする
+            // 枠とすき間に落ちる影は、コマの中より近い（人物と枠の間が狭い）ので、短く薄くする
             PersonLayers(g.face, art, person, maps, depth, artShift, { DepthStyle.lightDirection(tilt()) }, parallax.art, extra = pad, shadowScale = 0.6f, shadowAlpha = 0.8f)
         }
     }

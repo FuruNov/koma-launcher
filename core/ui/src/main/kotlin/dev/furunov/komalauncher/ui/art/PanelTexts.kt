@@ -202,6 +202,8 @@ fun DrawScope.drawPanelTexts(
     /** アイコンの画像（[PanelTextSpec.icons] と同じ順。読み込み中は null）と、掛ける色調。文字と同じ層で描き、人物の後ろに回す。 */
     icons: List<ImageBitmap?> = emptyList(),
     iconFilter: ColorFilter? = null,
+    /** true なら白い紙のコマ（BlankPage.LIGHT）の上なので、名前・大見出し・時計を墨で描く。 */
+    ink: Boolean = false,
 ) {
     val shownIcons = spec.icons.zip(icons).filter { it.second != null }
     if (spec.isEmpty && shownIcons.isEmpty()) return
@@ -219,9 +221,9 @@ fun DrawScope.drawPanelTexts(
             )
         }
     }
-    translate(textShift.x, textShift.y) { spec.labels.forEach { drawLabel(it, measurer) } }
-    spec.masthead?.let { translate(mastheadShift.x, mastheadShift.y) { drawMasthead(it, measurer) } }
-    spec.clock?.let { translate(clockShift.x, clockShift.y) { drawClock(it, measurer, now) } }
+    translate(textShift.x, textShift.y) { spec.labels.forEach { drawLabel(it, measurer, ink) } }
+    spec.masthead?.let { translate(mastheadShift.x, mastheadShift.y) { drawMasthead(it, measurer, ink) } }
+    spec.clock?.let { translate(clockShift.x, clockShift.y) { drawClock(it, measurer, now, ink) } }
     if (behind) {
         translate(artShift.x, artShift.y) { drawImage(mask!!, dstOffset = maskOffset!!, dstSize = maskSize!!, blendMode = BlendMode.DstIn) }
         drawIntoCanvas { it.restore() }
@@ -233,7 +235,13 @@ private fun DrawScope.drawOutlined(
     layout: TextLayoutResult,
     topLeft: Offset,
     size: Float,
+    ink: Boolean,
 ) {
+    if (ink) {
+        // 白い紙の上では、縁と影を付けずに墨で描く
+        drawText(layout, color = BlankPage.INK, topLeft = topLeft)
+        return
+    }
     drawText(layout, color = Color.Black.copy(alpha = 0.45f), topLeft = topLeft, drawStyle = Stroke(width = maxOf(2f, size * 0.03f) * 2f), alpha = 0.88f)
     drawText(layout, color = Color.White, topLeft = topLeft, shadow = Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 4f), 10f), alpha = 0.88f)
 }
@@ -243,6 +251,7 @@ private fun DrawScope.px(v: Float): TextUnit = v.toSp()
 private fun DrawScope.drawLabel(
     l: LabelText,
     measurer: TextMeasurer,
+    ink: Boolean,
 ) {
     val family = if (l.english) KomaFonts.bodoniItalic else KomaFonts.dela
     val style = TextStyle(fontFamily = family, fontSize = px(l.size), fontWeight = if (l.english) FontWeight.ExtraBold else null, fontStyle = if (l.english) FontStyle.Italic else null)
@@ -252,7 +261,7 @@ private fun DrawScope.drawLabel(
         val y0 = l.centerY - l.size * 1.05f * (chars.size - 1) / 2f
         chars.forEachIndexed { i, ch ->
             val m = measurer.measure(ch, style)
-            drawOutlined(m, Offset(l.centerX - m.size.width / 2f, y0 + i * l.size * 1.05f - m.size.height / 2f), l.size)
+            drawOutlined(m, Offset(l.centerX - m.size.width / 2f, y0 + i * l.size * 1.05f - m.size.height / 2f), l.size, ink)
         }
         return
     }
@@ -262,7 +271,7 @@ private fun DrawScope.drawLabel(
     val squeeze = if (w > l.maxLength && w > 0f) l.maxLength / w else 1f
     val center = Offset(l.centerX, l.centerY)
     val draw: DrawScope.() -> Unit = {
-        scale(squeeze, 1f, pivot = center) { drawOutlined(m, Offset(l.centerX - w / 2f, l.centerY - m.size.height / 2f), l.size) }
+        scale(squeeze, 1f, pivot = center) { drawOutlined(m, Offset(l.centerX - w / 2f, l.centerY - m.size.height / 2f), l.size, ink) }
     }
     if (l.vertical) rotate(90f, pivot = center, block = draw) else draw()
 }
@@ -270,12 +279,13 @@ private fun DrawScope.drawLabel(
 private fun DrawScope.drawMasthead(
     t: MastheadText,
     measurer: TextMeasurer,
+    ink: Boolean,
 ) {
     val m = measurer.measure(t.text, TextStyle(fontFamily = KomaFonts.bodoniItalic, fontSize = px(t.size), fontWeight = FontWeight.ExtraBold, fontStyle = FontStyle.Italic))
     val w = m.size.width.toFloat().coerceAtLeast(1f)
     // 書体ごとに字の幅が違うので、文字列の幅をコマの幅の 9 割に合わせる
     scale(t.width / w, 1f, pivot = Offset(t.centerX, t.centerY)) {
-        drawOutlined(m, Offset(t.centerX - w / 2f, t.centerY - m.size.height / 2f), t.size)
+        drawOutlined(m, Offset(t.centerX - w / 2f, t.centerY - m.size.height / 2f), t.size, ink)
     }
 }
 
@@ -283,19 +293,22 @@ private fun DrawScope.drawClock(
     c: ClockText,
     measurer: TextMeasurer,
     now: LocalDateTime,
+    ink: Boolean,
 ) {
     val (hm, date) = clockStrings(now)
+    // 白い紙の上では墨で描き、影を付けない
+    val color = if (ink) BlankPage.INK else Color.White
     val time =
         measurer.measure(
             hm,
-            TextStyle(fontFamily = KomaFonts.dela, fontSize = px(330f * c.k), letterSpacing = px(-6f * c.k), color = Color.White),
+            TextStyle(fontFamily = KomaFonts.dela, fontSize = px(330f * c.k), letterSpacing = px(-6f * c.k), color = color),
         )
-    val day = measurer.measure(date, TextStyle(fontSize = px(54f * c.k), fontWeight = FontWeight.Bold, color = Color.White))
+    val day = measurer.measure(date, TextStyle(fontSize = px(54f * c.k), fontWeight = FontWeight.Bold, color = color))
     // 範囲に収まらなければ、中心を保ったまま縮める（コマの縁にかからないように）
     val s = c.limit?.let { fitScale(c, it, time.size.width / 2f, day.size.width / 2f, time.size.height, day.size.height) } ?: 1f
     scale(s, pivot = Offset(c.centerX, c.centerY)) {
-        drawText(day, topLeft = Offset(c.centerX - day.size.width / 2f, c.centerY - 210f * c.k - day.size.height / 2f), shadow = Shadow(Color.Black.copy(alpha = 0.4f), Offset(0f, 3f * c.k), 6f * c.k))
-        drawText(time, topLeft = Offset(c.centerX - time.size.width / 2f, c.centerY - time.size.height / 2f), shadow = Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 6f * c.k), 10f * c.k))
+        drawText(day, topLeft = Offset(c.centerX - day.size.width / 2f, c.centerY - 210f * c.k - day.size.height / 2f), shadow = if (ink) null else Shadow(Color.Black.copy(alpha = 0.4f), Offset(0f, 3f * c.k), 6f * c.k))
+        drawText(time, topLeft = Offset(c.centerX - time.size.width / 2f, c.centerY - time.size.height / 2f), shadow = if (ink) null else Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 6f * c.k), 10f * c.k))
     }
 }
 

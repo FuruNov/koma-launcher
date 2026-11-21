@@ -309,7 +309,7 @@ internal fun TextRow(
     }
 }
 
-/** 「全体」の欄。テンプレート・間隔・枠・文字と時計・見た目。 */
+/** 「全体」の欄。テンプレート・すき間・枠・文字と時計・見た目。 */
 @Composable
 private fun WholeControls(
     vm: EditorViewModel,
@@ -322,8 +322,8 @@ private fun WholeControls(
     }
     if (tree == null) return
     val frame = tree.frame
-    SliderRow("間隔", frame.gutter, 0f..60f) { v -> vm.setFrame(record = false) { it.copy(gutter = v) } }
-    ChipRow("間隔の色") {
+    SliderRow("すき間", frame.gutter, 0f..60f) { v -> vm.setFrame(record = false) { it.copy(gutter = v) } }
+    ChipRow("すき間の色") {
         // 色の無い古いレイアウトは、設定画面にあった色を使う
         val current = frame.gutterColor ?: defaultGutterColor
         listOf(BLACK to "黒", WHITE to "白", DARK_GRAY to "ダークグレー").forEach { (c, label) ->
@@ -338,7 +338,7 @@ private fun WholeControls(
     }
     SliderRow("枠の太さ", frame.border.width, 0f..40f, tick = 5f) { v -> vm.setFrame(record = false) { it.copy(border = it.border.copy(width = v)) } }
     ChipRow("枠の色") {
-        // 自動は、間隔が暗ければ白、明るければ黒
+        // 自動は、すき間が暗ければ白、明るければ黒
         listOf(null to "自動", Border.BLACK to "黒", Border.WHITE to "白").forEach { (c, label) ->
             Chip(label, selected = frame.border.color == c) { vm.setFrame { it.copy(border = it.border.copy(color = c)) } }
         }
@@ -434,9 +434,9 @@ private fun Preview(
     // 影の Paint などを毎回作らないよう、形か見た目が変わったときだけ作る
     val faces =
         remember(resolved, state.layout, gutter) {
-            // 枠の色を自動にしているときは、縮小図の間隔の色から決める
+            // 枠の色を自動にしているときは、縮小図のすき間の色から決める
             val style = PanelStyle.of(state.layout, screenWidth, gutter.toArgb().toLong() and 0xFFFFFFFFL)
-            resolved.panels.map { PanelFace(it.polygon, it.art, PanelFace.placeholderFor(it.index), style, it.panel.art?.dim ?: 0f) }
+            resolved.panels.map { PanelFace(it.polygon, it.art, it.index, style, it.panel.art?.dim ?: 0f) }
         }
     val measurer = rememberTextMeasurer(cacheSize = 16)
     val masks by rememberMasks(state.masks, state.imagesRevision)
@@ -568,7 +568,7 @@ private fun Preview(
                                 spec ?: return
                                 kinds.forEach { k ->
                                     val icons = if (k == LayerKind.ICONS) panelIcons else emptyList()
-                                    drawPanelTexts(spec.only(k), Size(b.width, b.height), measurer, now, if (behind) person?.bitmap else null, mo, ms, icons = icons, iconFilter = face.toneFilter)
+                                    drawPanelTexts(spec.only(k), Size(b.width, b.height), measurer, now, if (behind) person?.bitmap else null, mo, ms, icons = icons, iconFilter = face.toneFilter, ink = face.inkText)
                                 }
                             }
                             parts(order.take(personAt), behind = true)

@@ -47,7 +47,8 @@ fun WidgetPanel(
     val ref = assignments.byPanel[panelId]
     if (ref == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            BasicText("長押しでウィジェットを配置", style = TextStyle(color = Color(0x99FFFFFF), fontSize = 13.sp))
+            // 白い紙のコマ（BlankPage.LIGHT）とベタのコマのどちらの上でも読める中間の灰色
+            BasicText("長押しでウィジェットを配置", style = TextStyle(color = Color(0xFF8A8D96), fontSize = 13.sp))
         }
         return
     }

@@ -39,13 +39,15 @@ class PanelStyle(
     val border: Border,
     /** 画面の幅 / レイアウトの基準の幅。枠線の太さを画面に合わせるのに使う。 */
     val scale: Float,
-    /** 枠線の色。自動のときは間隔の色から決めてある。 */
+    /** 枠線の色。自動のときはすき間の色から決めてある。 */
     val borderColor: Long = border.color ?: Border.BLACK,
+    /** 絵の無いコマの塗り方。すき間の色から決めてある。 */
+    val blank: BlankPage = BlankPage.DARK,
 ) {
     companion object {
         val NONE = PanelStyle(Look(), Border(style = BorderStyle.NONE), 1f)
 
-        /** [defaultGutter] はレイアウトに間隔の色が無いときの色（設定の値）。枠の色を自動で決めるのに使う。 */
+        /** [defaultGutter] はレイアウトにすき間の色が無いときの色（設定の値）。枠の色を自動で決めるのに使う。 */
         fun of(
             layout: Layout,
             viewWidth: Float,
@@ -53,7 +55,8 @@ class PanelStyle(
         ): PanelStyle {
             val tree = layout.shape as? LayoutShape.Tree ?: return NONE
             val frame = tree.frame
-            return PanelStyle(tree.look, frame.border, viewWidth / frame.refWidth, frame.border.colorOn(frame.gutterColor ?: defaultGutter))
+            val gutter = frame.gutterColor ?: defaultGutter
+            return PanelStyle(tree.look, frame.border, viewWidth / frame.refWidth, frame.border.colorOn(gutter), BlankPage.on(gutter))
         }
     }
 }
@@ -69,9 +72,10 @@ class PanelStyle(
 class PanelFace(
     /** 画面座標のコマの形。 */
     polygon: Polygon,
-    /** 画面座標の、画像を描く長方形。null なら仮の色を塗る。 */
+    /** 画面座標の、画像を描く長方形。null なら絵の無いコマとして、紙かベタに網点を描く。 */
     art: Rect?,
-    val placeholder: Color,
+    /** コマの番号。網点の濃淡の向きと、マゼンタにする最初のコマを決める。 */
+    index: Int,
     style: PanelStyle = PanelStyle.NONE,
     /** 絵の上に重ねる黒の不透明度（PanelArt.dim）。文字より前に塗るので、名前・時計は暗くならない。 */
     val dim: Float = 0f,
@@ -134,8 +138,17 @@ class PanelFace(
     private val innerLineWidth =
         if (style.border.style == BorderStyle.DOUBLE && borderWidth > 0f) (style.border.width + max(4f, style.border.width * 0.35f)) * style.scale else 0f
 
+    /** 絵の無いコマの塗り方。 */
+    val blank: BlankPage = style.blank
+
+    /** 絵の無い白い紙のコマなら true。名前・時計を墨で描く。 */
+    val inkText: Boolean = art == null && blank.light
+
+    /** 網点。このオブジェクトはコマの形か見た目が変わると作り直されるので、ここで 1 回だけ作る。 */
+    private val dots: BlankPage.Dots? = if (art == null) blank.dots(index, bounds.width, bounds.height, DOT_STEP * style.scale) else null
+
     /**
-     * 画像（無ければ仮の色）を描く。絵の長方形はコマの外へはみ出すので、呼び出し側で切り抜いておく。
+     * 画像（無ければ紙かベタと網点）を描く。絵の長方形はコマの外へはみ出すので、呼び出し側で切り抜いておく。
      * [shift] は視差で絵を動かす量。絵は動かす量の分だけ大きく置いてある（LayoutResolver の parallax）。
      */
     fun DrawScope.drawArt(
@@ -155,7 +168,9 @@ class PanelFace(
             // 絵の移動（視差）の外で塗る。動かしても暗い部分がずれないように
             if (withDim && dim > 0f) drawRect(Color.Black.copy(alpha = dim), size = Size(bounds.width, bounds.height))
         } else {
-            drawRect(placeholder)
+            // 絵の無いコマか、絵を読み込んでいる間
+            drawRect(blank.paper)
+            dots?.let { with(it) { draw() } }
         }
     }
 
@@ -196,9 +211,7 @@ class PanelFace(
     }
 
     companion object {
-        val placeholderColors: List<Color> =
-            listOf(0xFFE57373, 0xFF64B5F6, 0xFF81C784, 0xFFFFB74D, 0xFFBA68C8, 0xFF4DB6AC, 0xFFF06292, 0xFF9575CD).map { Color(it) }
-
-        fun placeholderFor(index: Int): Color = placeholderColors[index % placeholderColors.size]
+        /** 網点の間隔（基準の幅 1220 のときの画素）。 */
+        private const val DOT_STEP = 16f
     }
 }

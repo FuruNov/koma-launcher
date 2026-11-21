@@ -171,10 +171,10 @@ enum class BorderStyle { NONE, SINGLE, DOUBLE }
 data class Border(
     val style: BorderStyle = BorderStyle.SINGLE,
     val width: Float = 10f,
-    /** null なら自動。間隔の色が暗ければ白、明るければ黒にする（黒い間隔で枠が見えなくなるのを避ける）。 */
+    /** null なら自動。すき間の色が暗ければ白、明るければ黒にする（黒いすき間で枠が見えなくなるのを避ける）。 */
     val color: Long? = null,
 ) {
-    /** 間隔の色 [gutter] のときに引く枠の色。 */
+    /** すき間の色 [gutter] のときに引く枠の色。 */
     fun colorOn(gutter: Long): Long = color ?: if (BorderColors.isDark(gutter)) BorderColors.WHITE else BorderColors.BLACK
 
     companion object BorderColors {

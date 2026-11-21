@@ -434,7 +434,7 @@ object LayoutParser {
     private data class BorderDto(
         val style: Style = Style.SINGLE,
         val width: Float = 10f,
-        /** 省略すると自動（間隔の色に合わせて白か黒）。 */
+        /** 省略すると自動（すき間の色に合わせて白か黒）。 */
         val color: String? = null,
     ) {
         fun toModel() = Border(

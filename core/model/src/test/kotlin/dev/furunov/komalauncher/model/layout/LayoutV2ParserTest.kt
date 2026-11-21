@@ -69,7 +69,7 @@ class LayoutV2ParserTest {
         assertEquals(Border.WHITE, auto.colorOn(0xFF111111))
         assertEquals(Border.WHITE, auto.colorOn(0xFF2B2B33))
         assertEquals(Border.BLACK, auto.colorOn(0xFFFFFFFF))
-        // 色を選んであれば、間隔の色に関係なくその色
+        // 色を選んであれば、すき間の色に関係なくその色
         assertEquals(Border.BLACK, Border(color = Border.BLACK).colorOn(0xFF111111))
     }
 

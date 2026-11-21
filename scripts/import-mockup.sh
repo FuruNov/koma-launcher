@@ -41,7 +41,7 @@ jq '
       border: {
         style: ($s.border.style // "single"),
         width: ($s.border.width // 10),
-        # モックアップの枠はいつも黒（#111111）なので、黒は自動（間隔が暗ければ白）として取り込む
+        # モックアップの枠はいつも黒（#111111）なので、黒は自動（すき間が暗ければ白）として取り込む
         color: (if ($s.border.color // "#111111") == "#111111" then null else $s.border.color end)
       }
     },
