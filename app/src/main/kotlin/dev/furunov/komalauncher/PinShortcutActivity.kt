@@ -28,6 +28,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,7 +78,11 @@ class PinShortcutActivity : ComponentActivity() {
 
         setContent {
             val layoutState by container.layoutStore.state.collectAsState()
-            var selected by remember { mutableStateOf<PanelId?>(null) }
+            // 画面を回しても選んだコマを保つ（PanelId は文字列で保存する）
+            var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+            val selected = selectedId?.let(::PanelId)
+            // 「追加」を素早く 2 回押すと、2 回目の accept が false を返して失敗の表示になるので、1 回目の後は無視する
+            var adding by remember { mutableStateOf(false) }
             val loaded = layoutState as? LayoutState.Loaded
             Box(
                 Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable(onClick = ::finish),
@@ -106,13 +111,15 @@ class PinShortcutActivity : ComponentActivity() {
                         screenWidth = bounds.width().toFloat(),
                         screenHeight = bounds.height().toFloat(),
                         selected = selected,
-                        onSelect = { selected = it },
+                        onSelect = { selectedId = it.value },
                         modifier = Modifier.heightIn(max = 360.dp).align(Alignment.CenterHorizontally),
                     )
                     BasicText("コマを選ばないと、アプリの一覧にだけ追加します", style = TextStyle(color = Color(0xFF9A9EAB), fontSize = 12.sp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton("キャンセル", ::finish)
                         TextButton("追加") {
+                            if (adding) return@TextButton
+                            adding = true
                             if (request.accept()) {
                                 selected?.let { panel ->
                                     container.folderStore.update { FolderEdits.add(it, panel.value, AppKey.shortcut(info.`package`, info.id)) }
