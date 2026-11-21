@@ -10,6 +10,7 @@ import android.media.audiofx.Visualizer
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import dev.furunov.komalauncher.model.media.SpectrumRecording
 
 /**
  * 空間オーディオがオンのとき、再生中のアプリのセッションに直接付けた Visualizer で音を取れるかを確かめる実験（2026-11-20）。
@@ -27,6 +28,7 @@ object DebugVisualizer {
         scaling: Int,
         logMs: Long,
         intervalMs: Long,
+        recordSec: Int,
     ) {
         probeSessions(context)
         Thread { probeDump() }.start()
@@ -44,6 +46,30 @@ object DebugVisualizer {
             (context.applicationContext as KomaApplication).container.spectrum.session = use
             Log.i(TAG, "ホームの棒のセッションを $use にした")
         }
+        if (recordSec > 0) record(context, spectrum, recordSec)
+    }
+
+    /**
+     * ホームの棒が読む生の値を [seconds] 秒、アプリの files/ に書く。ホームが前面にあって再生中の間だけ書かれる。
+     * 例: am broadcast -n dev.furunov.komalauncher/.DebugReceiver -a dev.furunov.komalauncher.DEBUG_VIS --ei record 90
+     * 取り出し: adb exec-out run-as dev.furunov.komalauncher cat files/vis-（時刻）.bin > rec.bin
+     */
+    private fun record(
+        context: Context,
+        spectrum: dev.furunov.komalauncher.platform.media.VisualizerSpectrum,
+        seconds: Int,
+    ) {
+        spectrum.recorder?.close()
+        val name = "vis-${java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))}.bin"
+        val writer = SpectrumRecording.Writer(java.io.File(context.filesDir, name).outputStream())
+        spectrum.recorder = writer
+        Log.i(TAG, "記録を始めた: files/$name（$seconds 秒）")
+        // read と同じ画面のスレッドで閉じる
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (spectrum.recorder === writer) spectrum.recorder = null
+            writer.close()
+            Log.i(TAG, "記録を終えた: files/$name")
+        }, seconds * 1000L)
     }
 
     /** 音楽アプリが再生の始めと終わりに送る、イコライザー向けの知らせを 60 秒受け取る。 */

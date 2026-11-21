@@ -31,6 +31,7 @@ class DebugReceiver : BroadcastReceiver() {
                 intent.getIntExtra("scaling", -1),
                 intent.getLongExtra("logms", 3000L),
                 intent.getLongExtra("interval", 100L),
+                intent.getIntExtra("record", 0),
             )
         }
     }

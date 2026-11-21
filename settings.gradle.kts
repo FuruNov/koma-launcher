@@ -26,4 +26,5 @@ include(
     ":feature:widgets",
     ":feature:settings",
     ":feature:editor",
+    ":tools:vis-replay",
 )

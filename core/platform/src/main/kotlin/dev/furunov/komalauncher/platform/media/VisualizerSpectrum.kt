@@ -9,6 +9,8 @@ import android.os.SystemClock
 import android.util.Log
 import dev.furunov.komalauncher.model.media.AudioSpectrum
 import dev.furunov.komalauncher.model.media.PowerSpectrum
+import dev.furunov.komalauncher.model.media.SpectrumRecording
+import dev.furunov.komalauncher.model.media.SpectrumTuning
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.time.LocalTime
@@ -86,11 +88,12 @@ class VisualizerSpectrum(
 
     /**
      * NORMALIZED は、曲間やフェードアウトのごく小さい音も最大まで大きくするので、波形からは無音に近いことが分からない。
-     * そこで、正規化の前の RMS（MEASUREMENT_MODE_PEAK_RMS、最大 25 処理単位の平均）を計測し、音量の分を戻した大きさが
-     * [QUIET_DB] より小さければ無音として扱う。計測を有効にできなければ、この判断はしない。
+     * そこで、正規化の前の RMS（MEASUREMENT_MODE_PEAK_RMS、最大 25 処理単位の平均）を計測し、[SpectrumTuning.isQuiet] で判断する。
+     * 計測を有効にできなければ、この判断はしない。
      */
     private var measuring = false
     private val measurement = Visualizer.MeasurementPeakRms()
+    private val tuning = SpectrumTuning()
 
     /** 直前に計測した、音量の分を戻した RMS（dB）。ログに書く。 */
     private var levelDb = Float.NaN
@@ -98,6 +101,12 @@ class VisualizerSpectrum(
     /** メディアの音量（dB、0 以下）。毎フレーム問い合わせないよう、[VOLUME_CHECK_MS] ごとに取得し直す。 */
     private var volumeDb = 0f
     private var volumeCheckedAt = 0L
+
+    /**
+     * 読んだ生の値（波形、RMS、音量）を書く先。debug 版の実験で、記録を PC で再生して棒の計算を比べるために使う（tools/vis-replay）。
+     * 画面のスレッドからだけ書き換える。
+     */
+    var recorder: SpectrumRecording.Writer? = null
 
     override fun start(): Boolean {
         if (visualizer != null) {
@@ -160,8 +169,13 @@ class VisualizerSpectrum(
             }
             // 無音（または音が届いていない）とき、Visualizer は 128（0 の位置）だけを返す
             val silent = wave.all { it == SILENT }
+            // mRms はミリベル
+            val rmsDb = if (measuring && v.getMeasurementPeakRms(measurement) == Visualizer.SUCCESS) measurement.mRms / 100f else Float.NaN
+            val volume = mediaVolumeDb()
+            levelDb = rmsDb - volume
+            recorder?.write(SystemClock.elapsedRealtimeNanos(), sampleRateHz, rmsDb, volume, wave)
             // 曲間などのごく小さい音も、棒にしない。取得の状態（[status]）は、波形が無音かどうかだけで決める
-            if (silent || isQuiet(v)) power.fill(0f) else powerSpectrum.compute(wave, power)
+            if (silent || tuning.isQuiet(rmsDb, volume)) power.fill(0f) else powerSpectrum.compute(wave, power)
             logOctaves(v, power)
             if (silent != lastSilent) {
                 lastSilent = silent
@@ -172,13 +186,6 @@ class VisualizerSpectrum(
             report("読み取りに失敗しました（${e.message}）")
             null
         }
-    }
-
-    private fun isQuiet(v: Visualizer): Boolean {
-        if (!measuring || v.getMeasurementPeakRms(measurement) != Visualizer.SUCCESS) return false
-        // mRms はミリベル
-        levelDb = measurement.mRms / 100f - mediaVolumeDb()
-        return levelDb < QUIET_DB
     }
 
     /**
@@ -245,11 +252,6 @@ class VisualizerSpectrum(
         const val CAPTURE_SIZE = 1024
         const val SILENT = 0x80.toByte()
 
-        /**
-         * 音量の分を戻した RMS がこれより小さければ無音とみなす（全振幅の正弦波の RMS が -3dB）。実機（2026-11-21、YT Music）では、
-         * 曲が鳴っている間は -8〜-12dB だった。RMS は最大 25 処理単位の平均なので、音が止まってから下がりきるまで 1〜2 秒かかる。
-         */
-        const val QUIET_DB = -50f
         const val VOLUME_CHECK_MS = 500L
         val MEDIA: AudioAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build()
         const val TAG = "KomaVisualizer"
