@@ -417,7 +417,8 @@ class HomeViewModel(
 
             is HomeEvent.ConfirmRemoveShortcut -> {
                 apps.unpin(event.app)
-                folderStore.update { f -> f.byPanel.keys.fold(f) { acc, panel -> FolderEdits.remove(acc, panel, event.app) } }
+                // 全てのコマと「割り当てなし」から外す。残すと、一覧に無いのでパッケージ名だけの行になる
+                folderStore.update { f -> f.byPanel.keys.fold(f) { acc, panel -> FolderEdits.remove(acc, panel, event.app) }.let { it.copy(unassigned = it.unassigned - event.app) } }
                 overlay.value = Overlay.None
             }
 

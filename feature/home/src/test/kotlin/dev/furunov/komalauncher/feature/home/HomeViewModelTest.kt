@@ -503,4 +503,12 @@ class HomeViewModelTest {
         vm.onEvent(HomeEvent.TapPanel(PanelId("p1")))
         assertEquals(listOf(chrome), appsFake.launched)
     }
+
+    @Test
+    fun confirmRemoveAlsoClearsUnassigned() {
+        withShortcutInTwoFolders()
+        folders.flow.value = folders.flow.value.copy(unassigned = listOf(sc))
+        vm.onEvent(HomeEvent.ConfirmRemoveShortcut(sc))
+        assertEquals(emptyList(), folders.flow.value.unassigned)
+    }
 }

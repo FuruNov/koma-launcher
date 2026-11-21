@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.text.Collator
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * LauncherApps でアプリを列挙する。PackageManager の全件の問い合わせと違い、
@@ -33,6 +34,12 @@ class LauncherAppsCatalog(
     private val launcherApps = context.getSystemService(LauncherApps::class.java)
     private val user: UserHandle = Process.myUserHandle()
     private val state = MutableStateFlow<List<AppEntry>>(emptyList())
+
+    // 一覧の作り直しは IO で並行に走るので、後に始めたものの結果だけを残す（先に始めたものが後に終わっても、古い一覧で上書きしない）
+    private val generation = AtomicLong()
+
+    // 前回の作り直しのときに、固定したショートカットを取得できたか。既定のホームアプリに戻ったことを refresh で知るのに使う
+    @Volatile private var hadShortcutAccess = false
     override val apps: StateFlow<List<AppEntry>> = state
 
     init {
@@ -78,7 +85,9 @@ class LauncherAppsCatalog(
     }
 
     private fun reload() {
+        val gen = generation.incrementAndGet()
         scope.launch(Dispatchers.IO) {
+            hadShortcutAccess = launcherApps.hasShortcutHostPermission()
             val collator = Collator.getInstance()
             // 自分のパッケージを除くのは Activity だけ（debug の DEBUG_PIN で固定した自分のショートカットは並べる）
             val activities =
@@ -86,7 +95,8 @@ class LauncherAppsCatalog(
                     .getActivityList(null, user)
                     .filter { it.componentName.packageName != context.packageName }
                     .map { AppEntry(AppKey(it.componentName.packageName, it.componentName.className), it.label.toString()) }
-            state.value = (activities + pinnedShortcuts()).sortedWith(compareBy(collator) { it.label })
+            val list = (activities + pinnedShortcuts()).sortedWith(compareBy(collator) { it.label })
+            if (gen == generation.get()) state.value = list
         }
     }
 
@@ -171,6 +181,11 @@ class LauncherAppsCatalog(
         } catch (_: Exception) {
             // ショートカットが消えていた。何もしない
         }
+    }
+
+    // 既定のホームアプリでない間は固定したショートカットを取得できず、戻っても通知が来ないので、取れるようになったときに作り直す
+    override fun refresh() {
+        if (!hadShortcutAccess && launcherApps.hasShortcutHostPermission()) reload()
     }
 
     override fun unpin(key: AppKey) {

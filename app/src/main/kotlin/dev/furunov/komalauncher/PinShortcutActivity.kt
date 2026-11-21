@@ -4,6 +4,7 @@ import android.content.pm.LauncherApps
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Bundle
+import android.os.Process
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -53,9 +54,11 @@ class PinShortcutActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val launcherApps = getSystemService(LauncherApps::class.java)
-        val request = launcherApps.getPinItemRequest(intent)
+        // この画面はほかのアプリから開けるので、壊れた Intent で取り出しに失敗しても、ホームと同じプロセスを落とさない
+        val request = runCatching { launcherApps.getPinItemRequest(intent) }.getOrNull()
         val info = request?.shortcutInfo
-        if (request == null || request.requestType != LauncherApps.PinItemRequest.REQUEST_TYPE_SHORTCUT || !request.isValid || info == null) {
+        // 仕事用プロファイルのショートカットは一覧に並べないので、受けない
+        if (request == null || request.requestType != LauncherApps.PinItemRequest.REQUEST_TYPE_SHORTCUT || !request.isValid || info == null || info.userHandle != Process.myUserHandle()) {
             finish()
             return
         }

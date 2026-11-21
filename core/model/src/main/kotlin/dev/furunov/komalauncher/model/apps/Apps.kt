@@ -56,6 +56,9 @@ interface AppCatalog {
     /** 固定したショートカット [key] の固定を解除する。アプリなら何もしない。 */
     fun unpin(key: AppKey)
 
+    /** ホームが前面に戻ったときに呼ぶ。既定のホームアプリに戻った後など、取り直しが要るときだけ一覧を作り直す。 */
+    fun refresh() = Unit
+
     /** 検索のための、全アプリのショートカット。時間がかかるので IO のスレッドで呼ぶ。ホームアプリでないときは空。 */
     fun allShortcuts(): List<AppShortcut>
 }
