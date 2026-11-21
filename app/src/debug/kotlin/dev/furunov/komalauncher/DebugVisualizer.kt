@@ -24,13 +24,22 @@ object DebugVisualizer {
         session: Int,
         listen: Boolean,
         use: Int,
+        scaling: Int,
+        logMs: Long,
+        intervalMs: Long,
     ) {
         probeSessions(context)
         Thread { probeDump() }.start()
         if (listen) listenSessions(context.applicationContext)
         if (session > 0) Thread { capture(session) }.start()
         // ホームの棒を、このセッションから取る（無音が続くと 3 秒ごとに作り直すので、そのときに切り替わる）
-        if (session < 0) (context.applicationContext as KomaApplication).container.spectrum.logUntil = android.os.SystemClock.elapsedRealtime() + 3000
+        val spectrum = (context.applicationContext as KomaApplication).container.spectrum
+        // 倍率の決め方を切り替える（0: NORMALIZED、1: AS_PLAYED）
+        if (scaling >= 0) spectrum.scalingMode = scaling
+        if (session < 0) {
+            spectrum.logIntervalMs = intervalMs
+            spectrum.logUntil = android.os.SystemClock.elapsedRealtime() + logMs
+        }
         if (use >= 0) {
             (context.applicationContext as KomaApplication).container.spectrum.session = use
             Log.i(TAG, "ホームの棒のセッションを $use にした")

@@ -191,13 +191,13 @@ internal fun PlayerLayer(
                     if (!playing) {
                         target.fill(0f)
                     } else {
-                        val fft = if (started) spectrum?.read() else null
-                        val ok = fft != null
-                        if (fft != null && !Spectrum.isSilent(fft)) {
+                        val power = if (started) spectrum?.read() else null
+                        val ok = power != null
+                        if (power != null && !Spectrum.isSilent(power)) {
                             silentSince = -1L
                             simulate = false
                             heard = true
-                            shaper.shape(fft, spectrum?.sampleRateHz ?: 48_000, dt, target)
+                            shaper.shape(power, spectrum?.sampleRateHz ?: 48_000, dt, target)
                         } else {
                             if (silentSince < 0) silentSince = t
                             val stuck = !ok || t - silentSince > SILENCE_NANOS

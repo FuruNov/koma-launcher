@@ -28,47 +28,58 @@ class SpectrumTest {
     fun barCountFollowsEdgeLength() = assertEquals(20, Spectrum.barCount(540f, 3f))
 
     @Test
-    fun silentFftGivesZeroBars() {
+    fun silentPowerGivesZeroBars() {
         val out = FloatArray(12) { 1f }
-        SpectrumShaper(12).shape(ByteArray(1024), 48_000, 0.016f, out)
+        SpectrumShaper(12).shape(FloatArray(512), 48_000, 0.016f, out)
         assertTrue(out.all { it == 0f })
-        assertTrue(Spectrum.isSilent(ByteArray(1024)))
+        assertTrue(Spectrum.isSilent(FloatArray(512)))
     }
 
     @Test
     fun smallJitterGivesZeroBars() {
-        // 無音でも残る ±1 の揺れは、棒にしない
-        val fft = ByteArray(1024) { if (it % 3 == 0) 1 else -1 }
+        // 無音に近いときに残る、波形の ±1 の揺れは棒にしない
+        var seed = 12345
+        val wave =
+            ByteArray(1024) {
+                seed = seed * 1103515245 + 12345
+                (128 + if (seed ushr 16 and 1 == 0) 1 else -1).toByte()
+            }
+        val power = FloatArray(512)
+        PowerSpectrum().compute(wave, power)
         val out = FloatArray(12) { 1f }
-        SpectrumShaper(12).shape(fft, 48_000, 0.016f, out)
+        SpectrumShaper(12).shape(power, 48_000, 0.016f, out)
         assertTrue(out.all { it == 0f }, out.joinToString())
     }
 
     @Test
     fun loudLowFrequencyRaisesFirstBar() {
-        // 1 番目の周波数（約 47Hz）だけが大きい
-        val fft = ByteArray(1024).also { it[2] = 100 }
+        // 1 番目の周波数（約 47Hz）だけが大きい（-10dB）
+        val power = FloatArray(512).also { it[1] = 0.1f }
         val out = FloatArray(12)
-        SpectrumShaper(12).shape(fft, 48_000, 0.016f, out)
+        SpectrumShaper(12).shape(power, 48_000, 0.016f, out)
         assertEquals(1f, out[0], 1e-3f)
         assertTrue(out.drop(1).all { it == 0f }, out.joinToString())
-        assertFalse(Spectrum.isSilent(fft))
+        assertFalse(Spectrum.isSilent(power))
     }
 
     @Test
     fun barsFollowTheRecentLoudestLevel() {
         val shaper = SpectrumShaper(12)
         val out = FloatArray(12)
-        val loud = ByteArray(1024).also { it[2] = 100 }
-        // 10dB 小さい音（大きさ 100 の 1/√10）
-        val quiet = ByteArray(1024).also { it[2] = 32 }
+        // -25dB と、10dB 小さい -35dB
+        val loud = FloatArray(512).also { it[1] = 10f.pow(-2.5f) }
+        val quiet = FloatArray(512).also { it[1] = 10f.pow(-3.5f) }
         shaper.shape(loud, 48_000, 0.016f, out)
+        // 時間方向に平均するので、1 回だけでは小さい音まで下がりきらない
         shaper.shape(quiet, 48_000, 0.016f, out)
-        // 直前の大きい音から 10dB 下なので、範囲 20dB の中ほど（を 1.5 乗した高さ）
-        assertEquals(0.5f.pow(1.5f), out[0], 0.03f)
-        // 小さい音が 5 秒続くと、最近の最大が下がり、同じ音でも棒が高くなる。ただし最近の最大は 34dB より下げないので、満杯にはしない
+        val first = out[0]
+        // 0.5 秒続くと、直前の大きい音から 10dB 下（最近の最大は 0.25dB 下がる）なので、範囲 30dB の約 3 分の 2（を 3 乗した高さ）
+        repeat(30) { shaper.shape(quiet, 48_000, 0.016f, out) }
+        assertTrue(first > out[0])
+        assertEquals((20.25f / 30f).pow(3f), out[0], 0.03f)
+        // 小さい音が 5 秒続くと、最近の最大が下がり（2.65dB）、同じ音でも棒が高くなる
         repeat(300) { shaper.shape(quiet, 48_000, 0.016f, out) }
-        assertEquals(0.8f.pow(1.5f), out[0], 0.03f)
+        assertEquals((22.65f / 30f).pow(3f), out[0], 0.03f)
     }
 
     @Test

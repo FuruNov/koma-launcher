@@ -1,11 +1,14 @@
 package dev.furunov.komalauncher.platform.media
 
 import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.audiofx.Visualizer
 import android.os.SystemClock
 import android.util.Log
 import dev.furunov.komalauncher.model.media.AudioSpectrum
+import dev.furunov.komalauncher.model.media.PowerSpectrum
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.time.LocalTime
@@ -36,9 +39,27 @@ class VisualizerSpectrum(
     @Volatile
     var session: Int = 0
 
+    /**
+     * 取得の倍率の決め方。NORMALIZED は、オーディオの処理単位（数〜20ms）ごとに最大の標本が 0.99 になるよう倍率をかける
+     * （AOSP の EffectVisualizer.cpp で確かめた）。AS_PLAYED は音量をかけた後の音をそのまま 8 ビットにするので、値がメディアの音量に比例する。
+     * 実機（2026-11-21、YT Music）では、AS_PLAYED は音量 2/30 で音楽の中身が 8 ビットの 1 段階より小さくなって消え、10/30 でも
+     * 8kHz より上が雑音の大きさ（-70dB ほど）まで下がった。全帯域がそろって上下する量は、NORMALIZED と比べて 1 割ほどしか減らなかったので、
+     * NORMALIZED を使う。debug 版の実験で切り替えると、すぐに反映する。
+     */
+    var scalingMode: Int = Visualizer.SCALING_MODE_NORMALIZED
+        set(value) {
+            field = value
+            visualizer?.let { scalingResult = runCatching { it.setScalingMode(value) }.getOrDefault(Visualizer.ERROR) }
+            Log.i(TAG, "倍率の決め方を $value にした（結果 $scalingResult）")
+        }
+
     /** この時刻（elapsedRealtime）まで、読んだ値を 0.1 秒ごとにログへ書く。棒の見え方を調べるための debug 版の実験用。 */
     @Volatile
     var logUntil: Long = 0L
+
+    /** ログを書く間隔（ミリ秒）。 */
+    @Volatile
+    var logIntervalMs: Long = 100L
     private var lastLog = 0L
 
     private val statusFlow = MutableStateFlow<String?>(null)
@@ -52,8 +73,31 @@ class VisualizerSpectrum(
     /** 直前に読んだ値が無音だったか。状態が変わったときだけ [status] を書き換える（毎フレーム書かないように）。 */
     private var lastSilent: Boolean? = null
 
-    /** 読んだ値を入れる配列。大きさは Visualizer の取得の大きさ。 */
+    /** 最後の setScalingMode の戻り値。失敗したら状態の表示に添える。 */
+    private var scalingResult = Visualizer.SUCCESS
+
+    /** 読んだ波形を入れる配列。大きさは Visualizer の取得の大きさ。 */
     private var buffer = ByteArray(CAPTURE_SIZE)
+
+    /** 波形から計算した帯域ごとのパワー。長さは [buffer] の半分。 */
+    private var power = FloatArray(CAPTURE_SIZE / 2)
+
+    private val powerSpectrum = PowerSpectrum()
+
+    /**
+     * NORMALIZED は、曲間やフェードアウトのごく小さい音も最大まで大きくするので、波形からは無音に近いことが分からない。
+     * そこで、正規化の前の RMS（MEASUREMENT_MODE_PEAK_RMS、最大 25 処理単位の平均）を計測し、音量の分を戻した大きさが
+     * [QUIET_DB] より小さければ無音として扱う。計測を有効にできなければ、この判断はしない。
+     */
+    private var measuring = false
+    private val measurement = Visualizer.MeasurementPeakRms()
+
+    /** 直前に計測した、音量の分を戻した RMS（dB）。ログに書く。 */
+    private var levelDb = Float.NaN
+
+    /** メディアの音量（dB、0 以下）。毎フレーム問い合わせないよう、[VOLUME_CHECK_MS] ごとに取得し直す。 */
+    private var volumeDb = 0f
+    private var volumeCheckedAt = 0L
 
     override fun start(): Boolean {
         if (visualizer != null) {
@@ -70,7 +114,12 @@ class VisualizerSpectrum(
                 v.captureSize = Visualizer.getCaptureSizeRange()[1].coerceAtMost(CAPTURE_SIZE)
                 v.enabled = true
             }
+            // ほかのアプリが制御している Visualizer では変えられないことがある。そのときは状態に表示する
+            scalingResult = v.setScalingMode(scalingMode)
+            measuring = runCatching { v.setMeasurementMode(Visualizer.MEASUREMENT_MODE_PEAK_RMS) == Visualizer.SUCCESS }.getOrDefault(false)
+            Log.i(TAG, "RMS の計測: ${if (measuring) "有効" else "無効"}")
             buffer = ByteArray(v.captureSize)
+            power = FloatArray(v.captureSize / 2)
             visualizer = v
             users = 1
             // 無音が続いて作り直したときは、無音が始まった時刻を残すため、表示を変えない
@@ -98,27 +147,59 @@ class VisualizerSpectrum(
     // Visualizer の samplingRate はミリヘルツ
     override val sampleRateHz: Int get() = visualizer?.samplingRate?.div(1000) ?: 48_000
 
-    override fun read(): ByteArray? {
+    override fun read(): FloatArray? {
         val v = visualizer ?: return null
-        val out = buffer
+        val wave = buffer
         return try {
-            val code = v.getFft(out)
+            // getFft は使わない。窓関数が無く、127 を超えた値を半分にするので（[PowerSpectrum]）、波形から自分で計算する
+            val code = v.getWaveForm(wave)
             if (code != Visualizer.SUCCESS) {
                 if (lastSilent != null) report("読み取りに失敗しました（コード $code）")
                 lastSilent = null
                 return null
             }
-            logOctaves(v, out)
-            val silent = out.all { it == 0.toByte() }
+            // 無音（または音が届いていない）とき、Visualizer は 128（0 の位置）だけを返す
+            val silent = wave.all { it == SILENT }
+            // 曲間などのごく小さい音も、棒にしない。取得の状態（[status]）は、波形が無音かどうかだけで決める
+            if (silent || isQuiet(v)) power.fill(0f) else powerSpectrum.compute(wave, power)
+            logOctaves(v, power)
             if (silent != lastSilent) {
                 lastSilent = silent
-                report(if (silent) "無音だけが返っています（${now()} から）${spatialHint()}" else "音を受け取っています（${now()} に確認）")
+                report(if (silent) "無音だけが返っています（${now()} から）${spatialHint()}" else "音を受け取っています（${now()} に確認）${scalingHint()}")
             }
-            out
+            power
         } catch (e: IllegalStateException) {
             report("読み取りに失敗しました（${e.message}）")
             null
         }
+    }
+
+    private fun isQuiet(v: Visualizer): Boolean {
+        if (!measuring || v.getMeasurementPeakRms(measurement) != Visualizer.SUCCESS) return false
+        // mRms はミリベル
+        levelDb = measurement.mRms / 100f - mediaVolumeDb()
+        return levelDb < QUIET_DB
+    }
+
+    /**
+     * 今の出力先でのメディアの音量（dB）。Visualizer が受け取る音は、すでに音量をかけた後の音なので、その分を戻すのに使う。
+     * Bluetooth の機器が音量を受け持つ場合は端末の側で音量をかけないので、実際より大きく戻すことになるが、無音の判断が甘くなるだけで済む。
+     */
+    private fun mediaVolumeDb(): Float {
+        val now = SystemClock.elapsedRealtime()
+        if (now - volumeCheckedAt < VOLUME_CHECK_MS) return volumeDb
+        volumeCheckedAt = now
+        val a = audio ?: return 0f
+        val db =
+            runCatching {
+                val device = a.getAudioDevicesForAttributes(MEDIA).firstOrNull()?.type ?: AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                a.getStreamVolumeDb(AudioManager.STREAM_MUSIC, a.getStreamVolume(AudioManager.STREAM_MUSIC), device)
+            }.onFailure { Log.i(TAG, "音量を取得できない（$it）") }
+                .getOrDefault(0f)
+                .coerceIn(-96f, 0f)
+        if (db != volumeDb) Log.i(TAG, "メディアの音量: $db dB")
+        volumeDb = db
+        return volumeDb
     }
 
     /**
@@ -130,25 +211,27 @@ class VisualizerSpectrum(
         return if (s.isAvailable && s.isEnabled) "。イマーシブサウンド（空間オーディオ）がオンのときは取得できません" else ""
     }
 
-    /** 1 オクターブごとの平均の大きさ（dB）を書く。 */
+    private fun scalingHint(): String = if (scalingResult == Visualizer.SUCCESS) "" else "。倍率の設定に失敗しました（コード $scalingResult）"
+
+    /** 1 オクターブごとの平均の大きさ（dB、全振幅の正弦波が 0dB）を書く。 */
     private fun logOctaves(
         v: Visualizer,
-        fft: ByteArray,
+        power: FloatArray,
     ) {
         val now = SystemClock.elapsedRealtime()
-        if (now > logUntil || now - lastLog < 100) return
+        if (now > logUntil || now - lastLog < logIntervalMs) return
         lastLog = now
         val nyquist = v.samplingRate / 2000.0
-        val bins = fft.size / 2
+        val bins = power.size
         val db =
             generateSequence(62.5) { it * 2 }.takeWhile { it <= 16000 }.map { hz ->
                 val lo = (hz / 2 / nyquist * bins).toInt().coerceIn(1, bins - 1)
                 val hi = (hz / nyquist * bins).toInt().coerceIn(lo + 1, bins)
                 var sum = 0.0
-                for (k in lo until hi) sum += fft[2 * k].toDouble() * fft[2 * k] + fft[2 * k + 1].toDouble() * fft[2 * k + 1]
-                (10 * log10(1e-9 + sum / (hi - lo))).toInt()
+                for (k in lo until hi) sum += power[k]
+                (10 * log10(1e-12 + sum / (hi - lo))).toInt()
             }.joinToString(" ")
-        Log.i(TAG, "帯域dB(62〜16k)=$db")
+        Log.i(TAG, "帯域dB(62〜16k)=$db RMS=${levelDb.toInt()} 音量=${volumeDb.toInt()}")
     }
 
     private fun report(s: String) {
@@ -160,6 +243,15 @@ class VisualizerSpectrum(
 
     private companion object {
         const val CAPTURE_SIZE = 1024
+        const val SILENT = 0x80.toByte()
+
+        /**
+         * 音量の分を戻した RMS がこれより小さければ無音とみなす（全振幅の正弦波の RMS が -3dB）。実機（2026-11-21、YT Music）では、
+         * 曲が鳴っている間は -8〜-12dB だった。RMS は最大 25 処理単位の平均なので、音が止まってから下がりきるまで 1〜2 秒かかる。
+         */
+        const val QUIET_DB = -50f
+        const val VOLUME_CHECK_MS = 500L
+        val MEDIA: AudioAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build()
         const val TAG = "KomaVisualizer"
         val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
     }
