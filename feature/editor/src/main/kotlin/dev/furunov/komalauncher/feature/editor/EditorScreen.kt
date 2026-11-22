@@ -222,7 +222,12 @@ private fun PanelControls(
         Chip("縦に分割") { vm.split(SplitDirection.VERTICAL) }
         Chip("結合", enabled = vm.selectedCutPath() != null, onClick = vm::merge)
     }
-    ChipRow("種類") { Chip(kindLabel(panel.content), onClick = vm::cycleKind) }
+    // 種類を全て並べ、今の種類を光らせる。押すたびに切り替える形では、どんな種類があるのか前もって分からなかった
+    ChipRow("種類") {
+        listOf(PanelContent.Folder(emptyList()), PanelContent.Drawer, PanelContent.Widget).forEach { kind ->
+            Chip(kindLabel(kind), selected = panel.content::class == kind::class) { vm.setKind(kind) }
+        }
+    }
     if (panel.iconAt != null || panel.iconScale != 1f) {
         ChipRow("アイコン") { Chip("位置と大きさを自動に戻す") { vm.resetIcons(panel.id) } }
     }

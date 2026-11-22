@@ -14,6 +14,7 @@ import dev.furunov.komalauncher.model.layout.LayoutResolver
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.Look
 import dev.furunov.komalauncher.model.layout.PanelArt
+import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.layout.PanelId
 import dev.furunov.komalauncher.model.layout.PanelText
 import dev.furunov.komalauncher.model.layout.ResolvedLayout
@@ -132,9 +133,9 @@ class EditorViewModel(
         commit(after)
     }
 
-    fun cycleKind() {
+    fun setKind(target: PanelContent) {
         val id = local.value.selected ?: return
-        edit { LayoutEdits.cycleKind(it, id) }
+        edit { LayoutEdits.setKind(it, id, target) }
     }
 
     /** 選んでいるコマを割っている線の道筋。根のコマ（線が無い）なら null。 */

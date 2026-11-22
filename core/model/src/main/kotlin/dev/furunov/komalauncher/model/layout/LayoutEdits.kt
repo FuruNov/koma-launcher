@@ -102,6 +102,16 @@ object LayoutEdits {
         dim: Float,
     ): Layout = updatePanel(layout, panelId) { p -> p.copy(art = p.art?.copy(dim = dim.coerceIn(0f, 1f))) }
 
+    /**
+     * 種類を [target] にする。今と同じ種類なら何も変えない（フォルダの初期値などを消さないため）。
+     * 編集画面は種類を全て並べて選ばせる。押すたびに切り替える形では、どんな種類があるのか前もって分からなかった（2026-11-22）。
+     */
+    fun setKind(
+        layout: Layout,
+        panelId: PanelId,
+        target: PanelContent,
+    ): Layout = updatePanel(layout, panelId) { p -> if (p.content::class == target::class) p else p.copy(content = target) }
+
     /** 種類を フォルダ → ウィジェット → 全アプリ一覧 の順に切り替える（モックアップと同じ順）。 */
     fun cycleKind(
         layout: Layout,

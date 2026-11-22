@@ -97,6 +97,18 @@ class LayoutEditsTest {
     }
 
     @Test
+    fun setKindChangesToChosenKind() {
+        assertEquals(PanelContent.Drawer, LayoutEdits.setKind(one, PanelId("p1"), PanelContent.Drawer).panels[0].content)
+        assertEquals(PanelContent.Widget, LayoutEdits.setKind(one, PanelId("p1"), PanelContent.Widget).panels[0].content)
+    }
+
+    @Test
+    fun setKindToSameKindKeepsFolderContent() {
+        val folder = LayoutEdits.setKind(one, PanelId("p1"), PanelContent.Folder(listOf("a")))
+        assertEquals(folder, LayoutEdits.setKind(folder, PanelId("p1"), PanelContent.Folder(emptyList())))
+    }
+
+    @Test
     fun templateAvoidsExistingIdsAndKeepsFrame() {
         val hero = LayoutEdits.template(LayoutEdits.Template.HERO, one)
         assertEquals(5, hero.panels.size)
