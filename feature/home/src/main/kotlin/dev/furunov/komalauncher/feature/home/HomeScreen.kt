@@ -120,6 +120,8 @@ class HomeSlots(
     val widget: @Composable (PanelGeometry) -> Unit = {},
     /** 自由に置くウィジェットの中身。引数はウィジェットと、置く大きさ（dp）。 */
     val freeWidget: @Composable (WidgetSpec, Float, Float) -> Unit = { _, _, _ -> },
+    /** 自由に置いたウィジェットを、別のウィジェットに入れ替える選択画面を開く。引数はウィジェットの id。 */
+    val replaceWidget: (String) -> Unit = {},
     /** フォルダ以外の重ねる画面（ホームのメニューなど）。 */
     val overlay: @Composable (Overlay) -> Unit = {},
     /** 全アプリ一覧。開く瞬間に一から作らないよう、閉じている間も作っておく。引数は開いているか。 */
@@ -393,9 +395,10 @@ fun HomeScreen(
                         }
                     }
                 }
-                // 自由に置くウィジェットは、すべてのコマの上に描く
-                val widgetRects = geometry.widgets.map { it.bounds }
-                for (w in geometry.widgets) {
+                // 自由に置くウィジェットは、すべてのコマの上に描く。人物の後ろのものを描き、人物を描き直し、人物の前のものを描く
+                val (frontWidgets, behindWidgets) = geometry.widgets.partition { it.spec.front }
+                val widgetRects = behindWidgets.map { it.bounds }
+                val widgetBox: @Composable (WidgetGeometry) -> Unit = { w ->
                     val r = w.bounds
                     key(w.spec.id) {
                         Box(
@@ -410,6 +413,7 @@ fun HomeScreen(
                         }
                     }
                 }
+                behindWidgets.forEach { widgetBox(it) }
                 // ウィジェットに重なる人物を、ウィジェットの上に描き直す（ウィジェットが人物の後ろに回って見える）
                 for (g in geometry.panels) {
                     if (widgetRects.none { it.left < g.bounds.right && g.bounds.left < it.right && it.top < g.bounds.bottom && g.bounds.top < it.bottom } || state.player?.panelId == g.panel.id) continue
@@ -418,6 +422,7 @@ fun HomeScreen(
                     val personShift = depth3d.first[g.image]?.let { l -> g.face.artSize?.let { s -> depthPersonShift(l, depth3d.second, s.width.toFloat()) } }
                     PersonOverWidgets(g, motions.getValue(g.panel.id), art, person, widgetRects, { shownTilt.value }, personShift ?: parallax.art)
                 }
+                frontWidgets.forEach { widgetBox(it) }
                 // 枠の外へはみ出す人物は、どのコマよりも上に描く（隣のコマにかかる分も見せる）。タップの判定はコマの形のまま
                 for (g in geometry.panels) {
                     if (!g.panel.pop || state.player?.panelId == g.panel.id) continue
@@ -483,6 +488,10 @@ fun HomeScreen(
                     is Overlay.WidgetMenu ->
                         WidgetMenuSheet(
                             onAdjust = { onEvent(HomeEvent.Adjust(true)) },
+                            onReplace = {
+                                onEvent(HomeEvent.Dismiss)
+                                slots.replaceWidget(o.widgetId)
+                            },
                             onRemove = {
                                 editLayout { WidgetPlacement.remove(it, o.widgetId) }
                                 onEvent(HomeEvent.Dismiss)
@@ -540,7 +549,11 @@ fun HomeScreen(
                                     LayerKind.PERSON.takeIf { image != null && image in masks },
                                 )
                             }
-                            editLayout { PartEdits.reorder(it, t.panels, part, move, present) }
+                            if (part is Part.Widget) {
+                                editLayout { WidgetPlacement.reorder(it, part.start.id, move) }
+                            } else {
+                                editLayout { PartEdits.reorder(it, t.panels, part, move, present) }
+                            }
                         }
                     },
                 )

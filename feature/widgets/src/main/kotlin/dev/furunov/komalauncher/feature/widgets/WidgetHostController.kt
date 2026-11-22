@@ -7,11 +7,13 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.SizeF
 import androidx.compose.runtime.mutableStateOf
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.widgets.WidgetEdits
+import dev.furunov.komalauncher.model.widgets.WidgetEntry
 import dev.furunov.komalauncher.model.widgets.WidgetRef
 import dev.furunov.komalauncher.model.widgets.WidgetStore
 
@@ -23,7 +25,9 @@ class WidgetChoice(
     /** ウィジェットが求める最小の大きさ（dp）。自由に置くときの最初の大きさに使う。 */
     val widthDp: Float,
     val heightDp: Float,
-)
+) {
+    val entry: WidgetEntry get() = WidgetEntry(info.provider.flattenToString(), label, appLabel, info.provider.packageName)
+}
 
 /** 選択画面で選んだウィジェットを置く先。 */
 sealed interface PickTarget {
@@ -33,6 +37,11 @@ sealed interface PickTarget {
 
     /** コマから独立して置く。 */
     data object Free : PickTarget
+
+    /** 自由に置いたウィジェット [widgetId] の中身を、位置と大きさを保ったまま入れ替える。 */
+    data class Replace(
+        val widgetId: String,
+    ) : PickTarget
 }
 
 /**
@@ -79,6 +88,15 @@ class WidgetHostController(
                 val d = context.resources.displayMetrics.density
                 WidgetChoice(info, info.loadLabel(pm), appLabel, info.minWidth / d, info.minHeight / d)
             }.sortedWith(compareBy({ it.appLabel }, { it.label }))
+    }
+
+    /** アプリのアイコン（選択画面の見出しに使う）。 */
+    fun appIcon(packageName: String): Drawable? = runCatching { context.packageManager.getApplicationIcon(packageName) }.getOrNull()
+
+    /** 見本の画像。無ければウィジェットのアイコン。 */
+    fun previewImage(c: WidgetChoice): Drawable? {
+        val dpi = context.resources.displayMetrics.densityDpi
+        return runCatching { c.info.loadPreviewImage(context, dpi) ?: c.info.loadIcon(context, dpi) }.getOrNull()
     }
 
     fun view(appWidgetId: Int): AppWidgetHostView? {

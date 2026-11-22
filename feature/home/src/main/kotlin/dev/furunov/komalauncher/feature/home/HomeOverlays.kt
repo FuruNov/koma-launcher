@@ -371,6 +371,7 @@ internal fun LinkPanelSheet(
 @Composable
 internal fun WidgetMenuSheet(
     onAdjust: () -> Unit,
+    onReplace: () -> Unit,
     onRemove: () -> Unit,
     onEvent: (HomeEvent) -> Unit,
 ) {
@@ -382,6 +383,7 @@ internal fun WidgetMenuSheet(
             modifier = Modifier.padding(16.dp),
         )
         MenuRow("配置を調整", onClick = onAdjust)
+        MenuRow("変更", onClick = onReplace)
         MenuRow("削除", onClick = onRemove)
     }
 }

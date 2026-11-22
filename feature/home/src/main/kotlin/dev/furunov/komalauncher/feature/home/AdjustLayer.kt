@@ -236,7 +236,7 @@ internal fun AdjustOverlay(
             Button("元に戻す", enabled = canUndo, onClick = onUndo)
             Button("完了", accent = true, onClick = onDone)
         }
-        if (selected != null && selected !is Part.Widget) {
+        if (selected != null) {
             // 重ね順。背景の絵より後ろには行かない（最背面は背景の絵のすぐ上）
             Row(
                 Modifier.padding(top = 6.dp).fillMaxWidth().background(Color(0xE61E1E24), RoundedCornerShape(14.dp)).padding(horizontal = 8.dp, vertical = 6.dp),

@@ -133,6 +133,7 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         freeWidget = { spec, w, h -> WidgetPanel(spec.id, w, h, container.widgets, container.widgetStore) },
+                        replaceWidget = { container.widgets.pickerFor.value = PickTarget.Replace(it) },
                         widget = { g ->
                             WidgetPanel(
                                 panelId = g.panel.id.value,
@@ -178,7 +179,12 @@ class MainActivity : ComponentActivity() {
                     editLayout = container.layoutStore::update,
                 )
                 pickerFor?.let { target ->
-                    WidgetPicker(container.widgets, onPick = { activity, c -> placeWidget(activity, target, c) }, onDismiss = { container.widgets.pickerFor.value = null })
+                    WidgetPicker(
+                        container.widgets,
+                        onPick = { activity, c -> placeWidget(activity, target, c) },
+                        onDismiss = { container.widgets.pickerFor.value = null },
+                        title = if (target is PickTarget.Replace) "ウィジェットを変更" else "ウィジェットを選択",
+                    )
                 }
             }
         }
@@ -200,6 +206,12 @@ class MainActivity : ComponentActivity() {
                 container.widgets.place(activity, id, c) {
                     container.layoutStore.update { WidgetPlacement.add(it, WidgetPlacement.initial(it, id, provider, c.widthDp, c.heightDp, m.widthPixels / m.density, m.heightPixels / m.density)) }
                 }
+            }
+
+            // 割り当ての表は同じ id で上書きされ、前のウィジェットは外れる（WidgetHostController.finish）
+            is PickTarget.Replace -> {
+                val provider = c.info.provider.flattenToString()
+                container.widgets.place(activity, target.widgetId, c) { container.layoutStore.update { WidgetPlacement.replace(it, target.widgetId, provider) } }
             }
         }
     }

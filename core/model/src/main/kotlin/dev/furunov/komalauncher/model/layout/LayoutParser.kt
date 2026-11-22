@@ -395,11 +395,12 @@ object LayoutParser {
         val y: Float,
         val w: Float,
         val h: Float,
+        val front: Boolean = false,
     ) {
-        fun toModel() = WidgetSpec(id, provider, x, y, w, h)
+        fun toModel() = WidgetSpec(id, provider, x, y, w, h, front)
 
         companion object {
-            fun of(w: WidgetSpec) = WidgetDto(w.id, w.provider, w.x, w.y, w.w, w.h)
+            fun of(w: WidgetSpec) = WidgetDto(w.id, w.provider, w.x, w.y, w.w, w.h, w.front)
         }
     }
 

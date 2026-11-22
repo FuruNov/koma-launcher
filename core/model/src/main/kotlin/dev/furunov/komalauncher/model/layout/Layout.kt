@@ -272,6 +272,8 @@ data class WidgetSpec(
     /** 幅と高さ。 */
     val w: Float,
     val h: Float,
+    /** true なら人物の前に描く。false（既定）なら人物の後ろ。 */
+    val front: Boolean = false,
 )
 
 /** 視差（段階 5）。端末を傾けると、絵・文字・時計を別の量で動かす。 */

@@ -1,5 +1,6 @@
 package dev.furunov.komalauncher.model.widgets
 
+import dev.furunov.komalauncher.model.layout.LayerOrder
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.WidgetSpec
@@ -43,6 +44,13 @@ object WidgetPlacement {
         spec: WidgetSpec,
     ): Layout = edit(layout) { it + spec }
 
+    /** 位置と大きさを保ったまま、中身を [provider] のウィジェットに入れ替える。 */
+    fun replace(
+        layout: Layout,
+        id: String,
+        provider: String,
+    ): Layout = update(layout, id) { it.copy(provider = provider) }
+
     fun remove(
         layout: Layout,
         id: String,
@@ -79,6 +87,32 @@ object WidgetPlacement {
         val cx = start.x + start.w / 2f
         val cy = start.y + start.h / 2f
         return update(layout, start.id) { it.copy(x = (cx - w / 2f).coerceIn(0f, 1f - w), y = (cy - h / 2f).coerceIn(0f, 1f - h), w = w, h = h) }
+    }
+
+    /**
+     * ウィジェット [id] の重ね順を変える。人物の後ろのウィジェット・人物・人物の前のウィジェットを 1 列に並べ、その中で動かす。
+     * 人物を越えたら、人物の前と後ろが入れ替わる。
+     */
+    fun reorder(
+        layout: Layout,
+        id: String,
+        move: LayerOrder.Move,
+    ): Layout = edit(layout) { ws ->
+        val target = ws.firstOrNull { it.id == id } ?: return@edit ws
+        // null が人物
+        val line: MutableList<WidgetSpec?> = (ws.filter { !it.front } + listOf(null) + ws.filter { it.front }).toMutableList()
+        val from = line.indexOf(target)
+        line.removeAt(from)
+        val to =
+            when (move) {
+                LayerOrder.Move.BACK -> 0
+                LayerOrder.Move.BACKWARD -> (from - 1).coerceAtLeast(0)
+                LayerOrder.Move.FORWARD -> (from + 1).coerceAtMost(line.size)
+                LayerOrder.Move.FRONT -> line.size
+            }
+        line.add(to, target)
+        val person = line.indexOf(null)
+        line.mapIndexedNotNull { i, w -> w?.copy(front = i > person) }
     }
 
     private fun update(
