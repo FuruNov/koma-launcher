@@ -259,15 +259,13 @@ fun SettingsScreen(deps: SettingsDeps) {
         }
 
         if (hiddenMenu) {
-            // 選んだアプリを全アプリ一覧に戻す。アンインストール済みのアプリもパッケージ名で並べ、戻せるようにする
-            val labels = apps.associate { it.key to it.label }
-            ChoiceDialog(
-                "非表示のアプリ",
-                settings.drawer.hidden
-                    .map { key -> (labels[key] ?: key.packageName) to key }
-                    .sortedBy { it.first }
-                    .map { (label, key) -> label to { deps.store.update { it.copy(drawer = it.drawer.copy(hidden = it.drawer.hidden - key)) } } },
-            ) { hiddenMenu = false }
+            HiddenAppsScreen(
+                hidden = settings.drawer.hidden,
+                apps = apps,
+                columns = settings.drawer.columns,
+                onShow = { key -> deps.store.update { it.copy(drawer = it.drawer.copy(hidden = it.drawer.hidden - key)) } },
+                onClose = { hiddenMenu = false },
+            )
         }
 
         existingBackup?.let { tree ->
