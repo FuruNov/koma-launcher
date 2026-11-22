@@ -11,19 +11,23 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
@@ -42,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -167,22 +172,18 @@ fun DrawerScreen(
     // 追加したショートカット（PWA など）はブラウザと同じパッケージを持つので、アプリだけから引く
     val appOf = remember(visible) { visible.filterNot { it.key.isShortcut }.associateBy { it.key.packageName } }
     val grid = rememberLazyGridState()
-    val rail = rememberLazyListState()
     var gridOrigin by remember { mutableStateOf(Offset.Zero) }
-    var railOrigin by remember { mutableStateOf(Offset.Zero) }
-    // 左端の列へ運んでいるアプリと、指の位置（画面の座標）。運んでいる間はアイコンを指の位置に描く
+    var stripOrigin by remember { mutableStateOf(Offset.Zero) }
+    // L 字の各項目の画面上の範囲（FolderStrip が書く）。描画の度に変わるだけなので、状態にはしない
+    val stripBounds = remember { mutableMapOf<String, Rect>() }
+    // L 字のフォルダへ運んでいるアプリと、指の位置（画面の座標）。運んでいる間はアイコンを指の位置に描く
     var carrying by remember { mutableStateOf<Pair<AppKey, Offset>?>(null) }
-    // 運んでいるアプリを離すと入るフォルダ（指の下の左端の列のフォルダ）
+    // 運んでいるアプリを離すと入るフォルダ（指の下のフォルダ）
     var dropTarget by remember { mutableStateOf<String?>(null) }
-    val edgePx = with(LocalDensity.current) { 64.dp.toPx() }
     val iconHalfPx = with(LocalDensity.current) { 28.dp.toPx() }
 
-    /** 画面の座標 [p] の下にある、左端の列のフォルダの id。今開いているフォルダと「すべて」は除く。 */
-    fun railFolderAt(p: Offset): String? {
-        val y = (p.y - railOrigin.y).toInt()
-        val item = rail.layoutInfo.visibleItemsInfo.firstOrNull { y in it.offset until it.offset + it.size && it.index > 0 } ?: return null
-        return shownFolders.getOrNull(item.index - 1)?.id?.takeIf { it != tab }
-    }
+    /** 画面の座標 [p] の下にある、L 字のフォルダの id。「すべて」は除く。 */
+    fun folderAt(p: Offset): String? = stripBounds.entries.firstOrNull { it.key != ALL_KEY && it.value.contains(p) }?.key
     val dnd = LocalDragDrop.current
     val slide = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
@@ -209,15 +210,12 @@ fun DrawerScreen(
             symbolPicker = null
         }
     }
-    // フォルダを選んだら、キーボードを閉じて中身を見せる。左端の列は選んだフォルダが見える位置へ送る（左右に払って移ったとき）
+    // フォルダを選んだら、キーボードを閉じて中身を見せる
     LaunchedEffect(tab) {
         if (tab != null) {
             keyboard?.hide()
             focusManager.clearFocus()
         }
-        val index = if (tab == null) 0 else folders.indexOfFirst { it.id == tab } + 1
-        val shown = rail.layoutInfo.visibleItemsInfo
-        if (shown.isNotEmpty() && (index <= shown.first().index || index >= shown.last().index)) rail.animateScrollToItem((index - 2).coerceAtLeast(0))
     }
     LaunchedEffect(folderMenu != null) { if (folderMenu != null) keyboard?.hide() }
     // アイコンを運び始めたらキーボードを閉じる。一覧が透明になって見えるホームの下側のコマを、キーボードが隠すため
@@ -248,7 +246,9 @@ fun DrawerScreen(
                 }
             },
     ) {
-        Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+        // キーボードの分は除いて配置する。キーボードが出ても L 字の並びを測り直さないため（出てくる間の毎フレームで UI スレッドが 16〜30ms かかった）。
+        // アプリの一覧だけが imePadding でキーボードを避ける
+        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.exclude(WindowInsets.ime))) {
             SearchField(
                 query = query,
                 onQuery = { query = it },
@@ -260,43 +260,14 @@ fun DrawerScreen(
                 },
                 onOpenSettings = { scope.launch { actions.onOpenSettings() } },
             )
-            Row(Modifier.fillMaxSize()) {
-                if (q.isEmpty()) {
-                    FolderRail(
-                        shownFolders,
-                        folder?.id,
-                        dragKey = dragKey,
-                        dropTarget = dropTarget,
-                        state = rail,
-                        onSelect = { tab = it },
-                        modifier =
-                        Modifier.onGloballyPositioned { railOrigin = it.positionInRoot() }.reorderable(
-                            folders,
-                            ReorderHandler(
-                                // 先頭の「すべて」は動かさないので、フォルダの位置は項目の番号から 1 を引く
-                                itemAt = { p -> rail.layoutInfo.visibleItemsInfo.firstOrNull { p.y.toInt() in it.offset until it.offset + it.size && it.index > 0 }?.let { it.key to it.index - 1 } },
-                                onStart = { key ->
-                                    dragKey = key
-                                    draggingFolders = folders
-                                },
-                                onMove = { key, to -> draggingFolders?.let { l -> draggingFolders = DrawerFolders.moveItem(l, l.indexOfFirst { it.id == key }, to) } },
-                                onEnd = { moved ->
-                                    if (moved) draggingFolders?.let { l -> actions.onReorderFolders(l.map { it.id }) }
-                                    draggingFolders = null
-                                    dragKey = null
-                                },
-                                onRelease = { key -> folderMenu = key as String },
-                                onEdge = { dy -> rail.dispatchRawDelta(dy) },
-                            ),
-                        ),
-                    )
-                }
+            val appGrid: @Composable (Modifier) -> Unit = { m ->
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(columns),
                     state = grid,
                     modifier =
-                    Modifier
+                    m
                         .fillMaxSize()
+                        .imePadding()
                         .padding(horizontal = 4.dp)
                         .onGloballyPositioned { gridOrigin = it.positionInRoot() }
                         .then(if (q.isEmpty()) Modifier.swipeFolders(folders, tab) { tab = it } else Modifier)
@@ -324,7 +295,7 @@ fun DrawerScreen(
                                         },
                                         onRelease = { key -> folder.apps.firstOrNull { it.key.id() == key }?.let { actions.onShowAppMenu(it.key) } },
                                         // 一覧の外まで運んだら、並べ替えをやめる。
-                                        // 左（左端の列）へ出たら、別のフォルダへ移す操作にする。上へ出たら、ホームのコマへ運ぶ操作に切り替える
+                                        // 上へ出たら、ホームのコマへ運ぶ操作に切り替える。左か下（L 字のフォルダ）へ出たら、別のフォルダへ移す操作にする
                                         onLeave = { key, at ->
                                             val app = folder.apps.firstOrNull { it.key.id() == key }
                                             draggingApps = null
@@ -333,12 +304,12 @@ fun DrawerScreen(
                                             when {
                                                 app == null -> {}
 
-                                                at.x < 0 -> {
-                                                    carrying = app.key to p
-                                                    dropTarget = railFolderAt(p)
-                                                }
+                                                at.y < 0 -> dnd.start(DragItem(app.key, DragSource.Drawer), p)
 
-                                                else -> dnd.start(DragItem(app.key, DragSource.Drawer), p)
+                                                else -> {
+                                                    carrying = app.key to p
+                                                    dropTarget = folderAt(p)?.takeIf { it != tab }
+                                                }
                                             }
                                             app != null
                                         },
@@ -349,15 +320,7 @@ fun DrawerScreen(
                                             } else {
                                                 val p = c.second + delta
                                                 carrying = c.first to p
-                                                dropTarget = railFolderAt(p)
-                                                // 列の上下の端に指があれば、隠れているフォルダが見えるよう列をスクロールする
-                                                val top = railOrigin.y
-                                                val bottom = top + rail.layoutInfo.viewportSize.height
-                                                if (p.y < top + edgePx) {
-                                                    rail.dispatchRawDelta(-edgePx / 8)
-                                                } else if (p.y > bottom - edgePx) {
-                                                    rail.dispatchRawDelta(edgePx / 8)
-                                                }
+                                                dropTarget = folderAt(p)?.takeIf { it != tab }
                                             }
                                         },
                                         onHandoffEnd = {
@@ -407,6 +370,41 @@ fun DrawerScreen(
                         }
                     }
                 }
+            }
+            if (q.isNotEmpty()) {
+                appGrid(Modifier)
+            } else {
+                FolderStrip(
+                    shownFolders,
+                    folder?.id,
+                    dragKey = dragKey,
+                    dropTarget = dropTarget,
+                    onSelect = { tab = it },
+                    bounds = stripBounds,
+                    modifier =
+                    Modifier.onGloballyPositioned { stripOrigin = it.positionInRoot() }.reorderable(
+                        folders,
+                        ReorderHandler(
+                            // 「すべて」は動かさない。番号は「すべて」を除いたフォルダの並びの中の位置
+                            itemAt = { p ->
+                                val at = stripOrigin + p
+                                shownFolders.withIndex().firstOrNull { (_, f) -> stripBounds[f.id]?.contains(at) == true }?.let { (i, f) -> f.id to i }
+                            },
+                            onStart = { key ->
+                                dragKey = key
+                                draggingFolders = folders
+                            },
+                            onMove = { key, to -> draggingFolders?.let { l -> draggingFolders = DrawerFolders.moveItem(l, l.indexOfFirst { it.id == key }, to) } },
+                            onEnd = { moved ->
+                                if (moved) draggingFolders?.let { l -> actions.onReorderFolders(l.map { it.id }) }
+                                draggingFolders = null
+                                dragKey = null
+                            },
+                            onRelease = { key -> folderMenu = key as String },
+                        ),
+                    ),
+                    content = appGrid,
+                )
             }
         }
         folderMenu?.let { id ->

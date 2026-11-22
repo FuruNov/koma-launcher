@@ -22,6 +22,8 @@ object DrawerFolders {
     /** 利用者が作ったフォルダの id の頭。既定のフォルダの id と重ならないようにする。 */
     private const val CUSTOM_PREFIX = "u"
 
+    // 名前は全角 5 文字以内にする。全アプリ一覧の左の列（幅 68dp・10.5sp）で、それより長いと末尾が省略される
+
     /** 既定のフォルダの id と名前。タブはこの順に並べ、利用者が作ったフォルダは「その他」の前に入れる。 */
     val builtIn: List<Pair<String, String>> =
         listOf(
@@ -29,12 +31,12 @@ object DrawerFolders {
             AppCategory.AUDIO.id to "音楽",
             AppCategory.VIDEO.id to "動画",
             AppCategory.IMAGE.id to "写真",
-            AppCategory.SOCIAL.id to "SNS・連絡",
+            AppCategory.SOCIAL.id to "連絡",
             AppCategory.BROWSER.id to "ブラウザ",
             AppCategory.NEWS.id to "ニュース",
             AppCategory.MAPS.id to "地図",
-            AppCategory.PRODUCTIVITY.id to "仕事効率化",
-            AppCategory.ACCESSIBILITY.id to "ユーザー補助",
+            AppCategory.PRODUCTIVITY.id to "仕事",
+            AppCategory.ACCESSIBILITY.id to "補助",
             OTHER to "その他",
         )
     private val builtInNames = builtIn.toMap()

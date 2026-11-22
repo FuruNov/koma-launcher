@@ -6,36 +6,36 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.furunov.komalauncher.model.apps.DrawerFolder
@@ -44,47 +44,78 @@ import dev.furunov.komalauncher.model.apps.DrawerFolders
 private val Selected = Color(0xFF44444E)
 private val Dim = Color(0xFFAAAAAA)
 
-/** 左端の列の項目の高さの範囲。全ての項目が列の高さに収まるよう、この範囲で詰める。 */
-private val MinItemHeight = 34.dp
-private val MaxItemHeight = 56.dp
+/** 項目 1 つの高さと、左の列の幅。 */
+private val ItemHeight = 56.dp
+internal val RailWidth = 68.dp
+
+/** 「すべて」の項目のキー。フォルダの id と重ならない。 */
+internal const val ALL_KEY = "all"
 
 /**
- * 一覧の左端の縦の列。先頭の「すべて」（[selected] が null）の後に、中身のあるフォルダを記号と名前で並べる。
- * 項目の高さは、全ての項目が列に収まるように [MinItemHeight]〜[MaxItemHeight] で決める。
- * 最も詰めても収まらないときだけスクロールする（記号と名前を 56dp ずつで並べると 16 個のフォルダが画面に収まらず、40dp でも 18 個では最後の 1 個が切れた。POCO X7 Pro）。
+ * 「すべて」とフォルダを L 字に並べ、その内側に [content]（アプリの一覧）を置く。
+ * 左の列に入る分だけ並べ、入りきらない分は下端の行に、左の角から横に並べる。項目の大きさは変えない。
  *
- * 高さは、これまでに見た最も高い列の高さから決める。キーボードが出て列が縮んでも項目の高さは変えず、下の項目は隠れてスクロールで見る。
- * 列の高さに合わせて詰め直すと、キーボードが動く間の毎フレームで全ての項目を測り直し、UI スレッドが 16〜30ms かかった（2026-11-22）。
- * 長押しの並べ替えとメニューは [modifier] の [reorderable] が受ける。
+ * 全てを左の列に詰めると、18 個で項目が 34dp・文字が 9sp まで小さくなり、見づらいと利用者から指摘があった（2026-11-22）。
+ * 下端の行の分、アプリの一覧は 1 行ぶん低くなる。
+ *
+ * 高さはキーボードの分を含まない場所（呼び出し側が ime を除いて配置する）で測るので、キーボードが出ても並びは変わらない。
+ * 長押しの並べ替えとメニューは、呼び出し側が [bounds]（各項目の画面上の範囲）を使って受ける。
  */
 @Composable
-internal fun FolderRail(
+internal fun FolderStrip(
     folders: List<DrawerFolder>,
     selected: String?,
     dragKey: Any?,
     /** 運んでいるアプリを離すと入るフォルダの id。枠で強調する。 */
     dropTarget: String?,
-    state: LazyListState,
     onSelect: (String?) -> Unit,
+    /** 各項目の画面上の範囲。キーは [ALL_KEY] かフォルダの id。 */
+    bounds: MutableMap<String, Rect>,
     modifier: Modifier = Modifier,
+    content: @Composable (Modifier) -> Unit,
 ) {
-    var tallest by remember { mutableIntStateOf(0) }
+    var size by remember { mutableStateOf(IntSize.Zero) }
     val density = LocalDensity.current
-    val count = folders.size + 1
-    val itemHeight =
-        if (tallest == 0) MaxItemHeight else (with(density) { tallest.toDp() } - 8.dp).div(count).coerceIn(MinItemHeight, MaxItemHeight)
-    LazyColumn(
-        state = state,
-        contentPadding = PaddingValues(vertical = 4.dp),
-        modifier =
-        modifier
-            .width(68.dp)
-            .fillMaxHeight()
-            .onSizeChanged { if (it.height > tallest) tallest = it.height },
+    val entries: List<DrawerFolder?> = listOf(null) + folders
+    val height = with(density) { size.height.toDp() }
+    val fitAll = ((height - 8.dp) / ItemHeight).toInt()
+    val railCount =
+        if (size == IntSize.Zero || entries.size <= fitAll) entries.size else ((height - ItemHeight - 8.dp) / ItemHeight).toInt().coerceAtLeast(1)
+    bounds.keys.retainAll(entries.map { it?.id ?: ALL_KEY }.toSet())
+
+    @Composable
+    fun entry(
+        f: DrawerFolder?,
+        modifier: Modifier,
     ) {
-        item(key = "all") { RailItem(ALL_SYMBOL, "すべて", selected == null, itemHeight, Modifier.clickable { onSelect(null) }) }
-        items(folders, key = { it.id }) { f ->
-            RailItem(f.symbol, f.name, f.id == selected, itemHeight, Modifier.animateItem().lifted(f.id == dragKey || f.id == dropTarget).clickable { onSelect(f.id) }, target = f.id == dropTarget)
+        val key = f?.id ?: ALL_KEY
+        RailItem(
+            symbol = f?.symbol ?: ALL_SYMBOL,
+            name = f?.name ?: "すべて",
+            selected = f?.id == selected,
+            target = f != null && f.id == dropTarget,
+            modifier =
+            modifier
+                .lifted(f != null && (f.id == dragKey || f.id == dropTarget))
+                .onGloballyPositioned { bounds[key] = it.boundsInRoot() }
+                .clickable { onSelect(f?.id) },
+        )
+    }
+
+    Column(modifier.fillMaxSize().onSizeChanged { size = it }) {
+        Row(Modifier.weight(1f)) {
+            Column(Modifier.width(RailWidth).padding(top = 4.dp)) {
+                entries.take(railCount).forEach { entry(it, Modifier.fillMaxWidth()) }
+            }
+            content(Modifier.weight(1f))
+        }
+        val rest = entries.drop(railCount)
+        if (rest.isNotEmpty()) {
+            // 角の項目は左の列と同じ幅にして、記号を左の列とそろえる。残りは、少ないときは同じ幅で左から並べ、多いときは残りの横幅を等分する
+            val share = rest.size * RailWidth.value > with(density) { size.width.toDp() }.value
+            Row(Modifier.fillMaxWidth().height(ItemHeight)) {
+                rest.forEachIndexed { i, f -> entry(f, if (i == 0 || !share) Modifier.width(RailWidth) else Modifier.weight(1f)) }
+            }
         }
     }
 }
@@ -94,30 +125,28 @@ private fun RailItem(
     symbol: String,
     name: String,
     selected: Boolean,
-    height: Dp,
     modifier: Modifier,
     /** true なら、運んでいるアプリの入る先として枠を付ける。 */
     target: Boolean = false,
 ) {
-    // 高さが詰まったら、記号の台を低くする（名前の行の高さは変えない）
-    val box = (height - 14.dp).coerceIn(20.dp, 32.dp)
     Column(
-        modifier.height(height).padding(horizontal = 4.dp),
+        modifier.height(ItemHeight).padding(horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Box(
             Modifier
-                .size(width = 48.dp, height = box)
-                .background(if (selected) Selected else Color.Transparent, RoundedCornerShape(box / 2))
-                .then(if (target) Modifier.border(2.dp, Color(0xFFFFD54F), RoundedCornerShape(box / 2)) else Modifier),
+                .size(width = 48.dp, height = 32.dp)
+                .background(if (selected) Selected else Color.Transparent, RoundedCornerShape(16.dp))
+                .then(if (target) Modifier.border(2.dp, Color(0xFFFFD54F), RoundedCornerShape(16.dp)) else Modifier),
             contentAlignment = Alignment.Center,
-        ) { FolderSymbol(symbol, if (selected) Color.White else Dim, (box - 6.dp).coerceAtMost(22.dp)) }
+        ) { FolderSymbol(symbol, if (selected) Color.White else Dim, 22.dp) }
+        // 5 文字までは切れない幅（既定のフォルダ名は 5 文字以内にしてある）
         BasicText(
             name,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            style = TextStyle(color = if (selected) Color.White else Dim, fontSize = 9.sp, lineHeight = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, textAlign = TextAlign.Center),
+            style = TextStyle(color = if (selected) Color.White else Dim, fontSize = 10.5.sp, lineHeight = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, textAlign = TextAlign.Center),
         )
     }
 }
