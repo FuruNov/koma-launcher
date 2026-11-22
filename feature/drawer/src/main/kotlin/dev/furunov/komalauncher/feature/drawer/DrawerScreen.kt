@@ -176,8 +176,11 @@ fun DrawerScreen(
     val grid = rememberLazyGridState()
     var gridOrigin by remember { mutableStateOf(Offset.Zero) }
     var stripOrigin by remember { mutableStateOf(Offset.Zero) }
-    // L 字の各項目の画面上の範囲（FolderStrip が書く）。描画の度に変わるだけなので、状態にはしない
-    val stripBounds = remember { mutableMapOf<String, Rect>() }
+    // L 字の各位置の画面上の範囲（FolderStrip が書く）。描画の度に変わるだけなので、状態にはしない
+    val stripSlots = remember { mutableMapOf<Int, Rect>() }
+
+    /** 画面の座標 [p] の下にある L 字の位置の、「すべて」を除いた並びの中の番号。無ければ null。 */
+    fun slotAt(p: Offset): Int? = stripSlots.entries.firstOrNull { it.key > 0 && it.value.contains(p) }?.key?.minus(1)
     // L 字のフォルダへ運んでいるアプリと、指の位置（画面の座標）。運んでいる間はアイコンを指の位置に描く
     var carrying by remember { mutableStateOf<Pair<AppKey, Offset>?>(null) }
     // 運んでいるアプリを離すと入るフォルダ（指の下のフォルダ）
@@ -185,7 +188,7 @@ fun DrawerScreen(
     val iconHalfPx = with(LocalDensity.current) { 28.dp.toPx() }
 
     /** 画面の座標 [p] の下にある、L 字のフォルダの id。「すべて」は除く。 */
-    fun folderAt(p: Offset): String? = stripBounds.entries.firstOrNull { it.key != ALL_KEY && it.value.contains(p) }?.key
+    fun folderAt(p: Offset): String? = slotAt(p)?.let { (draggingFolders ?: folders).getOrNull(it)?.id }
     val dnd = LocalDragDrop.current
     val slide = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
@@ -383,15 +386,18 @@ fun DrawerScreen(
                     dragKey = dragKey,
                     dropTarget = dropTarget,
                     onSelect = { tab = it },
-                    bounds = stripBounds,
+                    slots = stripSlots,
                     modifier =
                     Modifier.onGloballyPositioned { stripOrigin = it.positionInRoot() }.reorderable(
                         folders,
                         ReorderHandler(
-                            // 「すべて」は動かさない。番号は「すべて」を除いたフォルダの並びの中の位置
+                            // 「すべて」は動かさない。番号は「すべて」を除いたフォルダの並びの中の位置。
+                            // 並びは動かしている間に変わるので、その時点の並び（draggingFolders）で数える。
+                            // pointerInput は動かし始めた時点の ReorderHandler を使い続けるので、composition の値（shownFolders）を使うと、
+                            // 古い並びで数えて 1 つ動かすと 2 つ進み、元の位置にも戻せなかった（2026-11-22 に実機で確認）
                             itemAt = { p ->
                                 val at = stripOrigin + p
-                                shownFolders.withIndex().firstOrNull { (_, f) -> stripBounds[f.id]?.contains(at) == true }?.let { (i, f) -> f.id to i }
+                                slotAt(at)?.let { i -> (draggingFolders ?: folders).getOrNull(i)?.let { it.id to i } }
                             },
                             onStart = { key ->
                                 dragKey = key

@@ -48,9 +48,6 @@ private val Dim = Color(0xFFAAAAAA)
 private val ItemHeight = 56.dp
 internal val RailWidth = 68.dp
 
-/** 「すべて」の項目のキー。フォルダの id と重ならない。 */
-internal const val ALL_KEY = "all"
-
 /**
  * 「すべて」とフォルダを L 字に並べ、その内側に [content]（アプリの一覧）を置く。
  * 左の列に入る分だけ並べ、入りきらない分は下端の行に、左の角から横に並べる。項目の大きさは変えない。
@@ -59,7 +56,7 @@ internal const val ALL_KEY = "all"
  * 下端の行の分、アプリの一覧は 1 行ぶん低くなる。
  *
  * 高さはキーボードの分を含まない場所（呼び出し側が ime を除いて配置する）で測るので、キーボードが出ても並びは変わらない。
- * 長押しの並べ替えとメニューは、呼び出し側が [bounds]（各項目の画面上の範囲）を使って受ける。
+ * 長押しの並べ替えとメニューは、呼び出し側が [slots]（各位置の画面上の範囲）を使って受ける。
  */
 @Composable
 internal fun FolderStrip(
@@ -69,8 +66,12 @@ internal fun FolderStrip(
     /** 運んでいるアプリを離すと入るフォルダの id。枠で強調する。 */
     dropTarget: String?,
     onSelect: (String?) -> Unit,
-    /** 各項目の画面上の範囲。キーは [ALL_KEY] かフォルダの id。 */
-    bounds: MutableMap<String, Rect>,
+    /**
+     * 各位置の画面上の範囲。キーは位置の番号（0 が「すべて」、1 からがフォルダの並び）。
+     * フォルダごとでなく位置ごとに記録する。並べ替えの途中でフォルダが動いても位置は変わらないので、記録が配置の更新を待たずに済む。
+     * フォルダごとに記録すると、動かした直後は古い範囲と新しい並びが食い違い、1 つ動かすと行き過ぎたり戻ったりした（2026-11-22）。
+     */
+    slots: MutableMap<Int, Rect>,
     modifier: Modifier = Modifier,
     content: @Composable (Modifier) -> Unit,
 ) {
@@ -81,14 +82,14 @@ internal fun FolderStrip(
     val fitAll = ((height - 8.dp) / ItemHeight).toInt()
     val railCount =
         if (size == IntSize.Zero || entries.size <= fitAll) entries.size else ((height - ItemHeight - 8.dp) / ItemHeight).toInt().coerceAtLeast(1)
-    bounds.keys.retainAll(entries.map { it?.id ?: ALL_KEY }.toSet())
+    slots.keys.retainAll(entries.indices.toSet())
 
     @Composable
     fun entry(
+        position: Int,
         f: DrawerFolder?,
         modifier: Modifier,
     ) {
-        val key = f?.id ?: ALL_KEY
         RailItem(
             symbol = f?.symbol ?: ALL_SYMBOL,
             name = f?.name ?: "すべて",
@@ -96,8 +97,9 @@ internal fun FolderStrip(
             target = f != null && f.id == dropTarget,
             modifier =
             modifier
+                // 拡大（lifted）する前の範囲を記録する。拡大した範囲は隣の位置に重なるため
+                .onGloballyPositioned { slots[position] = it.boundsInRoot() }
                 .lifted(f != null && (f.id == dragKey || f.id == dropTarget))
-                .onGloballyPositioned { bounds[key] = it.boundsInRoot() }
                 .clickable { onSelect(f?.id) },
         )
     }
@@ -105,7 +107,7 @@ internal fun FolderStrip(
     Column(modifier.fillMaxSize().onSizeChanged { size = it }) {
         Row(Modifier.weight(1f)) {
             Column(Modifier.width(RailWidth).padding(top = 4.dp)) {
-                entries.take(railCount).forEach { entry(it, Modifier.fillMaxWidth()) }
+                entries.take(railCount).forEachIndexed { i, f -> entry(i, f, Modifier.fillMaxWidth()) }
             }
             content(Modifier.weight(1f))
         }
@@ -114,7 +116,7 @@ internal fun FolderStrip(
             // 角の項目は左の列と同じ幅にして、記号を左の列とそろえる。残りは、少ないときは同じ幅で左から並べ、多いときは残りの横幅を等分する
             val share = rest.size * RailWidth.value > with(density) { size.width.toDp() }.value
             Row(Modifier.fillMaxWidth().height(ItemHeight)) {
-                rest.forEachIndexed { i, f -> entry(f, if (i == 0 || !share) Modifier.width(RailWidth) else Modifier.weight(1f)) }
+                rest.forEachIndexed { i, f -> entry(railCount + i, f, if (i == 0 || !share) Modifier.width(RailWidth) else Modifier.weight(1f)) }
             }
         }
     }
