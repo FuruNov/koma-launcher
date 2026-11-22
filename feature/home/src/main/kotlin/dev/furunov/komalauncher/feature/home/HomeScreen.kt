@@ -399,12 +399,6 @@ fun HomeScreen(
                         )
                     }
 
-                    // 長押しした元の画面（フォルダ）を下に残したまま、メニューを重ねる
-                    is Overlay.AppMenu -> {
-                        overlayContent(o.under)
-                        AppMenuSheet(o, state.labelOf(o.app), onEvent)
-                    }
-
                     is Overlay.PanelMenu -> geometry.panels.firstOrNull { it.panel.id == o.panelId }?.let { g ->
                         PanelMenuSheet(
                             g,
@@ -435,7 +429,12 @@ fun HomeScreen(
                     else -> slots.overlay(o)
                 }
             }
-            overlayContent(state.overlay)
+            // 長押しのメニューは、長押しした元の画面（フォルダ）を下に残したまま重ねる。
+            // 元の画面は、メニューの有無にかかわらず同じ場所で描く。別の場所で描き直すと作り直しになり、
+            // 押さえているアイコンの指の操作が途切れて入れ替えができなかった（2026-11-22 に実機で確認）
+            val menu = state.overlay as? Overlay.AppMenu
+            overlayContent(menu?.under ?: state.overlay)
+            menu?.let { AppMenuSheet(it, state.labelOf(it.app), onEvent) }
 
             if (state.adjusting) {
                 AdjustOverlay(
