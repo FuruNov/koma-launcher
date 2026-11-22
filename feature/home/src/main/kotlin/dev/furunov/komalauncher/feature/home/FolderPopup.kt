@@ -9,7 +9,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,6 +46,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.furunov.komalauncher.model.apps.AppKey
+import dev.furunov.komalauncher.model.apps.DrawerFolders
 import dev.furunov.komalauncher.ui.dnd.DragItem
 import dev.furunov.komalauncher.ui.dnd.DragSource
 import dev.furunov.komalauncher.ui.dnd.LocalDragDrop
@@ -55,6 +58,7 @@ import kotlin.math.roundToInt
  * コマの近くに開くフォルダ。コマの中心から広がるように開く。
  * 画面の端やシステムバーにかからないよう、位置を内側へ寄せる。
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun FolderPopup(
     panel: PanelGeometry,
@@ -69,6 +73,11 @@ internal fun FolderPopup(
     DisposableEffect(panel.panel.id) { onDispose { dropInfo.clear() } }
     val appearance = state.settings.appearance
     val apps = state.shownAppsOf(panel.panel.id.value)
+    // このフォルダの中で運んでいる間は、指の下の位置へ動かした並びを表示する（全アプリ一覧と同じく、その場で入れ替わって見える）。
+    // 離したときの位置は HomeScreen が dropInfo.indexAt で同じように決めるので、表示と結果が食い違わない
+    val dragged = dnd.item?.takeIf { dnd.isDragging && (it.source as? DragSource.Folder)?.panelId == panel.panel.id.value }?.app
+    val target = dragged?.let { if (dropInfo.popupRect?.contains(dnd.position) == true) dropInfo.indexAt(dnd.position) else null }
+    val shown = if (dragged != null && target != null) DrawerFolders.moveItem(apps, apps.indexOf(dragged), target) else apps
     val name = state.folders.byPanel[panel.panel.id.value]?.name ?: panel.panel.label
     val density = LocalDensity.current
     val insets = WindowInsets.safeDrawing
@@ -127,10 +136,15 @@ internal fun FolderPopup(
                     modifier = Modifier.width(220.dp),
                 )
             }
-            apps.chunked(appearance.folderColumns).forEachIndexed { r, row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEachIndexed { c, app ->
-                        val index = r * appearance.folderColumns + c
+            // 全てを 1 つの FlowRow に並べ、アプリごとに key を付ける。行ごとに Row を分けると、並びを組み替えて
+            // アイコンが別の行へ移ったときに作り直され、押さえている指の操作が途切れるため
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                maxItemsInEachRow = appearance.folderColumns,
+            ) {
+                shown.forEachIndexed { index, app ->
+                    key(app) {
                         FolderItem(
                             app = app,
                             label = labelOf(app),
@@ -146,7 +160,6 @@ internal fun FolderPopup(
                         )
                     }
                 }
-                Spacer(Modifier.height(8.dp))
             }
         }
     }

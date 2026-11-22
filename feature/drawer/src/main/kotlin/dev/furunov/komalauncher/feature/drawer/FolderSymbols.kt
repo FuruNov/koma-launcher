@@ -22,7 +22,7 @@ internal const val ALL_SYMBOL = "all"
 /** 設定の歯車の記号の id。検索欄の設定のボタンだけで使い、フォルダの記号には選べない。 */
 internal const val GEAR_SYMBOL = "gear"
 
-/** Play ストアの記号の id。検索欄の Play ストアのボタンだけで使う。手提げ袋に再生の三角。 */
+/** Play ストアの記号の id。検索欄の Play ストアのボタンで使う。手提げ袋に再生の三角。フォルダの記号としても選べる。 */
 internal const val STORE_SYMBOL = "store"
 
 /**
@@ -246,6 +246,16 @@ private class SymbolPen(
                 }
                 circle(12f, 12f, 6.5f)
                 circle(12f, 12f, 2.6f)
+            }
+
+            "tune" -> {
+                // つまみ: 3 本の横線と、それぞれの上の丸
+                line(3f, 6f, 21f, 6f)
+                line(3f, 12f, 21f, 12f)
+                line(3f, 18f, 21f, 18f)
+                circle(8f, 6f, 2.2f, fill = true)
+                circle(16f, 12f, 2.2f, fill = true)
+                circle(10f, 18f, 2.2f, fill = true)
             }
 
             "lock" -> {

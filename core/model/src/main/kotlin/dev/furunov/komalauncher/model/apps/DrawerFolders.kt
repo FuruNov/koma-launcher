@@ -47,7 +47,7 @@ object DrawerFolders {
     val symbols: List<String> =
         listOf(
             "game", "music", "mic", "video", "photo", "chat", "globe", "map", "plane", "food",
-            "bag", "money", "home", "book", "work", "spark", "tool", "lock", "news", "access", "star", "heart", FOLDER_SYMBOL, "dots",
+            "bag", "money", "home", "book", "work", "spark", "tool", "tune", "store", "lock", "news", "access", "star", "heart", FOLDER_SYMBOL, "dots",
         )
 
     private val builtInSymbols: Map<String, String> =
