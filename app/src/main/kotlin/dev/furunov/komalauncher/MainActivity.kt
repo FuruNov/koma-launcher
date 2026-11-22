@@ -137,6 +137,7 @@ class MainActivity : ComponentActivity() {
                         },
                         freeWidget = { spec, w, h -> FreeWidget(spec.id, w, h, container.widgets, container.widgetStore) },
                         replaceWidget = { container.widgets.pickerFor.value = PickTarget.Replace(it) },
+                        widgetLabel = { container.widgets.label(it) },
                     )
                 }
             val pickerFor by container.widgets.pickerFor

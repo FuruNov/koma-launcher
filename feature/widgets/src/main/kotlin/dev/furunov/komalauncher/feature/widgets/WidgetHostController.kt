@@ -93,6 +93,11 @@ class WidgetHostController(
             }.sortedWith(compareBy({ it.appLabel }, { it.label }))
     }
 
+    /** provider（"パッケージ名/クラス名"）のウィジェットの名前。入っていなければ null。 */
+    fun label(provider: String): String? = runCatching {
+        manager.installedProviders.firstOrNull { it.provider.flattenToString() == provider }?.loadLabel(context.packageManager)
+    }.getOrNull()
+
     /** 選択画面の一覧。名前を読むのに時間がかかるので、メインスレッドの外で読む。 */
     suspend fun loadChoices(): List<WidgetChoice> = withContext(Dispatchers.IO) { choices() }
 

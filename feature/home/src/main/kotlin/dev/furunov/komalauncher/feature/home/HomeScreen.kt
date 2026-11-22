@@ -123,6 +123,8 @@ class HomeSlots(
     val freeWidget: @Composable (WidgetSpec, Float, Float) -> Unit = { _, _, _ -> },
     /** 自由に置いたウィジェットを、別のウィジェットに入れ替える選択画面を開く。引数はウィジェットの id。 */
     val replaceWidget: (String) -> Unit = {},
+    /** ほかのアプリのウィジェットの名前（長押しのメニューの見出しに出す）。引数は provider。分からなければ null。 */
+    val widgetLabel: (String) -> String? = { null },
     /** フォルダ以外の重ねる画面（ホームのメニューなど）。 */
     val overlay: @Composable (Overlay) -> Unit = {},
     /** 全アプリ一覧。開く瞬間に一から作らないよう、閉じている間も作っておく。引数は開いているか。 */
@@ -492,6 +494,14 @@ fun HomeScreen(
 
                     is Overlay.WidgetMenu ->
                         WidgetMenuSheet(
+                            title =
+                            geometry.widgets.firstOrNull { it.spec.id == o.widgetId }?.spec?.let { spec ->
+                                when (spec.builtin) {
+                                    BuiltinWidget.CLOCK -> "時計"
+                                    BuiltinWidget.TEXT -> "テキスト"
+                                    null -> slots.widgetLabel(spec.provider)
+                                }
+                            } ?: "ウィジェット",
                             builtin = geometry.widgets.firstOrNull { it.spec.id == o.widgetId }?.spec?.builtin != null,
                             onStyle = { onEvent(HomeEvent.OpenOverlay(Overlay.WidgetStyle(o.widgetId))) },
                             onAdjust = { onEvent(HomeEvent.Adjust(true)) },
