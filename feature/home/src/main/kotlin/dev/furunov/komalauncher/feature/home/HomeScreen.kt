@@ -165,6 +165,14 @@ fun HomeScreen(
         val depth = remember(state.layout, wPx) { DepthStyle.of(state.layout, wPx) }
         val depthRequests = remember(depth, geometry, masks) { depthRequests(depth, geometry.panels.mapNotNull { g -> g.image?.let { id -> g.art?.let { id to it.width } } }, masks) }
         val depthMaps by rememberDepthMaps(masks, depthRequests)
+        // 試作: はみ出し用の切り抜き（<id>.pop.png）があれば、枠の外へ出すのはその形だけにする（机や料理は人物と一緒に動かすが、はみ出させない）
+        val popPaths =
+            remember(state.masks, depth3dDir, state.imagesRevision) {
+                state.masks.keys.mapNotNull { id -> depth3dDir?.let { java.io.File(it, "$id.pop.png") }?.takeIf { it.isFile }?.let { id to it.path } }.toMap()
+            }
+        val popMasks by rememberMasks(popPaths, state.imagesRevision)
+        val popRequests = remember(depth, geometry, popMasks) { depthRequests(depth, geometry.panels.mapNotNull { g -> g.image?.let { id -> g.art?.let { id to it.width } } }, popMasks) }
+        val popDepthMaps by rememberDepthMaps(popMasks, popRequests)
         val blurIds = remember(depth, geometry, masks) { if (depth.spec.blur.enabled) geometry.panels.mapNotNull { it.image }.filter { it in masks }.toSet() else emptySet() }
         val blurred by rememberBlurredArts(state.images, blurIds, state.imagesRevision)
         val imageIds = remember(geometry) { geometry.panels.mapNotNull { it.image }.toSet() }
@@ -367,10 +375,11 @@ fun HomeScreen(
                 for (g in geometry.panels) {
                     if (!g.panel.pop || state.player?.panelId == g.panel.id) continue
                     val art = g.image?.let(arts::get) ?: continue
-                    val person = g.image.let(masks::get) ?: continue
+                    val popMask = popMasks[g.image]
+                    val person = popMask ?: g.image.let(masks::get) ?: continue
                     // 試作の層で描くコマは、人物を板として動かす量に合わせる
                     val personShift = depth3d.first[g.image]?.let { l -> g.face.artSize?.let { s -> depthPersonShift(l, depth3d.second, s.width.toFloat()) } }
-                    PopLayer(g, motions.getValue(g.panel.id), art, person, depthMaps[g.image], depth, { shownTilt.value }, parallax, personShift)
+                    PopLayer(g, motions.getValue(g.panel.id), art, person, if (popMask != null) popDepthMaps[g.image] else depthMaps[g.image], depth, { shownTilt.value }, parallax, personShift)
                 }
             }
 
