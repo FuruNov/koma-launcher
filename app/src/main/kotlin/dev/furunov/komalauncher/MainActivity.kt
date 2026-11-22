@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -60,6 +61,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val state by home.state.collectAsStateWithLifecycle()
+            // debug ビルドで動画を撮るときだけ、システムバーを隠す（DEBUG_BARS）
+            val hideBars = dev.furunov.komalauncher.feature.home.HomeDebug.hideBars
+            LaunchedEffect(hideBars) {
+                val c = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+                c.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                val bars = androidx.core.view.WindowInsetsCompat.Type.systemBars()
+                if (hideBars) c.hide(bars) else c.show(bars)
+            }
             val apps by container.appCatalog.apps.collectAsStateWithLifecycle()
             val launches by container.launchStore.launches.collectAsStateWithLifecycle()
             val slots =

@@ -10,6 +10,9 @@ import androidx.compose.runtime.setValue
  */
 object HomeDebug {
     var off by mutableStateOf(emptySet<String>())
+
+    /** true ならステータスバーとナビゲーションバーを隠す（動画を撮るとき）。debug ビルドの DEBUG_BARS で切り替える。 */
+    var hideBars by mutableStateOf(false)
 }
 
 /** 傾きで絵が動いている間 true（止まって 0.2 秒たったら false）。試作の深度の層を、動いている間だけ半分の解像度で描くのに使う。 */

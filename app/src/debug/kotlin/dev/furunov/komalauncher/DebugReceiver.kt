@@ -19,8 +19,15 @@ class DebugReceiver : BroadcastReceiver() {
             (context.applicationContext as KomaApplication).container.screenEvents.simulateUnlock()
         }
         // センサーの無い Waydroid で視差を確かめる。例: am broadcast -a dev.furunov.komalauncher.DEBUG_TILT --ef x 1 --ef y -0.5
+        // --ef period <秒> を付けると、左右 x・前後 y を半径とする円を period 秒で一周する動きを、dur 秒（既定 12）続ける。
+        // 値を毎フレーム変えるので、adb から少しずつ送るよりも滑らかに動く（動画を撮るとき）
         if (intent.action == "dev.furunov.komalauncher.DEBUG_TILT") {
-            (context.applicationContext as KomaApplication).container.tilt.simulate(Tilt(intent.getFloatExtra("x", 0f), intent.getFloatExtra("y", 0f)))
+            val tilt = (context.applicationContext as KomaApplication).container.tilt
+            val x = intent.getFloatExtra("x", 0f)
+            val y = intent.getFloatExtra("y", 0f)
+            val period = intent.getFloatExtra("period", 0f)
+            TiltAnimation.stop()
+            if (period > 0f) TiltAnimation.start(x, y, period, intent.getFloatExtra("dur", 12f)) { tilt.simulate(it) } else tilt.simulate(Tilt(x, y))
         }
         // 音楽アプリにログインできない Waydroid で、再生中のコマを確かめる。例: am broadcast -a dev.furunov.komalauncher.DEBUG_MEDIA --es state play
         if (intent.action == "dev.furunov.komalauncher.DEBUG_MEDIA") {
@@ -46,6 +53,10 @@ class DebugReceiver : BroadcastReceiver() {
         if (intent.action == "dev.furunov.komalauncher.DEBUG_FX") {
             dev.furunov.komalauncher.feature.home.HomeDebug.off = intent.getStringExtra("off").orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
         }
+        // 動画を撮るときに、システムバーを隠す。例: am broadcast -p dev.furunov.komalauncher -a dev.furunov.komalauncher.DEBUG_BARS --ez hide true
+        if (intent.action == "dev.furunov.komalauncher.DEBUG_BARS") {
+            dev.furunov.komalauncher.feature.home.HomeDebug.hideBars = intent.getBooleanExtra("hide", true)
+        }
         if (intent.action == "dev.furunov.komalauncher.DEBUG_VIS") {
             DebugVisualizer.handle(
                 context,
@@ -58,5 +69,43 @@ class DebugReceiver : BroadcastReceiver() {
                 intent.getIntExtra("record", 0),
             )
         }
+    }
+}
+
+/** debug ビルドで、傾きを円に沿って毎フレーム動かす。始めと終わりの 1 秒で、半径を 0 から広げ、0 へ縮める。 */
+private object TiltAnimation {
+    private var callback: android.view.Choreographer.FrameCallback? = null
+
+    fun stop() {
+        callback?.let { android.view.Choreographer.getInstance().removeFrameCallback(it) }
+        callback = null
+    }
+
+    fun start(
+        x: Float,
+        y: Float,
+        period: Float,
+        duration: Float,
+        set: (Tilt) -> Unit,
+    ) {
+        var start = -1L
+        val cb =
+            object : android.view.Choreographer.FrameCallback {
+                override fun doFrame(frameTimeNanos: Long) {
+                    if (start < 0) start = frameTimeNanos
+                    val t = (frameTimeNanos - start) / 1e9f
+                    if (t >= duration) {
+                        set(Tilt(0f, 0f))
+                        callback = null
+                        return
+                    }
+                    val k = minOf(1f, t, duration - t)
+                    val a = (2 * Math.PI * t / period).toFloat()
+                    set(Tilt(x * k * kotlin.math.sin(a), y * k * kotlin.math.cos(a)))
+                    android.view.Choreographer.getInstance().postFrameCallback(this)
+                }
+            }
+        callback = cb
+        android.view.Choreographer.getInstance().postFrameCallback(cb)
     }
 }
