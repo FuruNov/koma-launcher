@@ -16,7 +16,13 @@ import dev.furunov.komalauncher.model.widgets.WidgetEdits
 import dev.furunov.komalauncher.model.widgets.WidgetEntry
 import dev.furunov.komalauncher.model.widgets.WidgetRef
 import dev.furunov.komalauncher.model.widgets.WidgetStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
+import java.util.Optional
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 
 /** 選択画面に並べるウィジェット 1 つ。 */
 class WidgetChoice(
@@ -91,13 +97,27 @@ class WidgetHostController(
             }.sortedWith(compareBy({ it.appLabel }, { it.label }))
     }
 
+    /** 選択画面の一覧。名前を読むのに時間がかかるので、メインスレッドの外で読む。 */
+    suspend fun loadChoices(): List<WidgetChoice> = withContext(Dispatchers.IO) { choices() }
+
+    // 選択画面の見本とアイコン。スクロールで同じ項目が現れるたびに読み直さないよう覚えておく
+    private val previews = ConcurrentHashMap<String, Optional<Drawable>>()
+    private val icons = ConcurrentHashMap<String, Optional<Drawable>>()
+
+    /** 見本のレイアウト（previewLayout）を展開するスレッド。他のアプリのレイアウトの展開は重いので、メインスレッドで行わない。 */
+    val previewExecutor: Executor = Executors.newFixedThreadPool(2)
+
     /** アプリのアイコン（選択画面の見出しに使う）。 */
-    fun appIcon(packageName: String): Drawable? = runCatching { context.packageManager.getApplicationIcon(packageName) }.getOrNull()
+    suspend fun appIcon(packageName: String): Drawable? = withContext(Dispatchers.IO) {
+        icons.getOrPut(packageName) { Optional.ofNullable(runCatching { context.packageManager.getApplicationIcon(packageName) }.getOrNull()) }.orElse(null)
+    }
 
     /** 見本の画像。無ければウィジェットのアイコン。 */
-    fun previewImage(c: WidgetChoice): Drawable? {
-        val dpi = context.resources.displayMetrics.densityDpi
-        return runCatching { c.info.loadPreviewImage(context, dpi) ?: c.info.loadIcon(context, dpi) }.getOrNull()
+    suspend fun previewImage(c: WidgetChoice): Drawable? = withContext(Dispatchers.IO) {
+        previews.getOrPut(c.entry.key) {
+            val dpi = context.resources.displayMetrics.densityDpi
+            Optional.ofNullable(runCatching { c.info.loadPreviewImage(context, dpi) ?: c.info.loadIcon(context, dpi) }.getOrNull())
+        }.orElse(null)
     }
 
     fun view(appWidgetId: Int): AppWidgetHostView? {

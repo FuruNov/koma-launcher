@@ -31,7 +31,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.furunov.komalauncher.model.widgets.WidgetCatalog
+import kotlinx.coroutines.launch
 import kotlin.math.min
 
 private val CardWidth = 156.dp
@@ -66,7 +69,8 @@ fun WidgetPicker(
 ) {
     BackHandler(onBack = onDismiss)
     val activity = LocalContext.current.findActivity()
-    val choices = remember { controller.choices() }
+    val loaded by produceState<List<WidgetChoice>?>(null) { value = controller.loadChoices() }
+    val choices = loaded.orEmpty()
     val byKey = remember(choices) { choices.associateBy { it.entry.key } }
     var query by remember { mutableStateOf("") }
     val groups = remember(choices, query) { WidgetCatalog.group(choices.map { it.entry }, query) }
@@ -97,15 +101,16 @@ fun WidgetPicker(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            if (groups.isEmpty()) {
+            if (loaded == null) {
+                BasicText("読み込み中", style = TextStyle(color = Color(0xFF9A9AA2), fontSize = 14.sp), modifier = Modifier.padding(20.dp))
+            } else if (groups.isEmpty()) {
                 BasicText("一致するウィジェットはありません", style = TextStyle(color = Color(0xFF9A9AA2), fontSize = 14.sp), modifier = Modifier.padding(20.dp))
             }
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
                 items(groups, key = { it.packageName }) { g ->
                     Column(Modifier.padding(top = 14.dp)) {
                         Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                            val icon = remember(g.packageName) { controller.appIcon(g.packageName) }
-                            icon?.let { DrawableImage(it, Modifier.size(28.dp)) }
+                            AsyncDrawable(Modifier.size(28.dp), g.packageName) { controller.appIcon(g.packageName) }
                             BasicText(
                                 g.appLabel,
                                 style = TextStyle(color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold),
@@ -154,7 +159,8 @@ private fun WidgetCard(
 
 /**
  * 見本。アプリが見本のレイアウト（previewLayout）を持てばそれを描き、無ければ見本の画像、それも無ければアイコン。
- * レイアウトはウィジェットの大きさで作り、枠に収まるよう縮める。
+ * レイアウトはウィジェットの大きさで作り、枠に収まるよう縮める。展開と画像の読み込みはメインスレッドの外で行う
+ * （メインスレッドで行うと、選択画面を開くときとスクロールが重かった。2026-11-22 に利用者が指摘）。
  */
 @Composable
 private fun WidgetPreview(
@@ -165,40 +171,59 @@ private fun WidgetPreview(
     val boxW = with(density) { (CardWidth - 16.dp).roundToPx() }
     val boxH = with(density) { (PreviewHeight - 16.dp).roundToPx() }
     val layout = c.info.previewLayout
-    if (layout != 0) {
-        AndroidView(
-            factory = { ctx ->
-                val frame = FrameLayout(ctx)
-                runCatching {
-                    val w = (c.widthDp * density.density).toInt().coerceAtLeast(1)
-                    val h = (c.heightDp * density.density).toInt().coerceAtLeast(1)
-                    val v = RemoteViews(c.info.provider.packageName, layout).apply(ctx, frame)
-                    val k = min(1f, min(boxW / w.toFloat(), boxH / h.toFloat()))
-                    v.pivotX = 0f
-                    v.pivotY = 0f
-                    v.scaleX = k
-                    v.scaleY = k
-                    v.translationX = (boxW - w * k) / 2f
-                    v.translationY = (boxH - h * k) / 2f
-                    v.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-                    frame.addView(v, FrameLayout.LayoutParams(w, h))
-                }.onFailure { frame.addView(ImageView(ctx).apply { setImageDrawable(controller.previewImage(c)) }) }
-                frame
-            },
-            modifier = Modifier.size(CardWidth - 16.dp, PreviewHeight - 16.dp),
-        )
-    } else {
-        val d = remember(c) { controller.previewImage(c) }
-        d?.let { DrawableImage(it, Modifier.fillMaxSize()) }
+    if (layout == 0) {
+        AsyncDrawable(Modifier.fillMaxSize(), c.entry.key) { controller.previewImage(c) }
+        return
     }
+    val scope = rememberCoroutineScope()
+    AndroidView(
+        factory = { ctx ->
+            val frame = FrameLayout(ctx)
+            val fallback = {
+                scope.launch {
+                    val d = controller.previewImage(c)
+                    frame.addView(ImageView(ctx).apply { setImageDrawable(d) }, FrameLayout.LayoutParams(boxW, boxH))
+                }
+            }
+            val w = (c.widthDp * density.density).toInt().coerceAtLeast(1)
+            val h = (c.heightDp * density.density).toInt().coerceAtLeast(1)
+            // ビューを裏のスレッドで作り（AsyncLayoutInflater と同じ方法）、画面に加えるのはメインスレッドで行う
+            controller.previewExecutor.execute {
+                val made = runCatching { RemoteViews(c.info.provider.packageName, layout).apply(ctx, frame) }.getOrNull()
+                frame.post {
+                    if (made == null) {
+                        fallback()
+                    } else {
+                        val v = made
+                        val k = min(1f, min(boxW / w.toFloat(), boxH / h.toFloat()))
+                        v.pivotX = 0f
+                        v.pivotY = 0f
+                        v.scaleX = k
+                        v.scaleY = k
+                        v.translationX = (boxW - w * k) / 2f
+                        v.translationY = (boxH - h * k) / 2f
+                        v.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                        frame.addView(v, FrameLayout.LayoutParams(w, h))
+                    }
+                }
+            }
+            frame
+        },
+        modifier = Modifier.size(CardWidth - 16.dp, PreviewHeight - 16.dp),
+    )
 }
 
+/** [load] で読んだ画像。読み終わるまでは何も描かない。[key] が同じなら読み直さない。 */
 @Composable
-private fun DrawableImage(
-    d: Drawable,
+private fun AsyncDrawable(
     modifier: Modifier,
+    key: Any,
+    load: suspend () -> Drawable?,
 ) {
-    AndroidView(factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.FIT_CENTER } }, update = { it.setImageDrawable(d) }, modifier = modifier)
+    val d by produceState<Drawable?>(null, key) { value = load() }
+    d?.let { drawable ->
+        AndroidView(factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.FIT_CENTER } }, update = { it.setImageDrawable(drawable) }, modifier = modifier)
+    }
 }
 
 private fun Context.findActivity(): Activity? = when (this) {
