@@ -25,6 +25,7 @@ import dev.furunov.komalauncher.feature.home.Overlay
 import dev.furunov.komalauncher.feature.home.PanelMenuItem
 import dev.furunov.komalauncher.feature.widgets.WidgetPanel
 import dev.furunov.komalauncher.feature.widgets.WidgetPicker
+import dev.furunov.komalauncher.model.apps.DrawerFolders
 import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.settings.LauncherAction
@@ -66,6 +67,8 @@ class MainActivity : ComponentActivity() {
                                     onDismiss = { home.onEvent(HomeEvent.Dismiss) },
                                     onLaunchShortcut = { home.onEvent(HomeEvent.LaunchShortcut(it)) },
                                     onRenameFolder = { home.onEvent(HomeEvent.EditDrawerFolderName(it)) },
+                                    onReorderApps = { id, order -> container.settingsStore.update { it.copy(drawer = DrawerFolders.reorderApps(it.drawer, id, order)) } },
+                                    onReorderTabs = { ids -> container.settingsStore.update { it.copy(drawer = DrawerFolders.reorderTabs(it.drawer, ids)) } },
                                     onOpenSettings = {
                                         home.onEvent(HomeEvent.Dismiss)
                                         container.actions.perform(LauncherAction.OpenSettings)

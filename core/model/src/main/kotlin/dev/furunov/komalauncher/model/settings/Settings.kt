@@ -167,6 +167,10 @@ data class DrawerSettings(
     val moved: List<DrawerMove> = emptyList(),
     /** フォルダの id → 名前。利用者が作ったフォルダ（id が u で始まる）と、名前を変えた既定のフォルダだけを持つ。 */
     val folderNames: Map<String, String> = emptyMap(),
+    /** フォルダの id → 並べ替えたアプリの順。ここに無いアプリ（後から入れたものなど）は、その後ろに名前順で並べる。 */
+    val appOrder: Map<String, List<AppKey>> = emptyMap(),
+    /** 並べ替えたタブ（フォルダの id）の順。ここに無いフォルダは、その後ろに既定の順で並べる。 */
+    val tabOrder: List<String> = emptyList(),
 )
 
 /** AppKey は JSON のキーにできないので、Map でなく組の並びで持つ。 */

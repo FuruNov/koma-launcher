@@ -49,13 +49,17 @@ object DrawerFolders {
         s: DrawerSettings,
     ): String = s.folderNames[id] ?: builtInNames[id] ?: id
 
-    /** 全てのフォルダの id の並び（空のものも含む）。 */
+    /** 全てのフォルダの id の並び（空のものも含む）。並べ替えたタブの順（[DrawerSettings.tabOrder]）を先にする。 */
     private fun order(s: DrawerSettings): List<String> {
         val custom = s.folderNames.keys.filter { it.startsWith(CUSTOM_PREFIX) }.sortedBy { it.removePrefix(CUSTOM_PREFIX).toIntOrNull() ?: Int.MAX_VALUE }
-        return builtIn.map { it.first }.dropLast(1) + custom + OTHER
+        val default = builtIn.map { it.first }.dropLast(1) + custom + OTHER
+        return (s.tabOrder.filter { it in default } + default).distinct()
     }
 
-    /** タブに並べるフォルダ。[apps] の並び（ラベル順）を各フォルダの中でも保つ。中身の無いフォルダは除く。 */
+    /**
+     * タブに並べるフォルダ。中身の無いフォルダは除く。
+     * 各フォルダの中は、並べ替えた順（[DrawerSettings.appOrder]）を先にし、残りは [apps] の並び（ラベル順）にする。
+     */
     fun of(
         apps: List<AppEntry>,
         s: DrawerSettings,
@@ -63,7 +67,40 @@ object DrawerFolders {
         val byFolder = apps.groupBy { folderOf(it, s) }
         // 消えたフォルダ（名前の無い u の id）へ移したアプリは、id のままの名前で末尾に並べ、失わないようにする
         val ids = order(s).let { known -> known + byFolder.keys.filterNot { it in known } }
-        return ids.mapNotNull { id -> byFolder[id]?.let { DrawerFolder(id, nameOf(id, s), it) } }
+        return ids.mapNotNull { id -> byFolder[id]?.let { DrawerFolder(id, nameOf(id, s), sorted(it, s.appOrder[id].orEmpty())) } }
+    }
+
+    private fun sorted(
+        apps: List<AppEntry>,
+        saved: List<AppKey>,
+    ): List<AppEntry> {
+        if (saved.isEmpty()) return apps
+        val rank = saved.withIndex().associate { it.value to it.index }
+        // sortedBy は安定なので、並べ替えていないアプリはラベル順のまま後ろに残る
+        return apps.sortedBy { rank[it.key] ?: Int.MAX_VALUE }
+    }
+
+    /** フォルダ [folderId] の中の順を [apps] にする。表示している全てのアプリを渡す。 */
+    fun reorderApps(
+        s: DrawerSettings,
+        folderId: String,
+        apps: List<AppKey>,
+    ): DrawerSettings = s.copy(appOrder = s.appOrder + (folderId to apps))
+
+    /** タブの順を [ids] にする。表示している全てのフォルダの id を渡す。 */
+    fun reorderTabs(
+        s: DrawerSettings,
+        ids: List<String>,
+    ): DrawerSettings = s.copy(tabOrder = ids)
+
+    /** [list] の [from] 番目を [to] 番目へ移す。範囲外の [from] なら元のまま返す。並べ替えの途中の指の位置から呼ぶ。 */
+    fun <T> moveItem(
+        list: List<T>,
+        from: Int,
+        to: Int,
+    ): List<T> {
+        if (from !in list.indices) return list
+        return list.toMutableList().apply { add(to.coerceIn(0, lastIndex), removeAt(from)) }
     }
 
     /** 「フォルダを変更」で選べるフォルダ（空のものも含む）の id と名前。 */

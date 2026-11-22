@@ -59,5 +59,31 @@ class DrawerFoldersTest {
     fun choicesListEveryFolderEvenEmpty() = assertEquals(DrawerFolders.builtIn.size, DrawerFolders.choices(DrawerSettings()).size)
 
     @Test
+    fun savedAppOrderComesFirstAndNewAppsFollowByLabel() {
+        val s = DrawerSettings(appOrder = mapOf("other" to listOf(pwa.key, AppKey("gone", "G"))))
+        assertEquals(listOf("クイズ", "道具"), DrawerFolders.of(apps, s).first { it.id == "other" }.apps.map(AppEntry::label))
+    }
+
+    @Test
+    fun reorderAppsSavesWholeFolder() {
+        val s = DrawerFolders.reorderApps(DrawerSettings(), "other", listOf(pwa.key, tool.key))
+        assertEquals(listOf("クイズ", "道具"), DrawerFolders.of(apps, s).first { it.id == "other" }.apps.map(AppEntry::label))
+    }
+
+    @Test
+    fun savedTabOrderComesFirst() {
+        val s = DrawerSettings(tabOrder = listOf("other", "audio"))
+        assertEquals(listOf("other", "audio", "game"), DrawerFolders.of(apps, s).map { it.id })
+        assertEquals(listOf("other", "audio", "game"), DrawerFolders.choices(s).map { it.first }.take(3))
+    }
+
+    @Test
+    fun moveItemShiftsOthers() {
+        assertEquals(listOf("b", "c", "a"), DrawerFolders.moveItem(listOf("a", "b", "c"), 0, 2))
+        assertEquals(listOf("c", "a", "b"), DrawerFolders.moveItem(listOf("a", "b", "c"), 2, 0))
+        assertEquals(listOf("a", "b"), DrawerFolders.moveItem(listOf("a", "b"), 5, 0))
+    }
+
+    @Test
     fun folderOfUsesMoveFirst() = assertEquals("other", DrawerFolders.folderOf(game, DrawerFolders.move(DrawerSettings(), game, "other")))
 }

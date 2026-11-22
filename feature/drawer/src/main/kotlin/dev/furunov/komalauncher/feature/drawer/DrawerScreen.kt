@@ -6,6 +6,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +22,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -27,6 +32,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
@@ -44,10 +50,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -62,6 +71,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import dev.furunov.komalauncher.model.apps.AppEntry
 import dev.furunov.komalauncher.model.apps.AppKey
 import dev.furunov.komalauncher.model.apps.AppSearch
@@ -86,8 +96,12 @@ class DrawerActions(
     val onDismiss: () -> Unit,
     val onOpenSettings: () -> Unit = {},
     val onLaunchShortcut: (AppShortcut) -> Unit = {},
-    /** フォルダのタブを長押ししたとき。引数はフォルダの id。 */
+    /** フォルダのタブのメニューの「名前を変更」。引数はフォルダの id。 */
     val onRenameFolder: (String) -> Unit = {},
+    /** 並べ替えで指を離したとき。フォルダの id と、そのフォルダの全てのアプリの新しい順。 */
+    val onReorderApps: (String, List<AppKey>) -> Unit = { _, _ -> },
+    /** 並べ替えでタブを動かしたとき。全てのフォルダの id の新しい順。 */
+    val onReorderTabs: (List<String>) -> Unit = {},
 )
 
 /** 検索で表示するショートカットの最大の件数。 */
@@ -127,6 +141,21 @@ fun DrawerScreen(
     // 選んでいるフォルダのタブの id。null なら「すべて」。中身が無くなってタブが消えたら「すべて」に戻す
     var tab by remember { mutableStateOf<String?>(null) }
     val folder = folders.firstOrNull { it.id == tab }
+    // タブを長押しして開いたメニューのフォルダの id
+    var tabMenu by remember { mutableStateOf<String?>(null) }
+    // true の間は並べ替えの状態。アイコンとタブを長押しして動かすと順が変わり、起動とホームへ運ぶ操作はしない
+    var reordering by remember { mutableStateOf(false) }
+    // 動かしている間だけの順。指を離したら保存し、保存した順から作り直した一覧に戻す
+    var draggingApps by remember { mutableStateOf<List<AppEntry>?>(null) }
+    var draggingTabs by remember { mutableStateOf<List<DrawerFolder>?>(null) }
+    var dragKey by remember { mutableStateOf<Any?>(null) }
+    val shownApps = draggingApps ?: folder?.apps.orEmpty()
+    val shownTabs = draggingTabs ?: folders
+    // 並べ替えるフォルダのタブが消えたら（中身が無くなったら）、並べ替えを終える
+    LaunchedEffect(folder == null) { if (folder == null) reordering = false }
+    BackHandler(enabled = open && (reordering || tabMenu != null)) {
+        if (tabMenu != null) tabMenu = null else reordering = false
+    }
     val ranked = remember(visible, launches, q) { if (q.isEmpty()) emptyList() else AppSearch.rank(q, visible, launches) }
     val shortcuts by produceState(emptyList<AppShortcut>(), apps.isEmpty(), open) { if (open) value = loadShortcuts() }
     val visiblePackages = remember(visible) { visible.mapTo(HashSet()) { it.key.packageName } }
@@ -157,6 +186,17 @@ fun DrawerScreen(
             keyboard?.hide()
             focusManager.clearFocus()
             slide.snapTo(1f)
+            reordering = false
+            tabMenu = null
+        }
+    }
+    // タブのメニューと並べ替えの間は、キーボードを閉じる（メニューに重なるため）
+    LaunchedEffect(tabMenu != null) { if (tabMenu != null) keyboard?.hide() }
+    LaunchedEffect(reordering) {
+        if (reordering) {
+            query = ""
+            keyboard?.hide()
+            focusManager.clearFocus()
         }
     }
     // アイコンを運び始めたらキーボードを閉じる。一覧が透明になって見えるホームの下側のコマを、キーボードが隠すため
@@ -182,54 +222,120 @@ fun DrawerScreen(
                     onDragStart = { total = 0f },
                     onDragEnd = { if (total > 120.dp.toPx()) actions.onDismiss() },
                 ) { _, dy ->
-                    // 一覧が一番上にあるときだけ、下へ引いて閉じる
-                    if (grid.firstVisibleItemIndex == 0 && grid.firstVisibleItemScrollOffset == 0) total += dy
+                    // 一覧が一番上にあるときだけ、下へ引いて閉じる。並べ替えの間は閉じない
+                    if (!reordering && grid.firstVisibleItemIndex == 0 && grid.firstVisibleItemScrollOffset == 0) total += dy
                 }
             },
     ) {
         Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .background(Color(0xFF2A2A30), RoundedCornerShape(24.dp))
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-            ) {
-                if (query.isEmpty()) BasicText("アプリを検索", style = TextStyle(color = Color(0xFF888888), fontSize = 15.sp))
-                BasicTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    singleLine = true,
-                    textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
-                    cursorBrush = SolidColor(Color.White),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                    keyboardActions =
-                    KeyboardActions(onGo = {
-                        // 先頭のアプリ、アプリが 1 つも一致しなければ先頭のショートカットを起動する
-                        ranked.firstOrNull()?.let { actions.onLaunch(it.app.key) }
-                            ?: rankedShortcuts.firstOrNull()?.let { actions.onLaunchShortcut(it.shortcut) }
-                    }),
-                    modifier = Modifier.fillMaxWidth().padding(end = 40.dp).focusRequester(focus),
-                )
-                BasicText(
-                    "設定",
-                    style = TextStyle(color = Color(0xFFBBBBBB), fontSize = 13.sp),
-                    modifier =
+            if (reordering) {
+                ReorderBar(onDone = { reordering = false })
+            } else {
+                Box(
                     Modifier
-                        .align(Alignment.CenterEnd)
-                        .clickable { scope.launch { actions.onOpenSettings() } },
-                )
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .background(Color(0xFF2A2A30), RoundedCornerShape(24.dp))
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    if (query.isEmpty()) BasicText("アプリを検索", style = TextStyle(color = Color(0xFF888888), fontSize = 15.sp))
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+                        cursorBrush = SolidColor(Color.White),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                        keyboardActions =
+                        KeyboardActions(onGo = {
+                            // 先頭のアプリ、アプリが 1 つも一致しなければ先頭のショートカットを起動する
+                            ranked.firstOrNull()?.let { actions.onLaunch(it.app.key) }
+                                ?: rankedShortcuts.firstOrNull()?.let { actions.onLaunchShortcut(it.shortcut) }
+                        }),
+                        modifier = Modifier.fillMaxWidth().padding(end = 40.dp).focusRequester(focus),
+                    )
+                    BasicText(
+                        "設定",
+                        style = TextStyle(color = Color(0xFFBBBBBB), fontSize = 13.sp),
+                        modifier =
+                        Modifier
+                            .align(Alignment.CenterEnd)
+                            .clickable { scope.launch { actions.onOpenSettings() } },
+                    )
+                }
             }
             // 検索している間は全てのアプリから探すので、タブを隠す
             if (q.isEmpty() && folders.isNotEmpty()) {
-                FolderTabs(folders, folder?.id, onSelect = { tab = it }, onLongPress = actions.onRenameFolder)
+                val tabs = rememberLazyListState()
+                FolderTabs(
+                    shownTabs,
+                    folder?.id,
+                    state = tabs,
+                    reordering = reordering,
+                    dragKey = dragKey,
+                    onSelect = { tab = it },
+                    onLongPress = { tabMenu = it },
+                    modifier =
+                    if (!reordering) {
+                        Modifier
+                    } else {
+                        // 先頭の「すべて」は動かさないので、フォルダの位置は項目の番号から 1 を引く
+                        Modifier.reorderable(
+                            key = folders,
+                            itemAt = { p -> tabs.layoutInfo.visibleItemsInfo.firstOrNull { p.x.toInt() in it.offset until it.offset + it.size && it.index > 0 }?.let { it.key to it.index - 1 } },
+                            onStart = { key ->
+                                dragKey = key
+                                draggingTabs = folders
+                            },
+                            onMove = { key, to -> draggingTabs?.let { l -> draggingTabs = DrawerFolders.moveItem(l, l.indexOfFirst { it.id == key }, to) } },
+                            onEnd = {
+                                draggingTabs?.let { l -> actions.onReorderTabs(l.map { it.id }) }
+                                draggingTabs = null
+                                dragKey = null
+                            },
+                            horizontal = true,
+                            onEdge = { dx -> tabs.dispatchRawDelta(dx) },
+                        )
+                    },
+                )
             }
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),
                 state = grid,
-                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 8.dp)
+                    .then(
+                        if (!reordering || folder == null) {
+                            Modifier
+                        } else {
+                            Modifier.reorderable(
+                                key = folder,
+                                itemAt = { p ->
+                                    grid.layoutInfo.visibleItemsInfo
+                                        .firstOrNull { p.x.toInt() in it.offset.x until it.offset.x + it.size.width && p.y.toInt() in it.offset.y until it.offset.y + it.size.height }
+                                        ?.let { it.key to it.index }
+                                },
+                                onStart = { key ->
+                                    dragKey = key
+                                    draggingApps = folder.apps
+                                },
+                                onMove = { key, to -> draggingApps?.let { l -> draggingApps = DrawerFolders.moveItem(l, l.indexOfFirst { it.key.id() == key }, to) } },
+                                onEnd = {
+                                    draggingApps?.let { l -> actions.onReorderApps(folder.id, l.map { it.key }) }
+                                    draggingApps = null
+                                    dragKey = null
+                                },
+                                // 一覧の上下の端まで運んだら、続きが見えるようにスクロールする
+                                onEdge = { dy -> grid.dispatchRawDelta(dy) },
+                            )
+                        },
+                    ),
             ) {
-                if (q.isEmpty() && folder != null) {
+                if (q.isEmpty() && folder != null && reordering) {
+                    items(shownApps, key = { it.key.id() }) { app -> ReorderItem(app, app.key.id() == dragKey, Modifier.animateItem()) }
+                } else if (q.isEmpty() && folder != null) {
                     items(folder.apps, key = { it.key.id() }) { app -> DrawerItem(app, null, false, actions, dnd) }
                 } else if (q.isEmpty()) {
                     if (frequent.isNotEmpty()) {
@@ -253,29 +359,190 @@ fun DrawerScreen(
                 }
             }
         }
+        tabMenu?.let { id ->
+            TabMenu(
+                name = folders.firstOrNull { it.id == id }?.name ?: id,
+                onRename = {
+                    tabMenu = null
+                    actions.onRenameFolder(id)
+                },
+                onReorder = {
+                    tabMenu = null
+                    tab = id
+                    reordering = true
+                },
+                onDismiss = { tabMenu = null },
+            )
+        }
     }
 }
 
-/** 検索欄の下のタブ。先頭の「すべて」（[selected] が null）の後に、中身のあるフォルダを並べる。フォルダのタブを長押しすると名前を変える。 */
+/**
+ * 検索欄の下のタブ。先頭の「すべて」（[selected] が null）の後に、中身のあるフォルダを並べる。フォルダのタブを長押しするとメニューを出す。
+ * 並べ替えの間（[reordering]）は、長押しを [modifier] の並べ替えに任せ、「すべて」は選べなくする。
+ */
 @Composable
 private fun FolderTabs(
     folders: List<DrawerFolder>,
     selected: String?,
+    state: LazyListState,
+    reordering: Boolean,
+    dragKey: Any?,
     onSelect: (String?) -> Unit,
     onLongPress: (String) -> Unit,
+    modifier: Modifier,
 ) {
     LazyRow(
+        state = state,
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).then(modifier),
     ) {
-        item(key = "all") { Tab("すべて", selected == null, Modifier.clickable { onSelect(null) }) }
+        item(key = "all") { Tab("すべて", selected == null, if (reordering) Modifier else Modifier.clickable { onSelect(null) }) }
         items(folders, key = { it.id }) { f ->
             Tab(
                 f.name,
                 f.id == selected,
-                Modifier.pointerInput(f.id) { detectTapGestures(onTap = { onSelect(f.id) }, onLongPress = { onLongPress(f.id) }) },
+                Modifier
+                    .animateItem()
+                    .lifted(f.id == dragKey)
+                    .pointerInput(f.id, reordering) {
+                        if (reordering) {
+                            detectTapGestures(onTap = { onSelect(f.id) })
+                        } else {
+                            detectTapGestures(onTap = { onSelect(f.id) }, onLongPress = { onLongPress(f.id) })
+                        }
+                    },
             )
+        }
+    }
+}
+
+/** 並べ替えの間、検索欄の代わりに表示する帯。 */
+@Composable
+private fun ReorderBar(onDone: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .background(Color(0xFF2A2A30), RoundedCornerShape(24.dp))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BasicText("アイコンとタブを長押しして移動", style = TextStyle(color = Color(0xFFBBBBBB), fontSize = 15.sp), modifier = Modifier.weight(1f))
+        BasicText(
+            "完了",
+            style = TextStyle(color = Color(0xFFFFD54F), fontSize = 15.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.clickable(onClick = onDone).padding(horizontal = 4.dp),
+        )
+    }
+}
+
+/** 並べ替えの間のアイコン。押しても起動せず、ホームへも運ばない。 */
+@Composable
+private fun ReorderItem(
+    app: AppEntry,
+    dragging: Boolean,
+    modifier: Modifier,
+) {
+    Column(
+        modifier
+            .lifted(dragging)
+            .padding(2.dp)
+            .background(if (dragging) Color(0x33FFFFFF) else Color.Transparent, RoundedCornerShape(12.dp))
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        AppIcon(app.key, 52.dp)
+        BasicText(
+            app.label,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = TextStyle(color = Color.White, fontSize = 11.sp, textAlign = TextAlign.Center),
+            modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp),
+        )
+    }
+}
+
+/** 動かしている項目を少し大きくし、ほかの項目より手前に描く。 */
+private fun Modifier.lifted(on: Boolean): Modifier = if (!on) {
+    this
+} else {
+    zIndex(1f).graphicsLayer {
+        scaleX = 1.12f
+        scaleY = 1.12f
+    }
+}
+
+/**
+ * 長押しして動かすと、指の下の項目の位置へ移す操作。[itemAt] は指の位置にある項目のキーと番号を返す。
+ * 動かしている間は [onMove] で表示の順だけを変え、指を離したら [onEnd] で保存する。
+ * [onEdge] は指が端（[horizontal] なら左右、そうでなければ上下）にあるときのスクロール量。
+ *
+ * 長押しが成立した後の指の動きは、子より先（Initial）に受け取って消費する。
+ * detectDragGesturesAfterLongPress（Main）では、一覧のスクロールが先に動きを消費し、並べ替えずにスクロールした（2026-11-22 に実機で確認）。
+ */
+private fun Modifier.reorderable(
+    key: Any?,
+    itemAt: (Offset) -> Pair<Any, Int>?,
+    onStart: (Any) -> Unit,
+    onMove: (Any, Int) -> Unit,
+    onEnd: () -> Unit,
+    horizontal: Boolean = false,
+    onEdge: (Float) -> Unit = {},
+): Modifier = pointerInput(key) {
+    val edge = 64.dp.toPx()
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        // 長押しの前に指が動いたら（スクロールなら）、何もしない
+        awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
+        var pointer = down.position
+        val moving = itemAt(pointer)?.first ?: return@awaitEachGesture
+        onStart(moving)
+        while (true) {
+            val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id } ?: break
+            if (!change.pressed) break
+            pointer += change.positionChange()
+            change.consume()
+            val along = if (horizontal) pointer.x else pointer.y
+            val length = if (horizontal) size.width else size.height
+            when {
+                along < edge -> onEdge(-(edge - along) / 4)
+                along > length - edge -> onEdge((along - (length - edge)) / 4)
+            }
+            itemAt(pointer)?.let { (over, index) -> if (over != moving) onMove(moving, index) }
+        }
+        onEnd()
+    }
+}
+
+/** フォルダのタブを長押ししたときのメニュー。 */
+@Composable
+private fun TabMenu(
+    name: String,
+    onRename: () -> Unit,
+    onReorder: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Box(
+        Modifier.fillMaxSize().background(Color(0x66000000)).clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .padding(24.dp)
+                .background(Color(0xFF1E1E24), RoundedCornerShape(16.dp))
+                .clickable(enabled = false) {}
+                .padding(vertical = 8.dp),
+        ) {
+            BasicText(name, style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(16.dp))
+            listOf("名前を変更" to onRename, "並べ替え" to onReorder).forEach { (text, onClick) ->
+                BasicText(
+                    text,
+                    style = TextStyle(color = Color.White, fontSize = 15.sp),
+                    modifier = Modifier.width(240.dp).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
+                )
+            }
         }
     }
 }
