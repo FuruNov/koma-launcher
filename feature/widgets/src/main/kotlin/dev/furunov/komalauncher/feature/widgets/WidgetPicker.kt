@@ -217,15 +217,20 @@ private fun WidgetPreview(
                         fallback()
                     } else {
                         val v = made
-                        val k = min(1f, min(boxW / w.toFloat(), boxH / h.toFloat()))
+                        // 申告の最小の大きさが中身より小さいアプリがある（時計のアプリの Digital clock は、時刻と日付が重なった）。
+                        // 大きさを制限せずに一度測り、中身が必要とする大きさで作ってから縮める
+                        v.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                        val vw = maxOf(w, v.measuredWidth)
+                        val vh = maxOf(h, v.measuredHeight)
+                        val k = min(1f, min(boxW / vw.toFloat(), boxH / vh.toFloat()))
                         v.pivotX = 0f
                         v.pivotY = 0f
                         v.scaleX = k
                         v.scaleY = k
-                        v.translationX = (boxW - w * k) / 2f
-                        v.translationY = (boxH - h * k) / 2f
+                        v.translationX = (boxW - vw * k) / 2f
+                        v.translationY = (boxH - vh * k) / 2f
                         v.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-                        frame.addView(v, FrameLayout.LayoutParams(w, h))
+                        frame.addView(v, FrameLayout.LayoutParams(vw, vh))
                     }
                 }
             }
