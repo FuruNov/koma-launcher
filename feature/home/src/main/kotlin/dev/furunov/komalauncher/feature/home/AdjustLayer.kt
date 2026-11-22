@@ -54,13 +54,23 @@ internal class AdjustTarget(
     val panels: List<ResolvedPanel>,
     val texts: Map<PanelId, PanelTextSpec>,
     val viewWidth: Float,
+    val viewHeight: Float = 0f,
+    /** 自由に置くウィジェット。ほかのコンポーネントより上にあるので先に調べる。 */
+    val widgets: List<WidgetGeometry> = emptyList(),
+    /** ウィジェットの右下の角の、大きさを変えるつまみの半径（画素）。 */
+    val handleRadius: Float = 0f,
 )
 
-/** 画面の点 [p] にあるコンポーネント。アイコン → 時計・大見出し → 名前 の順に調べる（上に重なって見えるものから）。 */
+/** 画面の点 [p] にあるコンポーネント。ウィジェット → アイコン → 時計・大見出し → 名前 の順に調べる（上に重なって見えるものから）。 */
 internal fun partAt(
     t: AdjustTarget,
     p: Point,
 ): Part? {
+    for (w in t.widgets.asReversed()) {
+        val b = w.bounds
+        val onHandle = kotlin.math.hypot(p.x - b.right, p.y - b.bottom) < t.handleRadius * 1.6f
+        if (onHandle || b.contains(p)) return Part.Widget(w.spec, t.viewWidth, t.viewHeight, resize = onHandle)
+    }
     for (panel in t.panels.asReversed()) {
         val r = iconGroupRect(panel, t.texts[panel.panel.id]) ?: continue
         if (r.contains(p)) return Part.Icons(panel.panel.id, r.center)
@@ -154,7 +164,7 @@ internal fun Modifier.adjustGestures(
         if (!began) {
             // 同じコンポーネントを続けて 2 回押したら、自動に戻す
             val now = down.uptimeMillis
-            val same = lastTapPart?.let { it::class == part::class && (it !is Part.Icons || it.panel == (part as Part.Icons).panel) && (it !is Part.Label || it.panel == (part as Part.Label).panel) } == true
+            val same = lastTapPart?.let { it::class == part::class && (it !is Part.Icons || it.panel == (part as Part.Icons).panel) && (it !is Part.Label || it.panel == (part as Part.Label).panel) && (it !is Part.Widget || it.start.id == (part as Part.Widget).start.id) } == true
             if (same && now - lastTapAt < viewConfiguration.doubleTapTimeoutMillis) {
                 record()
                 edit { PartEdits.reset(it, part) }
@@ -196,6 +206,12 @@ internal fun AdjustOverlay(
             iconGroupRect(panel, spec)?.let { frame(it, (selected as? Part.Icons)?.panel == panel.panel.id) }
             spec?.labels?.forEach { frame(labelRect(panel.polygon.bounds, it), (selected as? Part.Label)?.panel == panel.panel.id) }
         }
+        for (w in target.widgets) {
+            val on = (selected as? Part.Widget)?.start?.id == w.spec.id
+            frame(w.bounds, on)
+            // 右下の角を掴むと、幅と高さを別々に変えられる
+            drawCircle(if (on) selectedColor else color, target.handleRadius, Offset(w.bounds.right, w.bounds.bottom))
+        }
         if (tree != null) {
             val k = tree.clock.size * target.viewWidth / tree.frame.refWidth
             PartEdits.clockCenter(target.layout, target.panels)?.let { c -> frame(Rect(c.x - 450f * k, c.y - 240f * k, c.x + 450f * k, c.y + 170f * k), selected is Part.Clock) }
@@ -220,7 +236,7 @@ internal fun AdjustOverlay(
             Button("元に戻す", enabled = canUndo, onClick = onUndo)
             Button("完了", accent = true, onClick = onDone)
         }
-        if (selected != null) {
+        if (selected != null && selected !is Part.Widget) {
             // 重ね順。背景の絵より後ろには行かない（最背面は背景の絵のすぐ上）
             Row(
                 Modifier.padding(top = 6.dp).fillMaxWidth().background(Color(0xE61E1E24), RoundedCornerShape(14.dp)).padding(horizontal = 8.dp, vertical = 6.dp),
@@ -233,7 +249,7 @@ internal fun AdjustOverlay(
             }
         }
         BasicText(
-            "ドラッグで移動、2 本指でつまんで拡大縮小、ダブルタップで自動に戻す。触ったものの重ね順を、上のボタンで変える",
+            "ドラッグで移動、2 本指でつまんで拡大縮小、ダブルタップで自動に戻す。触ったものの重ね順を、上のボタンで変える。ウィジェットは右下の丸で幅と高さを変える",
             style = TextStyle(color = Color.White, fontSize = 12.sp),
             modifier = Modifier.padding(top = 6.dp).background(Color(0x991E1E24), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
         )

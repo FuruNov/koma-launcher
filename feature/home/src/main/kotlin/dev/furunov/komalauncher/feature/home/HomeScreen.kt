@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -217,7 +218,7 @@ fun HomeScreen(
         val currentState = rememberUpdatedState(state)
         val currentTexts = rememberUpdatedState(texts)
         // 「配置を調整」で使う、今の配置（コマの位置・文字とアイコンの置き場所）
-        val adjustTarget = AdjustTarget(state.layout, geometry.panels.map { ResolvedPanel(it.panel, it.index, it.polygon, it.art) }, texts, wPx)
+        val adjustTarget = AdjustTarget(state.layout, geometry.panels.map { ResolvedPanel(it.panel, it.index, it.polygon, it.art) }, texts, wPx, hPx, geometry.widgets, with(density) { 10.dp.toPx() })
         val currentAdjust = rememberUpdatedState<AdjustTarget?>(adjustTarget)
         // 「配置を調整」の間の元に戻す履歴。調整を始めるたびに空にする
         val adjustHistory = remember(state.adjusting) { EditHistory<Layout>() }
@@ -401,7 +402,12 @@ fun HomeScreen(
                             Modifier
                                 .offset { IntOffset(r.left.roundToInt(), r.top.roundToInt()) }
                                 .size(with(density) { r.width.toDp() }, with(density) { r.height.toDp() }),
-                        ) { slots.freeWidget(w.spec, r.width / density.density, r.height / density.density) }
+                        ) {
+                            slots.freeWidget(w.spec, r.width / density.density, r.height / density.density)
+                            // 「配置を調整」の間は、ウィジェットのビューにタッチを渡さない（動かす指でウィジェットを押さない）。
+                            // 上に重ねた層が受けるので、下のビューには届かず、親の調整の操作には届く
+                            if (state.adjusting) Box(Modifier.matchParentSize().pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } })
+                        }
                     }
                 }
                 // ウィジェットに重なる人物を、ウィジェットの上に描き直す（ウィジェットが人物の後ろに回って見える）

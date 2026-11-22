@@ -1,6 +1,7 @@
 package dev.furunov.komalauncher.model.layout
 
 import dev.furunov.komalauncher.model.geometry.Point
+import dev.furunov.komalauncher.model.widgets.WidgetPlacement
 import kotlin.math.abs
 
 /** ホームの「配置を調整」で指で扱うコンポーネント。1 本指で動かし（名前は動かさない）、2 本指でそのコンポーネントだけ拡大縮小する。 */
@@ -24,6 +25,17 @@ sealed interface Part {
     /** コマ [panel] の名前。 */
     data class Label(
         val panel: PanelId,
+    ) : Part
+
+    /**
+     * 自由に置くウィジェット。[start] は掴んだときの位置と大きさ、[viewWidth]・[viewHeight] は画面の大きさ（画素）。
+     * [resize] が true なら右下の角を掴んだので、動かす代わりに幅と高さを変える。
+     */
+    data class Widget(
+        val start: WidgetSpec,
+        val viewWidth: Float,
+        val viewHeight: Float,
+        val resize: Boolean = false,
     ) : Part
 }
 
@@ -104,6 +116,13 @@ object PartEdits {
         is Part.Masthead -> moveText(layout, panels, clock = false, Point(part.center.x + dx, part.center.y + dy))
 
         is Part.Label -> layout
+
+        is Part.Widget -> {
+            val s = part.start
+            val fx = dx / part.viewWidth
+            val fy = dy / part.viewHeight
+            if (part.resize) WidgetPlacement.resize(layout, s.id, s.w + fx, s.h + fy) else WidgetPlacement.moveTo(layout, s.id, s.x + fx, s.y + fy)
+        }
     }
 
     private fun moveText(
@@ -136,9 +155,15 @@ object PartEdits {
         val tree = layout.shape as? LayoutShape.Tree ?: return 1f
         return when (part) {
             is Part.Icons -> layout.panel(part.panel)?.iconScale ?: 1f
+
             is Part.Label -> layout.panel(part.panel)?.labelScale ?: 1f
+
             is Part.Clock -> tree.clock.size
+
             is Part.Masthead -> tree.text.mastheadScale
+
+            // ウィジェットは掴んだときの大きさに掛ける
+            is Part.Widget -> 1f
         }
     }
 
@@ -152,6 +177,7 @@ object PartEdits {
         is Part.Label -> LayoutEdits.updatePanel(layout, part.panel) { it.copy(labelScale = value.coerceIn(SCALE)) }
         is Part.Clock -> LayoutEdits.setTree(layout) { it.copy(clock = it.clock.copy(size = value.coerceIn(CLOCK_SIZE))) }
         is Part.Masthead -> LayoutEdits.setTree(layout) { it.copy(text = it.text.copy(mastheadScale = value.coerceIn(SCALE))) }
+        is Part.Widget -> WidgetPlacement.scale(layout, part.start, value)
     }
 
     /** コンポーネントの位置と大きさを自動（既定）に戻す。時計と大見出しは位置を持ち続けるので、大きさだけを戻す。 */
@@ -160,9 +186,15 @@ object PartEdits {
         part: Part,
     ): Layout = when (part) {
         is Part.Icons -> LayoutEdits.updatePanel(layout, part.panel) { it.copy(iconAt = null, iconScale = 1f) }
+
         is Part.Label -> LayoutEdits.updatePanel(layout, part.panel) { it.copy(labelScale = 1f) }
+
         is Part.Clock -> LayoutEdits.setTree(layout) { it.copy(clock = it.clock.copy(size = ClockSpec().size)) }
+
         is Part.Masthead -> LayoutEdits.setTree(layout) { it.copy(text = it.text.copy(mastheadScale = 1f)) }
+
+        // ウィジェットには自動の大きさが無い
+        is Part.Widget -> layout
     }
 
     /** [part] が属するコマと、重ね順の上での種類。時計と大見出しは、置いてあるコマのもの。 */
@@ -174,9 +206,15 @@ object PartEdits {
         val tree = layout.shape as? LayoutShape.Tree ?: return null
         return when (part) {
             is Part.Icons -> part.panel to LayerKind.ICONS
+
             is Part.Label -> part.panel to LayerKind.LABEL
+
             is Part.Clock -> PanelText.clockPanel(panels, tree.clock)?.let { it to LayerKind.CLOCK }
+
             is Part.Masthead -> PanelText.mastheadPanel(panels, tree.text, tree.clock)?.let { it to LayerKind.MASTHEAD }
+
+            // ウィジェットはコマの重ね順に入らない（いつもコマの上）
+            is Part.Widget -> null
         }
     }
 

@@ -48,6 +48,45 @@ object WidgetPlacement {
         id: String,
     ): Layout = edit(layout) { ws -> ws.filterNot { it.id == id } }
 
+    /** 左上を ([x], [y]) へ動かす。画面からはみ出さないように収める。 */
+    fun moveTo(
+        layout: Layout,
+        id: String,
+        x: Float,
+        y: Float,
+    ): Layout = update(layout, id) { it.copy(x = x.coerceIn(0f, 1f - it.w), y = y.coerceIn(0f, 1f - it.h)) }
+
+    /** 左上を保ったまま、幅と高さを変える。画面の右端と下端を越えないように収める。 */
+    fun resize(
+        layout: Layout,
+        id: String,
+        w: Float,
+        h: Float,
+    ): Layout = update(layout, id) { it.copy(w = w.coerceIn(MIN, maxOf(MIN, 1f - it.x)), h = h.coerceIn(MIN, maxOf(MIN, 1f - it.y))) }
+
+    /** 掴んだときの位置と大きさ [start] を、中心を保ったまま [k] 倍にする（2 本指でつまむ操作）。 */
+    fun scale(
+        layout: Layout,
+        start: WidgetSpec,
+        k: Float,
+    ): Layout {
+        // 縦横比を保つため、両辺が範囲に収まる倍率に絞る
+        val lo = maxOf(MIN / start.w, MIN / start.h)
+        val hi = minOf(1f / start.w, 1f / start.h)
+        val f = k.coerceIn(lo, maxOf(lo, hi))
+        val w = start.w * f
+        val h = start.h * f
+        val cx = start.x + start.w / 2f
+        val cy = start.y + start.h / 2f
+        return update(layout, start.id) { it.copy(x = (cx - w / 2f).coerceIn(0f, 1f - w), y = (cy - h / 2f).coerceIn(0f, 1f - h), w = w, h = h) }
+    }
+
+    private fun update(
+        layout: Layout,
+        id: String,
+        transform: (WidgetSpec) -> WidgetSpec,
+    ): Layout = edit(layout) { ws -> ws.map { if (it.id == id) transform(it) else it } }
+
     fun widgetsOf(layout: Layout): List<WidgetSpec> = (layout.shape as? LayoutShape.Tree)?.widgets.orEmpty()
 
     /** version 1 のコマ割りには置けないので、そのまま返す。 */

@@ -6,6 +6,8 @@ import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.Panel
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.layout.PanelId
+import dev.furunov.komalauncher.model.layout.Part
+import dev.furunov.komalauncher.model.layout.PartEdits
 import dev.furunov.komalauncher.model.layout.WidgetSpec
 import kotlin.math.roundToInt
 import kotlin.test.Test
@@ -59,5 +61,51 @@ class WidgetPlacementTest {
         val a = WidgetAssignments(byPanel = mapOf("widget-2" to WidgetRef(1, "a/.A"), "widget-9" to WidgetRef(2, "a/.A")))
         assertEquals(setOf("widget-9"), WidgetEdits.orphans(a, placed))
         assertEquals(setOf("widget-2", "widget-9"), WidgetEdits.orphans(a, WidgetPlacement.remove(placed, "widget-2")))
+    }
+}
+
+class WidgetMoveTest {
+    private val spec = WidgetSpec("w", "a/.A", 0.2f, 0.3f, 0.4f, 0.2f)
+    private val layout = WidgetPlacement.add(Layout(LayoutShape.Tree(LayoutNode.Leaf(Panel(PanelId("p"), PanelContent.Folder(emptyList()))))), spec)
+
+    private fun only(l: Layout) = WidgetPlacement.widgetsOf(l).single()
+
+    @Test
+    fun moveStaysOnScreen() {
+        val s = only(WidgetPlacement.moveTo(layout, "w", 0.9f, -0.5f))
+        assertEquals(0.6f, s.x, 1e-4f)
+        assertEquals(0f, s.y)
+    }
+
+    @Test
+    fun resizeKeepsTopLeftAndStopsAtEdges() {
+        val s = only(WidgetPlacement.resize(layout, "w", 2f, 0.01f))
+        assertEquals(0.2f, s.x)
+        assertEquals(0.8f, s.w, 1e-4f)
+        assertEquals(0.1f, s.h)
+    }
+
+    @Test
+    fun scaleKeepsCenterAndAspect() {
+        val s = only(WidgetPlacement.scale(layout, spec, 1.5f))
+        assertEquals(0.6f, s.w, 1e-4f)
+        assertEquals(0.3f, s.h, 1e-4f)
+        assertEquals(0.4f, s.x + s.w / 2f, 1e-4f)
+        assertEquals(0.4f, s.y + s.h / 2f, 1e-4f)
+        // 縦横比を保てる範囲で止める
+        val big = only(WidgetPlacement.scale(layout, spec, 10f))
+        assertEquals(1f, big.w, 1e-4f)
+        assertEquals(0.5f, big.h, 1e-4f)
+    }
+
+    @Test
+    fun partEditsMovesWidgetByPixels() {
+        val part = Part.Widget(spec, viewWidth = 1000f, viewHeight = 2000f)
+        val s = only(PartEdits.move(layout, emptyList(), part, 100f, 200f))
+        assertEquals(0.3f, s.x, 1e-4f)
+        assertEquals(0.4f, s.y, 1e-4f)
+        val r = only(PartEdits.move(layout, emptyList(), part.copy(resize = true), 100f, 200f))
+        assertEquals(0.5f, r.w, 1e-4f)
+        assertEquals(0.3f, r.h, 1e-4f)
     }
 }
