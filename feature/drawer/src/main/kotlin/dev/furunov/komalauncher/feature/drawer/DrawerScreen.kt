@@ -93,8 +93,10 @@ class DrawerActions(
     val onDismiss: () -> Unit,
     val onOpenSettings: () -> Unit = {},
     val onLaunchShortcut: (AppShortcut) -> Unit = {},
-    /** フォルダの中でアイコンを長押しし、動かさずに離したとき。長押しのメニューを出す。 */
+    /** フォルダの中でアイコンを長押ししたとき。長押しのメニューを出す。 */
     val onShowAppMenu: (AppKey) -> Unit = {},
+    /** 長押しの後に指が動き始めたとき。[onShowAppMenu] で出したメニューを消す。 */
+    val onHideAppMenu: () -> Unit = {},
     /** フォルダのメニューの「名前を変更」。引数はフォルダの id。 */
     val onRenameFolder: (String) -> Unit = {},
     /** フォルダのメニューの「記号を変更」で選んだとき。フォルダの id と記号の id。 */
@@ -116,7 +118,7 @@ private const val MAX_SHORTCUTS = 8
  * 一番上で下へ引くと閉じる。
  *
  * 左端の縦の列で「すべて」とフォルダを選ぶ。一覧を左右に払うと、列の順で前後のフォルダへ移る。検索の間は列を隠し、全てのアプリから探す。
- * フォルダの中と左端の列では、長押しして動かすと並べ替え、動かさずに離すとメニューを出す。
+ * フォルダの中と L 字では、長押しするとすぐメニューを出し、そのまま動かすとメニューを消して並べ替える。
  * フォルダの中のアイコンを一覧の外まで運ぶと、ホームのコマへ運ぶ操作に切り替わる（「すべて」では長押しですぐ運ぶ）。
  *
  * [launches] は起動回数（「よく使う」と検索の並べ替え）。[loadShortcuts] は検索のためのショートカットで、
@@ -293,7 +295,8 @@ fun DrawerScreen(
                                             draggingApps = null
                                             dragKey = null
                                         },
-                                        onRelease = { key -> folder.apps.firstOrNull { it.key.id() == key }?.let { actions.onShowAppMenu(it.key) } },
+                                        onLongPress = { key -> folder.apps.firstOrNull { it.key.id() == key }?.let { actions.onShowAppMenu(it.key) } },
+                                        onDragBegin = actions.onHideAppMenu,
                                         // 一覧の外まで運んだら、並べ替えをやめる。
                                         // 上へ出たら、ホームのコマへ運ぶ操作に切り替える。左か下（L 字のフォルダ）へ出たら、別のフォルダへ移す操作にする
                                         onLeave = { key, at ->
@@ -304,7 +307,7 @@ fun DrawerScreen(
                                             when {
                                                 app == null -> {}
 
-                                                at.y < 0 -> dnd.start(DragItem(app.key, DragSource.Drawer), p)
+                                                at.y < 0 -> dnd.start(DragItem(app.key, DragSource.Drawer), p, showMenu = false)
 
                                                 else -> {
                                                     carrying = app.key to p
@@ -400,7 +403,8 @@ fun DrawerScreen(
                                 draggingFolders = null
                                 dragKey = null
                             },
-                            onRelease = { key -> folderMenu = key as String },
+                            onLongPress = { key -> folderMenu = key as String },
+                            onDragBegin = { folderMenu = null },
                         ),
                     ),
                     content = appGrid,

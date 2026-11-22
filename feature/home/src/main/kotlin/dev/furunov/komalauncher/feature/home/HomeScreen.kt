@@ -209,7 +209,8 @@ fun HomeScreen(
             remember(geometry) {
                 DragDropState(
                     onDrop = { item, p -> onEvent(HomeEvent.Drop(item.app, (item.source as? DragSource.Folder)?.panelId, dropTargetAt(item, p))) },
-                    onLongPressRelease = { onEvent(HomeEvent.ShowAppMenu(it.app, (it.source as? DragSource.Folder)?.panelId, fromDrawer = it.source == DragSource.Drawer)) },
+                    onLongPress = { onEvent(HomeEvent.ShowAppMenu(it.app, (it.source as? DragSource.Folder)?.panelId, fromDrawer = it.source == DragSource.Drawer)) },
+                    onDragBegin = { onEvent(HomeEvent.HideAppMenu) },
                 )
             }
         // 指の下のフォルダのコマ。運んでいる間だけ光らせる
@@ -382,47 +383,55 @@ fun HomeScreen(
                 val o = state.overlay
                 if (o.overDrawer && o != Overlay.Drawer && o !is Overlay.DrawerFolderName) keyboard?.hide()
             }
-            when (val o = state.overlay) {
-                is Overlay.Folder -> geometry.panels.firstOrNull { it.panel.id == o.panelId }?.let { g ->
-                    FolderPopup(
-                        panel = g,
-                        state = state,
-                        screenWidth = wPx,
-                        screenHeight = hPx,
-                        onEvent = onEvent,
-                        labelOf = state::labelOf,
-                        dropInfo = dropInfo,
-                    )
+            @Composable
+            fun overlayContent(o: Overlay) {
+                when (o) {
+                    is Overlay.Folder -> geometry.panels.firstOrNull { it.panel.id == o.panelId }?.let { g ->
+                        FolderPopup(
+                            panel = g,
+                            state = state,
+                            screenWidth = wPx,
+                            screenHeight = hPx,
+                            onEvent = onEvent,
+                            labelOf = state::labelOf,
+                            dropInfo = dropInfo,
+                        )
+                    }
+
+                    // 長押しした元の画面（フォルダ）を下に残したまま、メニューを重ねる
+                    is Overlay.AppMenu -> {
+                        overlayContent(o.under)
+                        AppMenuSheet(o, state.labelOf(o.app), onEvent)
+                    }
+
+                    is Overlay.PanelMenu -> geometry.panels.firstOrNull { it.panel.id == o.panelId }?.let { g ->
+                        PanelMenuSheet(
+                            g,
+                            state.folders.byPanel[g.panel.id.value]?.name ?: g.panel.label,
+                            state.folders.byPanel[g.panel.id.value]?.directLaunch == true,
+                            musicPlayer = state.folders.byPanel[g.panel.id.value]?.musicPlayer == true,
+                            showingPlayer = state.player?.panelId == g.panel.id,
+                            slots.panelMenuItems(g),
+                            onEvent,
+                        )
+                    }
+
+                    Overlay.MusicAccess -> MusicAccessSheet(onEvent)
+
+                    is Overlay.ConfirmRemove -> ConfirmRemoveSheet(o.app, state.labelOf(o.app), o.failed, onEvent)
+
+                    is Overlay.Rename -> RenameSheet(state.folders.byPanel[o.panelId.value]?.name ?: state.layout.panel(o.panelId)?.label, { onEvent(HomeEvent.Rename(o.panelId, it)) }, onEvent)
+
+                    is Overlay.DrawerFolderMenu -> DrawerFolderMenuSheet(o, onEvent)
+
+                    is Overlay.DrawerFolderName -> RenameSheet(o.current, { onEvent(HomeEvent.NameDrawerFolder(o.app, o.folderId, it)) }, onEvent)
+
+                    Overlay.None -> Unit
+
+                    else -> slots.overlay(o)
                 }
-
-                is Overlay.AppMenu -> AppMenuSheet(o, state.labelOf(o.app), onEvent)
-
-                is Overlay.PanelMenu -> geometry.panels.firstOrNull { it.panel.id == o.panelId }?.let { g ->
-                    PanelMenuSheet(
-                        g,
-                        state.folders.byPanel[g.panel.id.value]?.name ?: g.panel.label,
-                        state.folders.byPanel[g.panel.id.value]?.directLaunch == true,
-                        musicPlayer = state.folders.byPanel[g.panel.id.value]?.musicPlayer == true,
-                        showingPlayer = state.player?.panelId == g.panel.id,
-                        slots.panelMenuItems(g),
-                        onEvent,
-                    )
-                }
-
-                Overlay.MusicAccess -> MusicAccessSheet(onEvent)
-
-                is Overlay.ConfirmRemove -> ConfirmRemoveSheet(o.app, state.labelOf(o.app), o.failed, onEvent)
-
-                is Overlay.Rename -> RenameSheet(state.folders.byPanel[o.panelId.value]?.name ?: state.layout.panel(o.panelId)?.label, { onEvent(HomeEvent.Rename(o.panelId, it)) }, onEvent)
-
-                is Overlay.DrawerFolderMenu -> DrawerFolderMenuSheet(o, onEvent)
-
-                is Overlay.DrawerFolderName -> RenameSheet(o.current, { onEvent(HomeEvent.NameDrawerFolder(o.app, o.folderId, it)) }, onEvent)
-
-                Overlay.None -> Unit
-
-                else -> slots.overlay(o)
             }
+            overlayContent(state.overlay)
 
             if (state.adjusting) {
                 AdjustOverlay(

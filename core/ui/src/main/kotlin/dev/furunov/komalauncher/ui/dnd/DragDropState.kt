@@ -57,8 +57,13 @@ fun interface DropHandler {
 @Stable
 class DragDropState(
     private val onDrop: DropHandler,
-    /** 長押ししてほとんど動かさずに離したとき。メニューを表示する。 */
-    private val onLongPressRelease: (DragItem) -> Unit,
+    /**
+     * 長押しが成立したとき。すぐメニューを表示する（Pixel のランチャーと同じ）。
+     * 前は動かさずに離したときに表示していたが、長押しの手応えが遅いので変えた（2026-11-22、利用者の選択）。
+     */
+    private val onLongPress: (DragItem) -> Unit,
+    /** 長押しの後に指が [MENU_SLOP_PX] より動いたとき（運び始めたとき）。表示したメニューを消す。 */
+    private val onDragBegin: () -> Unit = {},
 ) {
     var item: DragItem? by mutableStateOf(null)
         private set
@@ -72,23 +77,29 @@ class DragDropState(
 
     val isDragging: Boolean get() = item != null && travelled > MENU_SLOP_PX
 
+    /** [showMenu] が false なら、長押しのメニューを出さない（全アプリ一覧のフォルダの中から、運ぶ途中で引き継ぐとき）。 */
     fun start(
         item: DragItem,
         at: Offset,
+        showMenu: Boolean = true,
     ) {
         this.item = item
         position = at
         travelled = 0f
+        if (showMenu) onLongPress(item)
     }
 
     fun move(delta: Offset) {
+        val wasDragging = isDragging
         position += delta
         travelled += delta.getDistance()
+        if (!wasDragging && isDragging) onDragBegin()
     }
 
     fun end() {
         val i = item ?: return
-        if (travelled <= MENU_SLOP_PX) onLongPressRelease(i) else onDrop.onDrop(i, position)
+        // 動かさずに離したら何もしない（メニューは長押しの時点で表示している）
+        if (travelled > MENU_SLOP_PX) onDrop.onDrop(i, position)
         item = null
     }
 
@@ -97,7 +108,7 @@ class DragDropState(
     }
 
     companion object {
-        /** これより動かさずに離したら、ドラッグでなく長押しのメニューとして扱う（Nova と同じ操作感）。 */
+        /** 長押しの後にこれより動いたら、運ぶ操作とみなしてメニューを消す。これより動かずに離したら、メニューを残す。 */
         const val MENU_SLOP_PX = 24f
     }
 }

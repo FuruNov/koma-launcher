@@ -15,7 +15,8 @@ import androidx.compose.ui.zIndex
 /**
  * 長押しから始まる並べ替えの受け手。
  * - 長押しして動かすと、指の下の項目の位置へ移す（[onMove]）。指を離したら [onEnd] に true を渡す
- * - 動かさずに離すと [onEnd] に false を渡し、[onRelease] を呼ぶ（メニューを出す）
+ * - 長押しが成立したらすぐ [onLongPress] を呼ぶ（メニューを出す）。指が動き始めたら [onDragBegin] を呼ぶ（メニューを消す）
+ * - 動かさずに離すと [onEnd] に false を渡す（メニューは出したまま）
  * - 指が領域の外へ出て [onLeave] が true を返したら、その後の動きは [onHandoffMove]、離したときは [onHandoffEnd] へ渡す（ホームへ運ぶ）
  */
 internal class ReorderHandler(
@@ -24,7 +25,8 @@ internal class ReorderHandler(
     val onStart: (Any) -> Unit,
     val onMove: (key: Any, to: Int) -> Unit,
     val onEnd: (moved: Boolean) -> Unit,
-    val onRelease: (Any) -> Unit = {},
+    val onLongPress: (Any) -> Unit = {},
+    val onDragBegin: () -> Unit = {},
     /** 指が領域の外へ出たとき。指の位置（領域の座標）を受け、引き継ぐなら true を返す。 */
     val onLeave: ((key: Any, at: Offset) -> Boolean)? = null,
     val onHandoffMove: (Offset) -> Unit = {},
@@ -51,6 +53,7 @@ internal fun Modifier.reorderable(
         var pointer = down.position
         val moving = handler.itemAt(pointer)?.first ?: return@awaitEachGesture
         handler.onStart(moving)
+        handler.onLongPress(moving)
         var travelled = 0f
         var handedOff = false
         while (true) {
@@ -60,7 +63,9 @@ internal fun Modifier.reorderable(
             change.consume()
             if (!change.pressed) break
             pointer += delta
+            val wasStill = travelled < slop
             travelled += delta.getDistance()
+            if (wasStill && travelled >= slop) handler.onDragBegin()
             if (handedOff) {
                 handler.onHandoffMove(delta)
                 continue
@@ -80,12 +85,7 @@ internal fun Modifier.reorderable(
         }
         when {
             handedOff -> handler.onHandoffEnd()
-
-            travelled < slop -> {
-                handler.onEnd(false)
-                handler.onRelease(moving)
-            }
-
+            travelled < slop -> handler.onEnd(false)
             else -> handler.onEnd(true)
         }
     }

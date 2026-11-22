@@ -74,10 +74,15 @@ sealed interface Overlay {
         val app: AppKey,
         val fromPanel: String?,
         val shortcuts: List<AppShortcut>,
-        /** true なら全アプリ一覧で長押しした。「非表示」を表示し、閉じたら一覧に戻る。 */
+        /** true なら全アプリ一覧で長押しした。「非表示」と「フォルダを変更」を表示する。 */
         val fromDrawer: Boolean = false,
+        /**
+         * メニューの下に表示したまま残す画面（全アプリ一覧かフォルダ）。閉じたらここに戻る。
+         * 長押しですぐメニューを出すので、長押しした元の画面を消すと、続けて運ぶ操作も止まってしまう。そのため残す。
+         */
+        val under: Overlay = None,
     ) : Overlay {
-        override val overDrawer: Boolean get() = fromDrawer
+        override val overDrawer: Boolean get() = under.overDrawer
     }
 
     /** 追加したショートカット（PWA など）の削除の確認。固定の解除はランチャーから戻せないので、押す前に尋ねる。 */
@@ -225,6 +230,9 @@ sealed interface HomeEvent {
         val fromPanel: String?,
         val fromDrawer: Boolean = false,
     ) : HomeEvent
+
+    /** 長押しの後に運び始めたとき。長押しで出したメニューを消し、下に残していた画面に戻る。 */
+    data object HideAppMenu : HomeEvent
 
     /** 長押しのメニューの「フォルダを変更」。移す先を選ぶ画面を出す。 */
     data class ShowDrawerFolders(
@@ -432,9 +440,14 @@ class HomeViewModel(
             }
 
             HomeEvent.Dismiss -> {
-                // 全アプリ一覧の上に重ねたメニューを閉じたら、一覧に戻る。一覧そのものを閉じたらホームに戻る
+                // メニューを閉じたら、下に残していた画面（全アプリ一覧かフォルダ）に戻る。一覧そのものを閉じたらホームに戻る
                 val o = overlay.value
-                overlay.value = if (o.overDrawer && o != Overlay.Drawer) Overlay.Drawer else Overlay.None
+                overlay.value =
+                    when {
+                        o is Overlay.AppMenu -> o.under
+                        o.overDrawer && o != Overlay.Drawer -> Overlay.Drawer
+                        else -> Overlay.None
+                    }
                 adjusting.value = false
             }
 
@@ -470,7 +483,19 @@ class HomeViewModel(
                 overlay.value = Overlay.None
             }
 
-            is HomeEvent.ShowAppMenu -> overlay.value = Overlay.AppMenu(event.app, event.fromPanel, apps.shortcuts(event.app), event.fromDrawer)
+            is HomeEvent.ShowAppMenu -> {
+                // 全アプリ一覧とフォルダは、メニューの下に残す
+                val current = overlay.value
+                val under =
+                    when {
+                        event.fromDrawer -> Overlay.Drawer
+                        current is Overlay.Folder -> current
+                        else -> Overlay.None
+                    }
+                overlay.value = Overlay.AppMenu(event.app, event.fromPanel, apps.shortcuts(event.app), event.fromDrawer, under)
+            }
+
+            HomeEvent.HideAppMenu -> (overlay.value as? Overlay.AppMenu)?.let { overlay.value = it.under }
 
             is HomeEvent.ShowDrawerFolders -> {
                 val drawer = settingsStore.settings.value.drawer

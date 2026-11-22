@@ -97,7 +97,7 @@ internal fun UndoBar(
     }
 }
 
-/** アイコンを長押しして、動かさずに離したときのメニュー。 */
+/** アイコンを長押ししたときのメニュー。長押しが成立したらすぐ表示し、指を動かしたら消す（DragDropState）。 */
 @Composable
 internal fun AppMenuSheet(
     menu: Overlay.AppMenu,

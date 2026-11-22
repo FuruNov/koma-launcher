@@ -537,6 +537,23 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun startingToCarryHidesMenuAndKeepsWhatWasUnder() {
+        vm.onEvent(HomeEvent.OpenOverlay(Overlay.Folder(PanelId("p1"))))
+        vm.onEvent(HomeEvent.ShowAppMenu(chrome, fromPanel = "p1"))
+        assertEquals(Overlay.Folder(PanelId("p1")), (vm.state.value.overlay as Overlay.AppMenu).under)
+        vm.onEvent(HomeEvent.HideAppMenu)
+        assertEquals(Overlay.Folder(PanelId("p1")), vm.state.value.overlay)
+    }
+
+    @Test
+    fun dismissMenuOverFolderReturnsToFolder() {
+        vm.onEvent(HomeEvent.OpenOverlay(Overlay.Folder(PanelId("p1"))))
+        vm.onEvent(HomeEvent.ShowAppMenu(chrome, fromPanel = "p1"))
+        vm.onEvent(HomeEvent.Dismiss)
+        assertEquals(Overlay.Folder(PanelId("p1")), vm.state.value.overlay)
+    }
+
+    @Test
     fun dismissFolderMenuReturnsHome() {
         vm.onEvent(HomeEvent.ShowAppMenu(chrome, fromPanel = "p1"))
         vm.onEvent(HomeEvent.Dismiss)
