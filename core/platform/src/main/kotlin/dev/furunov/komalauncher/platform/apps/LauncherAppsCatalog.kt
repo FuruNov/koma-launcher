@@ -3,6 +3,7 @@ package dev.furunov.komalauncher.platform.apps
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherApps
 import android.content.pm.ShortcutInfo
 import android.net.Uri
@@ -11,8 +12,10 @@ import android.os.Looper
 import android.os.Process
 import android.os.UserHandle
 import dev.furunov.komalauncher.model.apps.AppCatalog
+import dev.furunov.komalauncher.model.apps.AppCategory
 import dev.furunov.komalauncher.model.apps.AppEntry
 import dev.furunov.komalauncher.model.apps.AppKey
+import dev.furunov.komalauncher.model.apps.AppRoles
 import dev.furunov.komalauncher.model.apps.AppShortcut
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -90,12 +93,13 @@ class LauncherAppsCatalog(
         scope.launch(Dispatchers.IO) {
             hadShortcutAccess = launcherApps.hasShortcutHostPermission()
             val collator = Collator.getInstance()
+            val roles = AppRoleProbe.roles(context.packageManager)
             // 自分のパッケージを除くのは Activity だけ（debug の DEBUG_PIN で固定した自分のショートカットは並べる）
             val activities =
                 launcherApps
                     .getActivityList(null, user)
                     .filter { it.componentName.packageName != context.packageName }
-                    .map { AppEntry(AppKey(it.componentName.packageName, it.componentName.className), it.label.toString()) }
+                    .map { AppEntry(AppKey(it.componentName.packageName, it.componentName.className), it.label.toString(), AppRoles.categoryOf(roles[it.componentName.packageName].orEmpty(), category(it.applicationInfo.category))) }
             val list = (activities + pinnedShortcuts()).sortedWith(compareBy(collator) { it.label })
             if (gen == generation.get()) state.value = list
         }
@@ -224,4 +228,18 @@ class LauncherAppsCatalog(
     }
 
     private fun AppKey.component() = ComponentName(packageName, className)
+}
+
+/** 全アプリ一覧のフォルダに使う分類。申告していないアプリ（CATEGORY_UNDEFINED）と、使わない分類は null。 */
+private fun category(c: Int): AppCategory? = when (c) {
+    ApplicationInfo.CATEGORY_GAME -> AppCategory.GAME
+    ApplicationInfo.CATEGORY_AUDIO -> AppCategory.AUDIO
+    ApplicationInfo.CATEGORY_VIDEO -> AppCategory.VIDEO
+    ApplicationInfo.CATEGORY_IMAGE -> AppCategory.IMAGE
+    ApplicationInfo.CATEGORY_SOCIAL -> AppCategory.SOCIAL
+    ApplicationInfo.CATEGORY_NEWS -> AppCategory.NEWS
+    ApplicationInfo.CATEGORY_MAPS -> AppCategory.MAPS
+    ApplicationInfo.CATEGORY_PRODUCTIVITY -> AppCategory.PRODUCTIVITY
+    ApplicationInfo.CATEGORY_ACCESSIBILITY -> AppCategory.ACCESSIBILITY
+    else -> null
 }

@@ -163,6 +163,17 @@ data class MusicSettings(
 data class DrawerSettings(
     val columns: Int = 5,
     val hidden: Set<AppKey> = emptySet(),
+    /** 利用者が別のフォルダへ移したアプリ。Android の分類による自動の分け方より優先する（DrawerFolders）。 */
+    val moved: List<DrawerMove> = emptyList(),
+    /** フォルダの id → 名前。利用者が作ったフォルダ（id が u で始まる）と、名前を変えた既定のフォルダだけを持つ。 */
+    val folderNames: Map<String, String> = emptyMap(),
+)
+
+/** AppKey は JSON のキーにできないので、Map でなく組の並びで持つ。 */
+@Serializable
+data class DrawerMove(
+    val app: AppKey,
+    val folder: String,
 )
 
 @Serializable

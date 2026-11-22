@@ -4,8 +4,10 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.furunov.komalauncher.model.apps.AppCatalog
+import dev.furunov.komalauncher.model.apps.AppEntry
 import dev.furunov.komalauncher.model.apps.AppKey
 import dev.furunov.komalauncher.model.apps.AppShortcut
+import dev.furunov.komalauncher.model.apps.DrawerFolders
 import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.folders.Folders
@@ -77,6 +79,20 @@ sealed interface Overlay {
 
     /** 音楽プレイヤーに必要な「通知へのアクセス」の説明。 */
     data object MusicAccess : Overlay
+
+    /** 全アプリ一覧の「フォルダを変更」。[choices] はフォルダの id と名前、[current] は今入っているフォルダの id。 */
+    data class DrawerFolderMenu(
+        val app: AppKey,
+        val choices: List<Pair<String, String>>,
+        val current: String,
+    ) : Overlay
+
+    /** 全アプリ一覧のフォルダの名前の入力。[folderId] が null なら新しいフォルダを作って [app] を移し、そうでなければ名前を変える。 */
+    data class DrawerFolderName(
+        val app: AppKey?,
+        val folderId: String?,
+        val current: String,
+    ) : Overlay
 
     /** フォルダに入れるアプリを選ぶ画面。全アプリの一覧が要るので、中身はホームの外（MainActivity）が作る。 */
     data class AddApps(
@@ -190,6 +206,28 @@ sealed interface HomeEvent {
         val app: AppKey,
         val fromPanel: String?,
         val fromDrawer: Boolean = false,
+    ) : HomeEvent
+
+    /** 長押しのメニューの「フォルダを変更」。移す先を選ぶ画面を出す。 */
+    data class ShowDrawerFolders(
+        val app: AppKey,
+    ) : HomeEvent
+
+    data class MoveToDrawerFolder(
+        val app: AppKey,
+        val folderId: String,
+    ) : HomeEvent
+
+    /** フォルダのタブの長押し。名前の入力を出す。 */
+    data class EditDrawerFolderName(
+        val folderId: String,
+    ) : HomeEvent
+
+    /** 名前の入力の「保存」。[Overlay.DrawerFolderName] と同じく、[folderId] が null なら作って移す。 */
+    data class NameDrawerFolder(
+        val app: AppKey?,
+        val folderId: String?,
+        val name: String,
     ) : HomeEvent
 
     /** 長押しのメニューの「非表示」。全アプリ一覧から外す。戻すのは設定画面の「非表示のアプリ」。 */
@@ -377,7 +415,13 @@ class HomeViewModel(
 
             HomeEvent.Dismiss -> {
                 // 全アプリ一覧で開いたメニューを閉じたら、一覧に戻る
-                overlay.value = if ((overlay.value as? Overlay.AppMenu)?.fromDrawer == true) Overlay.Drawer else Overlay.None
+                val fromDrawer =
+                    when (val o = overlay.value) {
+                        is Overlay.AppMenu -> o.fromDrawer
+                        is Overlay.DrawerFolderMenu, is Overlay.DrawerFolderName -> true
+                        else -> false
+                    }
+                overlay.value = if (fromDrawer) Overlay.Drawer else Overlay.None
                 adjusting.value = false
             }
 
@@ -414,6 +458,33 @@ class HomeViewModel(
             }
 
             is HomeEvent.ShowAppMenu -> overlay.value = Overlay.AppMenu(event.app, event.fromPanel, apps.shortcuts(event.app), event.fromDrawer)
+
+            is HomeEvent.ShowDrawerFolders -> {
+                val drawer = settingsStore.settings.value.drawer
+                overlay.value = Overlay.DrawerFolderMenu(event.app, DrawerFolders.choices(drawer), DrawerFolders.folderOf(entryOf(event.app), drawer))
+            }
+
+            is HomeEvent.MoveToDrawerFolder -> {
+                settingsStore.update { it.copy(drawer = DrawerFolders.move(it.drawer, entryOf(event.app), event.folderId)) }
+                overlay.value = Overlay.Drawer
+            }
+
+            is HomeEvent.EditDrawerFolderName ->
+                overlay.value = Overlay.DrawerFolderName(null, event.folderId, DrawerFolders.nameOf(event.folderId, settingsStore.settings.value.drawer))
+
+            is HomeEvent.NameDrawerFolder -> {
+                val id = event.folderId
+                val app = event.app
+                if (id != null) {
+                    settingsStore.update { it.copy(drawer = DrawerFolders.rename(it.drawer, id, event.name)) }
+                } else if (app != null && event.name.isNotBlank()) {
+                    settingsStore.update { s ->
+                        val (drawer, created) = DrawerFolders.create(s.drawer, event.name)
+                        s.copy(drawer = DrawerFolders.move(drawer, entryOf(app), created))
+                    }
+                }
+                overlay.value = Overlay.Drawer
+            }
 
             is HomeEvent.Hide -> {
                 settingsStore.update { it.copy(drawer = it.drawer.copy(hidden = it.drawer.hidden + event.app)) }
@@ -502,6 +573,9 @@ class HomeViewModel(
         val stayOpen = target is DropTarget.Panel && target.panelId == e.fromPanel
         if (!stayOpen) overlay.value = Overlay.None
     }
+
+    /** 分類を知るための一覧の項目。一覧に無ければ（アンインストールの直後など）分類の無い項目として扱う。 */
+    private fun entryOf(app: AppKey): AppEntry = apps.apps.value.firstOrNull { it.key == app } ?: AppEntry(app, "")
 
     /**
      * 「直接起動」のフォルダなら、起動するアプリ（入っているアプリのうち先頭）。

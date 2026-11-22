@@ -3,6 +3,7 @@ package dev.furunov.komalauncher.feature.home
 import dev.furunov.komalauncher.model.apps.AppCatalog
 import dev.furunov.komalauncher.model.apps.AppEntry
 import dev.furunov.komalauncher.model.apps.AppKey
+import dev.furunov.komalauncher.model.apps.DrawerFolders
 import dev.furunov.komalauncher.model.folders.Folder
 import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.folders.FolderStore
@@ -484,6 +485,34 @@ class HomeViewModelTest {
     fun dismissDrawerMenuReturnsToDrawer() {
         vm.onEvent(HomeEvent.ShowAppMenu(chrome, fromPanel = null, fromDrawer = true))
         vm.onEvent(HomeEvent.Dismiss)
+        assertEquals(Overlay.Drawer, vm.state.value.overlay)
+    }
+
+    @Test
+    fun drawerFolderMenuMarksCurrentFolder() {
+        vm.onEvent(HomeEvent.ShowDrawerFolders(chrome))
+        val menu = vm.state.value.overlay as Overlay.DrawerFolderMenu
+        assertEquals("other", menu.current)
+        assertEquals(DrawerFolders.builtIn, menu.choices)
+    }
+
+    @Test
+    fun moveToNewDrawerFolderCreatesItAndReturnsToDrawer() {
+        vm.onEvent(HomeEvent.ShowDrawerFolders(chrome))
+        vm.onEvent(HomeEvent.OpenOverlay(Overlay.DrawerFolderName(app = chrome, folderId = null, current = "")))
+        vm.onEvent(HomeEvent.NameDrawerFolder(app = chrome, folderId = null, name = "ウェブ"))
+        val s = settings.flow.value.drawer
+        assertEquals(listOf("ウェブ"), s.folderNames.values.toList())
+        assertEquals(s.folderNames.keys.single(), s.moved.single { it.app == chrome }.folder)
+        assertEquals(Overlay.Drawer, vm.state.value.overlay)
+    }
+
+    @Test
+    fun renameDrawerFolderFromTab() {
+        vm.onEvent(HomeEvent.EditDrawerFolderName("game"))
+        assertEquals(Overlay.DrawerFolderName(app = null, folderId = "game", current = "ゲーム"), vm.state.value.overlay)
+        vm.onEvent(HomeEvent.NameDrawerFolder(app = null, folderId = "game", name = "遊び"))
+        assertEquals(mapOf("game" to "遊び"), settings.flow.value.drawer.folderNames)
         assertEquals(Overlay.Drawer, vm.state.value.overlay)
     }
 

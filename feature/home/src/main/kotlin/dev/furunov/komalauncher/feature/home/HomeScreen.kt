@@ -395,7 +395,11 @@ fun HomeScreen(
 
                 is Overlay.ConfirmRemove -> ConfirmRemoveSheet(o.app, state.labelOf(o.app), o.failed, onEvent)
 
-                is Overlay.Rename -> RenameSheet(o.panelId, state.folders.byPanel[o.panelId.value]?.name ?: state.layout.panel(o.panelId)?.label, onEvent)
+                is Overlay.Rename -> RenameSheet(state.folders.byPanel[o.panelId.value]?.name ?: state.layout.panel(o.panelId)?.label, { onEvent(HomeEvent.Rename(o.panelId, it)) }, onEvent)
+
+                is Overlay.DrawerFolderMenu -> DrawerFolderMenuSheet(o, onEvent)
+
+                is Overlay.DrawerFolderName -> RenameSheet(o.current, { onEvent(HomeEvent.NameDrawerFolder(o.app, o.folderId, it)) }, onEvent)
 
                 Overlay.None -> Unit
 

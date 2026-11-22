@@ -6,9 +6,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,12 +19,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
@@ -61,9 +66,12 @@ import dev.furunov.komalauncher.model.apps.AppEntry
 import dev.furunov.komalauncher.model.apps.AppKey
 import dev.furunov.komalauncher.model.apps.AppSearch
 import dev.furunov.komalauncher.model.apps.AppShortcut
+import dev.furunov.komalauncher.model.apps.DrawerFolder
+import dev.furunov.komalauncher.model.apps.DrawerFolders
 import dev.furunov.komalauncher.model.apps.DrawerList
 import dev.furunov.komalauncher.model.apps.Ranked
 import dev.furunov.komalauncher.model.apps.RankedShortcut
+import dev.furunov.komalauncher.model.settings.DrawerSettings
 import dev.furunov.komalauncher.ui.dnd.DragDropState
 import dev.furunov.komalauncher.ui.dnd.DragItem
 import dev.furunov.komalauncher.ui.dnd.DragSource
@@ -78,6 +86,8 @@ class DrawerActions(
     val onDismiss: () -> Unit,
     val onOpenSettings: () -> Unit = {},
     val onLaunchShortcut: (AppShortcut) -> Unit = {},
+    /** フォルダのタブを長押ししたとき。引数はフォルダの id。 */
+    val onRenameFolder: (String) -> Unit = {},
 )
 
 /** 検索で表示するショートカットの最大の件数。 */
@@ -98,8 +108,7 @@ private const val MAX_SHORTCUTS = 8
 @Composable
 fun DrawerScreen(
     apps: List<AppEntry>,
-    columns: Int,
-    hidden: Set<AppKey>,
+    settings: DrawerSettings,
     launches: Map<AppKey, Int>,
     loadShortcuts: suspend () -> List<AppShortcut>,
     actions: DrawerActions,
@@ -110,8 +119,14 @@ fun DrawerScreen(
     BackHandler(enabled = open, onBack = actions.onDismiss)
     var query by remember { mutableStateOf("") }
     val q = query.trim()
+    val columns = settings.columns
+    val hidden = settings.hidden
     val visible = remember(apps, hidden) { apps.filter { it.key !in hidden } }
     val frequent = remember(visible, launches, columns) { DrawerList.frequent(visible, hidden, launches, columns) }
+    val folders = remember(visible, settings) { DrawerFolders.of(visible, settings) }
+    // 選んでいるフォルダのタブの id。null なら「すべて」。中身が無くなってタブが消えたら「すべて」に戻す
+    var tab by remember { mutableStateOf<String?>(null) }
+    val folder = folders.firstOrNull { it.id == tab }
     val ranked = remember(visible, launches, q) { if (q.isEmpty()) emptyList() else AppSearch.rank(q, visible, launches) }
     val shortcuts by produceState(emptyList<AppShortcut>(), apps.isEmpty(), open) { if (open) value = loadShortcuts() }
     val visiblePackages = remember(visible) { visible.mapTo(HashSet()) { it.key.packageName } }
@@ -147,7 +162,7 @@ fun DrawerScreen(
     // アイコンを運び始めたらキーボードを閉じる。一覧が透明になって見えるホームの下側のコマを、キーボードが隠すため
     LaunchedEffect(dnd.isDragging) { if (dnd.isDragging) keyboard?.hide() }
     // 入力が変わったら先頭へ戻す（先頭の候補が見えるように）
-    LaunchedEffect(q) { grid.scrollToItem(0) }
+    LaunchedEffect(q, tab) { grid.scrollToItem(0) }
 
     Box(
         modifier
@@ -205,12 +220,18 @@ fun DrawerScreen(
                         .clickable { scope.launch { actions.onOpenSettings() } },
                 )
             }
+            // 検索している間は全てのアプリから探すので、タブを隠す
+            if (q.isEmpty() && folders.isNotEmpty()) {
+                FolderTabs(folders, folder?.id, onSelect = { tab = it }, onLongPress = actions.onRenameFolder)
+            }
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),
                 state = grid,
                 modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
             ) {
-                if (q.isEmpty()) {
+                if (q.isEmpty() && folder != null) {
+                    items(folder.apps, key = { it.key.id() }) { app -> DrawerItem(app, null, false, actions, dnd) }
+                } else if (q.isEmpty()) {
                     if (frequent.isNotEmpty()) {
                         header("よく使う")
                         items(frequent, key = { "frequent/" + it.key.id() }) { app -> DrawerItem(app, null, false, actions, dnd) }
@@ -233,6 +254,47 @@ fun DrawerScreen(
             }
         }
     }
+}
+
+/** 検索欄の下のタブ。先頭の「すべて」（[selected] が null）の後に、中身のあるフォルダを並べる。フォルダのタブを長押しすると名前を変える。 */
+@Composable
+private fun FolderTabs(
+    folders: List<DrawerFolder>,
+    selected: String?,
+    onSelect: (String?) -> Unit,
+    onLongPress: (String) -> Unit,
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+    ) {
+        item(key = "all") { Tab("すべて", selected == null, Modifier.clickable { onSelect(null) }) }
+        items(folders, key = { it.id }) { f ->
+            Tab(
+                f.name,
+                f.id == selected,
+                Modifier.pointerInput(f.id) { detectTapGestures(onTap = { onSelect(f.id) }, onLongPress = { onLongPress(f.id) }) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun Tab(
+    text: String,
+    selected: Boolean,
+    modifier: Modifier,
+) {
+    BasicText(
+        text,
+        style = TextStyle(color = if (selected) Color.White else Color(0xFFAAAAAA), fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal),
+        modifier =
+        Modifier
+            .background(if (selected) Color(0xFF44444E) else Color(0xFF26262C), RoundedCornerShape(16.dp))
+            .then(modifier)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+    )
 }
 
 // 同じアプリの追加したショートカットどうしが重ならないよう、ショートカットの id も含める

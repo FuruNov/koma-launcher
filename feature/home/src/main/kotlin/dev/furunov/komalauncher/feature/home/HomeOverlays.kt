@@ -12,11 +12,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
@@ -39,7 +42,6 @@ import androidx.compose.ui.unit.sp
 import dev.furunov.komalauncher.model.apps.AppKey
 import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.layout.PanelContent
-import dev.furunov.komalauncher.model.layout.PanelId
 import dev.furunov.komalauncher.model.settings.LauncherAction
 import dev.furunov.komalauncher.ui.icons.AppIcon
 import kotlinx.coroutines.delay
@@ -126,6 +128,7 @@ internal fun AppMenuSheet(
             if (menu.shortcuts.isNotEmpty()) Divider()
             // 追加したショートカット（PWA など）には、アプリ情報とアンインストールが無い。代わりに固定を解除する「削除」を出す
             if (!menu.app.isShortcut) MenuRow("アプリ情報") { onEvent(HomeEvent.AppInfo(menu.app)) }
+            if (menu.fromDrawer) MenuRow("フォルダを変更") { onEvent(HomeEvent.ShowDrawerFolders(menu.app)) }
             if (menu.fromDrawer) MenuRow("非表示") { onEvent(HomeEvent.Hide(menu.app)) }
             menu.fromPanel?.let { panel ->
                 MenuRow("フォルダから削除") { onEvent(HomeEvent.Drop(menu.app, panel, DropTarget.Remove)) }
@@ -254,10 +257,33 @@ internal fun MusicAccessSheet(onEvent: (HomeEvent) -> Unit) {
     }
 }
 
+/** 全アプリ一覧の「フォルダを変更」。今のフォルダに印を付け、末尾の「新しいフォルダ」で名前を入れて作る。 */
+@Composable
+internal fun DrawerFolderMenuSheet(
+    menu: Overlay.DrawerFolderMenu,
+    onEvent: (HomeEvent) -> Unit,
+) {
+    BackHandler { onEvent(HomeEvent.Dismiss) }
+    Sheet(onDismiss = { onEvent(HomeEvent.Dismiss) }) {
+        BasicText("フォルダを変更", style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(16.dp))
+        // 既定の 10 個が全て見える高さにする（420dp では末尾の「その他」と今のフォルダの印が隠れた）
+        LazyColumn(Modifier.heightIn(max = 600.dp)) {
+            items(menu.choices) { (id, name) ->
+                val current = id == menu.current
+                MenuRow(if (current) "✓ $name" else name, color = if (current) Color(0xFFFFD54F) else Color.White) {
+                    onEvent(HomeEvent.MoveToDrawerFolder(menu.app, id))
+                }
+            }
+        }
+        Divider()
+        MenuRow("新しいフォルダ") { onEvent(HomeEvent.OpenOverlay(Overlay.DrawerFolderName(menu.app, null, ""))) }
+    }
+}
+
 @Composable
 internal fun RenameSheet(
-    panelId: PanelId,
     current: String?,
+    onSave: (String) -> Unit,
     onEvent: (HomeEvent) -> Unit,
 ) {
     BackHandler { onEvent(HomeEvent.Dismiss) }
@@ -283,7 +309,7 @@ internal fun RenameSheet(
         Row(Modifier.fillMaxWidth().padding(8.dp)) {
             Spacer(Modifier.weight(1f))
             MenuRow("キャンセル", modifier = Modifier.width(110.dp)) { onEvent(HomeEvent.Dismiss) }
-            MenuRow("保存", color = Color(0xFFFFD54F), modifier = Modifier.width(80.dp)) { onEvent(HomeEvent.Rename(panelId, text)) }
+            MenuRow("保存", color = Color(0xFFFFD54F), modifier = Modifier.width(80.dp)) { onSave(text) }
         }
     }
 }

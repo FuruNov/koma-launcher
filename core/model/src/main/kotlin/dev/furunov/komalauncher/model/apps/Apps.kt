@@ -32,7 +32,25 @@ data class AppShortcut(
 data class AppEntry(
     val key: AppKey,
     val label: String,
+    /** 全アプリ一覧のフォルダの分類。アプリの申告（ApplicationInfo.category）と役割（AppRoles）から決める。決まらないアプリとショートカットは null。 */
+    val category: AppCategory? = null,
 )
+
+/** 全アプリ一覧のフォルダに使う分類。ApplicationInfo.category の一部と、それに無いブラウザ。[id] は DrawerFolders のフォルダの id。 */
+enum class AppCategory(
+    val id: String,
+) {
+    GAME("game"),
+    AUDIO("audio"),
+    VIDEO("video"),
+    IMAGE("image"),
+    SOCIAL("social"),
+    BROWSER("browser"),
+    NEWS("news"),
+    MAPS("maps"),
+    PRODUCTIVITY("productivity"),
+    ACCESSIBILITY("accessibility"),
+}
 
 /** 端末に入っているアプリの一覧と起動。実装は LauncherApps を包む。 */
 interface AppCatalog {

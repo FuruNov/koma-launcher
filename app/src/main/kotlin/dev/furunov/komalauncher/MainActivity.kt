@@ -57,8 +57,7 @@ class MainActivity : ComponentActivity() {
                         drawer = { open ->
                             DrawerScreen(
                                 apps = apps,
-                                columns = state.settings.drawer.columns,
-                                hidden = state.settings.drawer.hidden,
+                                settings = state.settings.drawer,
                                 launches = remember(launches) { launches.asMap() },
                                 loadShortcuts = { withContext(Dispatchers.IO) { container.appCatalog.allShortcuts() } },
                                 actions =
@@ -66,6 +65,7 @@ class MainActivity : ComponentActivity() {
                                     onLaunch = { home.onEvent(HomeEvent.Launch(it)) },
                                     onDismiss = { home.onEvent(HomeEvent.Dismiss) },
                                     onLaunchShortcut = { home.onEvent(HomeEvent.LaunchShortcut(it)) },
+                                    onRenameFolder = { home.onEvent(HomeEvent.EditDrawerFolderName(it)) },
                                     onOpenSettings = {
                                         home.onEvent(HomeEvent.Dismiss)
                                         container.actions.perform(LauncherAction.OpenSettings)
