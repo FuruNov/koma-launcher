@@ -52,7 +52,7 @@ internal fun HiddenAppsScreen(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     BasicText("非表示のアプリ", style = TextStyle(color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold))
                     BasicText(
-                        if (shown.isEmpty()) "非表示のアプリはありません" else "押すと全アプリ一覧に戻ります",
+                        if (shown.isEmpty()) "非表示のアプリはありません" else "押すとアプリドロワーに戻ります",
                         style = TextStyle(color = Color(0xFF9A9AA2), fontSize = 13.sp),
                     )
                 }

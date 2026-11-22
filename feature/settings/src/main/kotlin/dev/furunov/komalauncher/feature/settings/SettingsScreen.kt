@@ -151,7 +151,7 @@ fun SettingsScreen(deps: SettingsDeps) {
             ActionKey.RestoreFolder -> pickRestoreFolder.launch(null)
             ActionKey.AutoBackup -> if (autoBackup.folder == null) pickBackupFolder.launch(null) else autoBackupMenu = true
             ActionKey.HomeApp -> deps.openHomeSettings()
-            ActionKey.HiddenApps -> if (settings.drawer.hidden.isEmpty()) message = "全アプリ一覧でアプリを長押しし、「非表示」を選ぶと、ここに表示されます" else hiddenMenu = true
+            ActionKey.HiddenApps -> if (settings.drawer.hidden.isEmpty()) message = "アプリドロワーでアプリを長押しし、「非表示」を選ぶと、ここに表示されます" else hiddenMenu = true
             ActionKey.MissingApps -> missingMenu = true
         }
     }

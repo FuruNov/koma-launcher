@@ -193,7 +193,7 @@ fun settingsSections(): List<SettingSection> = listOf(
         ),
     ),
     SettingSection(
-        "全アプリ一覧",
+        "アプリドロワー",
         listOf(
             SettingRow.Stepper("列数", 3..6, get = { it.drawer.columns }) { s, v -> s.copy(drawer = s.drawer.copy(columns = v)) },
             // サブタイトルは画面側が非表示のアプリの数で書き換える。全アプリ一覧でアプリを長押しして「非表示」を選ぶと増える
@@ -226,7 +226,7 @@ fun actionLabel(
     appLabel: (LauncherAction.LaunchApp) -> String = { it.app.packageName },
 ): String = when (a) {
     LauncherAction.None -> "なし"
-    LauncherAction.OpenDrawer -> "全アプリ一覧"
+    LauncherAction.OpenDrawer -> "アプリドロワー"
     LauncherAction.ExpandNotifications -> "通知センター"
     LauncherAction.ExpandQuickSettings -> "クイック設定"
     LauncherAction.OpenHomeMenu -> "ホームのメニュー"

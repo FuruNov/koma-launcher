@@ -121,7 +121,7 @@ class PinShortcutActivity : ComponentActivity() {
                         onSelect = { selectedId = it.value },
                         modifier = Modifier.heightIn(max = 360.dp).align(Alignment.CenterHorizontally),
                     )
-                    BasicText("コマを選ばないと、アプリの一覧にだけ追加します", style = TextStyle(color = Color(0xFF9A9EAB), fontSize = 12.sp))
+                    BasicText("コマを選ばないと、アプリドロワーにだけ追加します", style = TextStyle(color = Color(0xFF9A9EAB), fontSize = 12.sp))
                     if (duplicates.isNotEmpty()) {
                         BasicText("同じ名前の「$label」は追加済みです。追加すると、追加済みのものと置き換えます", style = TextStyle(color = Color(0xFFFFE082), fontSize = 12.sp))
                     }

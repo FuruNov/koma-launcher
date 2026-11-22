@@ -412,7 +412,7 @@ internal val LABEL_WIDTH = 84.dp
 internal fun kindLabel(c: PanelContent): String = when (c) {
     is PanelContent.Folder -> "フォルダ"
     PanelContent.Widget -> "ウィジェット"
-    PanelContent.Drawer -> "全アプリ一覧"
+    PanelContent.Drawer -> "アプリドロワー"
 }
 
 /** 画面の縮小図と、その上の指の操作。 */
