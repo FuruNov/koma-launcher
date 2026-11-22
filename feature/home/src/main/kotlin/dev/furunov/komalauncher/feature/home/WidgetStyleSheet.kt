@@ -119,7 +119,7 @@ internal fun WidgetStyleSheet(
                     )
                 }
             }
-            StyleRow("書体") {
+            StyleRow("フォント") {
                 WidgetFonts.ALL.forEach { id ->
                     val sample = if (kind == BuiltinWidget.CLOCK) "12:34" else "Aa"
                     StyleChip(selected = id == font, onClick = { onChange(s.copy(font = id)) }) {
@@ -155,7 +155,7 @@ internal fun WidgetStyleSheet(
             SwitchRow(if (kind == BuiltinWidget.CLOCK) "影" else "縁と影", s.shadow) { onChange(s.copy(shadow = !s.shadow)) }
             if (s != WidgetStyle(text = s.text)) {
                 BasicText(
-                    "既定に戻す",
+                    "デフォルトに戻す",
                     style = TextStyle(color = Color(0xFFFFD54F), fontSize = 14.sp),
                     modifier = Modifier.clickable { onChange(WidgetStyle(text = s.text)) }.padding(vertical = 12.dp),
                 )

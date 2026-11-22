@@ -211,7 +211,7 @@ fun SettingsScreen(deps: SettingsDeps) {
                                         } else if (row.key == ActionKey.HiddenApps) {
                                             if (settings.drawer.hidden.isEmpty()) "なし" else "${settings.drawer.hidden.size} 個・選ぶと再表示"
                                         } else if (row.key == ActionKey.MissingApps) {
-                                            deps.missingApps().size.let { if (it == 0) "なし" else "$it 個・機種変更の後に入れ直す" }
+                                            deps.missingApps().size.let { if (it == 0) "なし" else "$it 個・機種変更後に再インストール" }
                                         } else {
                                             row.subtitle
                                         }

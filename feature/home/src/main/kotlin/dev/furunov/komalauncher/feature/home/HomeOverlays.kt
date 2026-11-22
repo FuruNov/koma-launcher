@@ -362,7 +362,7 @@ internal fun LinkPanelSheet(
     Sheet(onDismiss = { onEvent(HomeEvent.Dismiss) }) {
         BasicText("ドロワーと同期", style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp))
         BasicText(
-            "選んだフォルダと同じ中身を表示します。このコマで入れる・外す・並べ替えると、ドロワーのフォルダにも反映します",
+            "選んだフォルダと同じ中身を表示します。このコマでの追加・削除・並べ替えは、ドロワーのフォルダにも反映します",
             style = TextStyle(color = Color(0xFF9A9EAB), fontSize = 12.sp),
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )

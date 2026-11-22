@@ -249,7 +249,7 @@ internal fun AdjustOverlay(
             }
         }
         BasicText(
-            "ドラッグで移動、2 本指でつまんで拡大縮小、ダブルタップで自動に戻す。触ったものの重ね順を、上のボタンで変える。ウィジェットは右下の丸で幅と高さを変える",
+            "ドラッグで移動、ピンチで拡大・縮小、ダブルタップで自動に戻す。選んだものの重ね順は上のボタン、ウィジェットの幅と高さは右下の丸で変更",
             style = TextStyle(color = Color.White, fontSize = 12.sp),
             modifier = Modifier.padding(top = 6.dp).background(Color(0x991E1E24), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
         )

@@ -46,9 +46,9 @@ internal fun MissingAppsScreen(
         Column(Modifier.fillMaxSize().safeDrawingPadding()) {
             Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    BasicText("入っていないアプリ", style = TextStyle(color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold))
+                    BasicText("未インストールのアプリ", style = TextStyle(color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold))
                     BasicText(
-                        if (missing.isEmpty()) "登録してあるアプリは全て入っています" else "押すと Play ストアで入れられます。入れると前のフォルダに戻ります",
+                        if (missing.isEmpty()) "登録したアプリはすべてインストール済み" else "タップすると Play ストアを開きます。インストールすると元のフォルダに戻ります",
                         style = TextStyle(color = Color(0xFF9A9AA2), fontSize = 13.sp),
                     )
                 }

@@ -178,7 +178,7 @@ fun EditorScreen(
                         when {
                             tree == null -> Hint("旧形式のレイアウトは「全体」のテンプレートを選ぶと編集できます")
 
-                            selectedPanel == null -> Hint("縮小図のコマをタップして選択してください")
+                            selectedPanel == null -> Hint("プレビューのコマをタップして選択してください")
 
                             else -> PanelControls(vm, state, tree, selectedPanel, folderDeps, folders, onPickImage = {
                                 picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -230,7 +230,7 @@ private fun PanelControls(
         }
     }
     if (panel.iconAt != null || panel.iconScale != 1f) {
-        ChipRow("アイコン") { Chip("位置と大きさを自動に戻す") { vm.resetIcons(panel.id) } }
+        ChipRow("アイコン") { Chip("位置とサイズを自動に戻す") { vm.resetIcons(panel.id) } }
     }
     val folderName = folders.byPanel[panel.id.value]?.name
     NameFields(vm, panel, folderName, state.restored, onClearFolderName = { folderDeps.store.update { FolderEdits.rename(it, panel.id.value, null) } })
@@ -373,7 +373,7 @@ private fun DepthControls(
         record: Boolean = true,
         transform: (DepthSpec) -> DepthSpec,
     ) = vm.setTree(record) { it.copy(depth = transform(it.depth)) }
-    Hint("立体感: 人物の切り抜きがある絵にだけ掛かります")
+    Hint("立体感: 人物の切り抜きがある絵にだけ適用します")
     ToggleRow("人物の影", d.shadow.enabled) { v -> set { it.copy(shadow = it.shadow.copy(enabled = v)) } }
     if (d.shadow.enabled) {
         SliderRow("濃さ", d.shadow.alpha * 100f, 0f..100f, step = 5f, mark = 55f) { v -> set(false) { it.copy(shadow = it.shadow.copy(alpha = v / 100f)) } }
@@ -803,7 +803,7 @@ private fun TextControls(
     }
     // フォルダのコマに先頭のアプリのアイコンを置くか（どのコマに何のアプリがあるか分かるように）
     ToggleRow("アイコン", text.icon) { v -> vm.setTree { it.copy(text = it.text.copy(icon = v)) } }
-    Hint("時計と大見出しは、ホームの余白の長押しの「ウィジェットを追加」で「Koma Launcher」から置きます。名前とアイコンの位置と大きさは、ホームの「配置を調整」で変えられます")
+    Hint("時計と大見出しは、ホームの余白の長押しの「ウィジェットを追加」で「Koma Launcher」から追加します。名前とアイコンの位置とサイズは、ホームの「配置を調整」で変えられます")
     ToggleRow("視差", tree.fx.parallax) { v -> vm.setTree { it.copy(fx = it.fx.copy(parallax = v)) } }
     if (tree.fx.parallax) {
         SliderRow("強さ", tree.fx.strength * 100f, 10f..200f, step = 10f, mark = 40f) { v -> vm.setTree(record = false) { it.copy(fx = it.fx.copy(strength = v / 100f)) } }

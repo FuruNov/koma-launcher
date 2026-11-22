@@ -56,7 +56,7 @@ fun FreeWidget(
     if (ref == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             // 明るい絵の上でも暗い絵の上でも読める中間の灰色
-            BasicText("長押しの「変更」で置き直す", style = TextStyle(color = Color(0xFF8A8D96), fontSize = 13.sp))
+            BasicText("長押しの「変更」で再設定", style = TextStyle(color = Color(0xFF8A8D96), fontSize = 13.sp))
         }
         return
     }

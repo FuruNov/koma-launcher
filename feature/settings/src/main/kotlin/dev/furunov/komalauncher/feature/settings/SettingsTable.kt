@@ -98,7 +98,7 @@ fun settingsSections(): List<SettingSection> = listOf(
             SettingRow.Stepper("フォルダの列数", 2..6, get = { it.appearance.folderColumns }) { s, v ->
                 s.copy(appearance = s.appearance.copy(folderColumns = v))
             },
-            SettingRow.Stepper("アイコンの大きさ", 36..72, step = 4, unit = "dp", get = { it.appearance.iconSizeDp }) { s, v ->
+            SettingRow.Stepper("アイコンのサイズ", 36..72, step = 4, unit = "dp", get = { it.appearance.iconSizeDp }) { s, v ->
                 s.copy(appearance = s.appearance.copy(iconSizeDp = v))
             },
             SettingRow.Toggle("アプリ名を表示", { it.appearance.showLabels }) { s, v ->
@@ -137,7 +137,7 @@ fun settingsSections(): List<SettingSection> = listOf(
             ) { s, v -> s.copy(appearance = s.appearance.copy(iconShape = IconShape.valueOf(v))) },
             SettingRow.Choice(
                 "アイコンの縁",
-                listOf(Option(IconRim.NONE.name, "なし"), Option(IconRim.INK.name, "墨の線"), Option(IconRim.STICKER.name, "白フチ")),
+                listOf(Option(IconRim.NONE.name, "なし"), Option(IconRim.INK.name, "黒フチ"), Option(IconRim.STICKER.name, "白フチ")),
                 get = { it.appearance.iconRim.name },
             ) { s, v -> s.copy(appearance = s.appearance.copy(iconRim = IconRim.valueOf(v))) },
             SettingRow.Stepper(
@@ -199,7 +199,7 @@ fun settingsSections(): List<SettingSection> = listOf(
             // サブタイトルは画面側が非表示のアプリの数で書き換える。全アプリ一覧でアプリを長押しして「非表示」を選ぶと増える
             SettingRow.Action("非表示のアプリ", "", ActionKey.HiddenApps),
             // サブタイトルは画面側が数で書き換える
-            SettingRow.Action("入っていないアプリ", "", ActionKey.MissingApps),
+            SettingRow.Action("未インストールのアプリ", "", ActionKey.MissingApps),
         ),
     ),
     SettingSection(
@@ -207,7 +207,7 @@ fun settingsSections(): List<SettingSection> = listOf(
         listOf(
             SettingRow.Action("自動バックアップ", "", ActionKey.AutoBackup),
             SettingRow.Action("フォルダから復元", "設定・コマ割り・画像・切り抜きを読み込み", ActionKey.RestoreFolder),
-            SettingRow.Action("既定のホームアプリ", "Android の設定を開く", ActionKey.HomeApp),
+            SettingRow.Action("デフォルトのホームアプリ", "Android の設定を開く", ActionKey.HomeApp),
         ),
     ),
 )

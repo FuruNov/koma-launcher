@@ -166,7 +166,7 @@ internal fun FolderMenu(
             FolderSymbol(folder.symbol, Color.White, 28.dp)
             BasicText(folder.name, style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold))
         }
-        listOf("名前を変更" to onRename, "記号を変更" to onChangeSymbol).forEach { (text, onClick) ->
+        listOf("名前を変更" to onRename, "アイコンを変更" to onChangeSymbol).forEach { (text, onClick) ->
             BasicText(
                 text,
                 style = TextStyle(color = Color.White, fontSize = 15.sp),
@@ -184,7 +184,7 @@ internal fun SymbolPicker(
     onDismiss: () -> Unit,
 ) {
     MenuSheet(onDismiss) {
-        BasicText("記号を変更", style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(16.dp))
+        BasicText("アイコンを変更", style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(16.dp))
         LazyVerticalGrid(GridCells.Fixed(5), Modifier.width(280.dp).padding(horizontal = 8.dp, vertical = 4.dp)) {
             items(DrawerFolders.symbols) { s ->
                 Box(
