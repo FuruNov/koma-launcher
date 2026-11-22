@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -79,6 +80,7 @@ import dev.furunov.komalauncher.ui.dnd.LocalDragDrop
 import dev.furunov.komalauncher.ui.dnd.draggableApp
 import dev.furunov.komalauncher.ui.icons.AppIcon
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 /** 全アプリ一覧の操作の受け手。ホームとのやり取りは :app がつなぐ。 */
 class DrawerActions(
@@ -96,6 +98,8 @@ class DrawerActions(
     val onReorderApps: (String, List<AppKey>) -> Unit = { _, _ -> },
     /** 左端の列でフォルダを動かして離したとき。全てのフォルダの id の新しい順。 */
     val onReorderFolders: (List<String>) -> Unit = {},
+    /** フォルダの中のアイコンを左端の列のフォルダまで運んで離したとき。アプリと、移す先のフォルダの id。 */
+    val onMoveToFolder: (AppKey, String) -> Unit = { _, _ -> },
 )
 
 /** 検索で表示するショートカットの最大の件数。 */
@@ -165,6 +169,20 @@ fun DrawerScreen(
     val grid = rememberLazyGridState()
     val rail = rememberLazyListState()
     var gridOrigin by remember { mutableStateOf(Offset.Zero) }
+    var railOrigin by remember { mutableStateOf(Offset.Zero) }
+    // 左端の列へ運んでいるアプリと、指の位置（画面の座標）。運んでいる間はアイコンを指の位置に描く
+    var carrying by remember { mutableStateOf<Pair<AppKey, Offset>?>(null) }
+    // 運んでいるアプリを離すと入るフォルダ（指の下の左端の列のフォルダ）
+    var dropTarget by remember { mutableStateOf<String?>(null) }
+    val edgePx = with(LocalDensity.current) { 64.dp.toPx() }
+    val iconHalfPx = with(LocalDensity.current) { 28.dp.toPx() }
+
+    /** 画面の座標 [p] の下にある、左端の列のフォルダの id。今開いているフォルダと「すべて」は除く。 */
+    fun railFolderAt(p: Offset): String? {
+        val y = (p.y - railOrigin.y).toInt()
+        val item = rail.layoutInfo.visibleItemsInfo.firstOrNull { y in it.offset until it.offset + it.size && it.index > 0 } ?: return null
+        return shownFolders.getOrNull(item.index - 1)?.id?.takeIf { it != tab }
+    }
     val dnd = LocalDragDrop.current
     val slide = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
@@ -248,10 +266,11 @@ fun DrawerScreen(
                         shownFolders,
                         folder?.id,
                         dragKey = dragKey,
+                        dropTarget = dropTarget,
                         state = rail,
                         onSelect = { tab = it },
                         modifier =
-                        Modifier.reorderable(
+                        Modifier.onGloballyPositioned { railOrigin = it.positionInRoot() }.reorderable(
                             folders,
                             ReorderHandler(
                                 // 先頭の「すべて」は動かさないので、フォルダの位置は項目の番号から 1 を引く
@@ -304,16 +323,53 @@ fun DrawerScreen(
                                             dragKey = null
                                         },
                                         onRelease = { key -> folder.apps.firstOrNull { it.key.id() == key }?.let { actions.onShowAppMenu(it.key) } },
-                                        // 一覧の外まで運んだら、並べ替えをやめて、ホームのコマへ運ぶ操作に切り替える
+                                        // 一覧の外まで運んだら、並べ替えをやめる。
+                                        // 左（左端の列）へ出たら、別のフォルダへ移す操作にする。上へ出たら、ホームのコマへ運ぶ操作に切り替える
                                         onLeave = { key, at ->
                                             val app = folder.apps.firstOrNull { it.key.id() == key }
                                             draggingApps = null
                                             dragKey = null
-                                            app?.let { dnd.start(DragItem(it.key, DragSource.Drawer), gridOrigin + at) }
+                                            val p = gridOrigin + at
+                                            when {
+                                                app == null -> {}
+
+                                                at.x < 0 -> {
+                                                    carrying = app.key to p
+                                                    dropTarget = railFolderAt(p)
+                                                }
+
+                                                else -> dnd.start(DragItem(app.key, DragSource.Drawer), p)
+                                            }
                                             app != null
                                         },
-                                        onHandoffMove = { dnd.move(it) },
-                                        onHandoffEnd = { dnd.end() },
+                                        onHandoffMove = { delta ->
+                                            val c = carrying
+                                            if (c == null) {
+                                                dnd.move(delta)
+                                            } else {
+                                                val p = c.second + delta
+                                                carrying = c.first to p
+                                                dropTarget = railFolderAt(p)
+                                                // 列の上下の端に指があれば、隠れているフォルダが見えるよう列をスクロールする
+                                                val top = railOrigin.y
+                                                val bottom = top + rail.layoutInfo.viewportSize.height
+                                                if (p.y < top + edgePx) {
+                                                    rail.dispatchRawDelta(-edgePx / 8)
+                                                } else if (p.y > bottom - edgePx) {
+                                                    rail.dispatchRawDelta(edgePx / 8)
+                                                }
+                                            }
+                                        },
+                                        onHandoffEnd = {
+                                            val c = carrying
+                                            if (c == null) {
+                                                dnd.end()
+                                            } else {
+                                                dropTarget?.let { actions.onMoveToFolder(c.first, it) }
+                                                carrying = null
+                                                dropTarget = null
+                                            }
+                                        },
                                         // 一覧の上下の端まで運んだら、続きが見えるようにスクロールする
                                         onEdge = { dy -> grid.dispatchRawDelta(dy) },
                                     ),
@@ -368,6 +424,15 @@ fun DrawerScreen(
                     onDismiss = { folderMenu = null },
                 )
             }
+        }
+        carrying?.let { (app, p) ->
+            AppIcon(
+                app,
+                56.dp,
+                Modifier
+                    .offset { IntOffset((p.x - iconHalfPx).roundToInt(), (p.y - iconHalfPx * 2).roundToInt()) }
+                    .graphicsLayer { alpha = 0.9f },
+            )
         }
         symbolPicker?.let { id ->
             SymbolPicker(

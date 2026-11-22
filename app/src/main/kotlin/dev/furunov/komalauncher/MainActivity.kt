@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
                                     onReorderFolders = { ids -> container.settingsStore.update { it.copy(drawer = DrawerFolders.reorderTabs(it.drawer, ids)) } },
                                     onSetFolderSymbol = { id, symbol -> container.settingsStore.update { it.copy(drawer = DrawerFolders.setSymbol(it.drawer, id, symbol)) } },
                                     onShowAppMenu = { home.onEvent(HomeEvent.ShowAppMenu(it, fromPanel = null, fromDrawer = true)) },
+                                    onMoveToFolder = { app, id -> home.onEvent(HomeEvent.MoveToDrawerFolder(app, id)) },
                                     onOpenSettings = {
                                         home.onEvent(HomeEvent.Dismiss)
                                         container.actions.perform(LauncherAction.OpenSettings)

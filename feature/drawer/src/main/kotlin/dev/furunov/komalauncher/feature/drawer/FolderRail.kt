@@ -1,13 +1,16 @@
 package dev.furunov.komalauncher.feature.drawer
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,6 +30,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.furunov.komalauncher.model.apps.DrawerFolder
@@ -35,8 +39,14 @@ import dev.furunov.komalauncher.model.apps.DrawerFolders
 private val Selected = Color(0xFF44444E)
 private val Dim = Color(0xFFAAAAAA)
 
+/** 左端の列の項目の高さの範囲。全ての項目が列の高さに収まるよう、この範囲で詰める。 */
+private val MinItemHeight = 34.dp
+private val MaxItemHeight = 56.dp
+
 /**
  * 一覧の左端の縦の列。先頭の「すべて」（[selected] が null）の後に、中身のあるフォルダを記号と名前で並べる。
+ * 項目の高さは、全ての項目が列に収まるように [MinItemHeight]〜[MaxItemHeight] で決める。
+ * 最も詰めても収まらないときだけスクロールする（記号と名前を 56dp ずつで並べると 16 個のフォルダが画面に収まらず、40dp でも 18 個では最後の 1 個が切れた。POCO X7 Pro）。
  * 長押しの並べ替えとメニューは [modifier] の [reorderable] が受ける。
  */
 @Composable
@@ -44,19 +54,24 @@ internal fun FolderRail(
     folders: List<DrawerFolder>,
     selected: String?,
     dragKey: Any?,
+    /** 運んでいるアプリを離すと入るフォルダの id。枠で強調する。 */
+    dropTarget: String?,
     state: LazyListState,
     onSelect: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(
-        state = state,
-        contentPadding = PaddingValues(vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-        modifier = modifier.width(68.dp).fillMaxHeight(),
-    ) {
-        item(key = "all") { RailItem(ALL_SYMBOL, "すべて", selected == null, Modifier.clickable { onSelect(null) }) }
-        items(folders, key = { it.id }) { f ->
-            RailItem(f.symbol, f.name, f.id == selected, Modifier.animateItem().lifted(f.id == dragKey).clickable { onSelect(f.id) })
+    BoxWithConstraints(modifier.width(68.dp).fillMaxHeight()) {
+        val count = folders.size + 1
+        val itemHeight = ((maxHeight - 8.dp) / count).coerceIn(MinItemHeight, MaxItemHeight)
+        LazyColumn(
+            state = state,
+            contentPadding = PaddingValues(vertical = 4.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            item(key = "all") { RailItem(ALL_SYMBOL, "すべて", selected == null, itemHeight, Modifier.clickable { onSelect(null) }) }
+            items(folders, key = { it.id }) { f ->
+                RailItem(f.symbol, f.name, f.id == selected, itemHeight, Modifier.animateItem().lifted(f.id == dragKey || f.id == dropTarget).clickable { onSelect(f.id) }, target = f.id == dropTarget)
+            }
         }
     }
 }
@@ -66,24 +81,30 @@ private fun RailItem(
     symbol: String,
     name: String,
     selected: Boolean,
+    height: Dp,
     modifier: Modifier,
+    /** true なら、運んでいるアプリの入る先として枠を付ける。 */
+    target: Boolean = false,
 ) {
+    // 高さが詰まったら、記号の台を低くする（名前の行の高さは変えない）
+    val box = (height - 14.dp).coerceIn(20.dp, 32.dp)
     Column(
-        modifier.padding(horizontal = 4.dp, vertical = 3.dp),
+        modifier.height(height).padding(horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
         Box(
             Modifier
-                .size(width = 48.dp, height = 32.dp)
-                .background(if (selected) Selected else Color.Transparent, RoundedCornerShape(16.dp)),
+                .size(width = 48.dp, height = box)
+                .background(if (selected) Selected else Color.Transparent, RoundedCornerShape(box / 2))
+                .then(if (target) Modifier.border(2.dp, Color(0xFFFFD54F), RoundedCornerShape(box / 2)) else Modifier),
             contentAlignment = Alignment.Center,
-        ) { FolderSymbol(symbol, if (selected) Color.White else Dim, 22.dp) }
+        ) { FolderSymbol(symbol, if (selected) Color.White else Dim, (box - 6.dp).coerceAtMost(22.dp)) }
         BasicText(
             name,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            style = TextStyle(color = if (selected) Color.White else Dim, fontSize = 10.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, textAlign = TextAlign.Center),
-            modifier = Modifier.padding(top = 2.dp),
+            style = TextStyle(color = if (selected) Color.White else Dim, fontSize = 9.sp, lineHeight = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, textAlign = TextAlign.Center),
         )
     }
 }

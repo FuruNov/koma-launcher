@@ -210,6 +210,20 @@ private class SymbolPen(
                 line(2.5f, 12.5f, 21.5f, 12.5f)
             }
 
+            "spark" -> {
+                // AI のアプリのきらめき: 大きい 4 方向の星と、右上の小さい星
+                val path = Path()
+                path.moveTo(10f * u, 3f * u)
+                path.quadraticTo(11f * u, 12f * u, 18f * u, 13f * u)
+                path.quadraticTo(11f * u, 14f * u, 10f * u, 22f * u)
+                path.quadraticTo(9f * u, 14f * u, 2f * u, 13f * u)
+                path.quadraticTo(9f * u, 12f * u, 10f * u, 3f * u)
+                path.close()
+                scope.drawPath(path, color, style = stroke)
+                line(18.5f, 2.5f, 18.5f, 7.5f)
+                line(16f, 5f, 21f, 5f)
+            }
+
             "tool" -> {
                 // スパナ: 柄と、先端の開いた輪
                 line(5f, 19f, 13.5f, 10.5f)
