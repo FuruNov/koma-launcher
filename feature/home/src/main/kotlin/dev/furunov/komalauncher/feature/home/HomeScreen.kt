@@ -18,6 +18,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -73,9 +74,11 @@ import dev.furunov.komalauncher.model.layout.Part
 import dev.furunov.komalauncher.model.layout.PartEdits
 import dev.furunov.komalauncher.model.layout.ResolvedPanel
 import dev.furunov.komalauncher.model.layout.Tilt
+import dev.furunov.komalauncher.model.layout.WidgetSpec
 import dev.furunov.komalauncher.model.ports.TiltSource
 import dev.furunov.komalauncher.model.settings.GestureKind
 import dev.furunov.komalauncher.model.settings.LauncherAction
+import dev.furunov.komalauncher.model.widgets.WidgetPlacement
 import dev.furunov.komalauncher.ui.art.BlankPage
 import dev.furunov.komalauncher.ui.art.DepthArtPainter
 import dev.furunov.komalauncher.ui.art.DepthLayerConfig
@@ -89,6 +92,7 @@ import dev.furunov.komalauncher.ui.art.depthPersonShift
 import dev.furunov.komalauncher.ui.art.depthRequests
 import dev.furunov.komalauncher.ui.art.drawHaze
 import dev.furunov.komalauncher.ui.art.drawPanelTexts
+import dev.furunov.komalauncher.ui.art.drawPersonImage
 import dev.furunov.komalauncher.ui.art.localPlacement
 import dev.furunov.komalauncher.ui.art.rememberArts
 import dev.furunov.komalauncher.ui.art.rememberBlurredArts
@@ -113,6 +117,8 @@ import kotlin.math.roundToInt
 class HomeSlots(
     /** ウィジェットのコマの中身。[PanelGeometry.inscribed] の位置に置く。 */
     val widget: @Composable (PanelGeometry) -> Unit = {},
+    /** 自由に置くウィジェットの中身。引数はウィジェットと、置く大きさ（dp）。 */
+    val freeWidget: @Composable (WidgetSpec, Float, Float) -> Unit = { _, _, _ -> },
     /** フォルダ以外の重ねる画面（ホームのメニューなど）。 */
     val overlay: @Composable (Overlay) -> Unit = {},
     /** 全アプリ一覧。開く瞬間に一から作らないよう、閉じている間も作っておく。引数は開いているか。 */
@@ -298,6 +304,8 @@ fun HomeScreen(
                         onEvent(if (onPart) HomeEvent.Adjust(true) else HomeEvent.OpenOverlay(Overlay.PanelMenu(panel.panel.id)))
                     }
 
+                    override fun onWidgetLongPress(widget: WidgetGeometry) = onEvent(HomeEvent.OpenOverlay(Overlay.WidgetMenu(widget.spec.id)))
+
                     override fun onPanelSwipe(panel: PanelGeometry, toLeft: Boolean) {
                         if (currentState.value.player?.panelId == panel.panel.id) {
                             flash = PlayerFlashEvent(if (toLeft) PlayerFlash.PREVIOUS else PlayerFlash.NEXT, System.nanoTime())
@@ -384,6 +392,26 @@ fun HomeScreen(
                         }
                     }
                 }
+                // 自由に置くウィジェットは、すべてのコマの上に描く
+                val widgetRects = geometry.widgets.map { it.bounds }
+                for (w in geometry.widgets) {
+                    val r = w.bounds
+                    key(w.spec.id) {
+                        Box(
+                            Modifier
+                                .offset { IntOffset(r.left.roundToInt(), r.top.roundToInt()) }
+                                .size(with(density) { r.width.toDp() }, with(density) { r.height.toDp() }),
+                        ) { slots.freeWidget(w.spec, r.width / density.density, r.height / density.density) }
+                    }
+                }
+                // ウィジェットに重なる人物を、ウィジェットの上に描き直す（ウィジェットが人物の後ろに回って見える）
+                for (g in geometry.panels) {
+                    if (widgetRects.none { it.left < g.bounds.right && g.bounds.left < it.right && it.top < g.bounds.bottom && g.bounds.top < it.bottom } || state.player?.panelId == g.panel.id) continue
+                    val art = g.image?.let(arts::get) ?: continue
+                    val person = g.image.let(masks::get) ?: continue
+                    val personShift = depth3d.first[g.image]?.let { l -> g.face.artSize?.let { s -> depthPersonShift(l, depth3d.second, s.width.toFloat()) } }
+                    PersonOverWidgets(g, motions.getValue(g.panel.id), art, person, widgetRects, { shownTilt.value }, personShift ?: parallax.art)
+                }
                 // 枠の外へはみ出す人物は、どのコマよりも上に描く（隣のコマにかかる分も見せる）。タップの判定はコマの形のまま
                 for (g in geometry.panels) {
                     if (!g.panel.pop || state.player?.panelId == g.panel.id) continue
@@ -445,6 +473,16 @@ fun HomeScreen(
                             linkedName = state.folders.byPanel[g.panel.id.value]?.drawerFolder?.let { DrawerFolders.nameOf(it, state.settings.drawer) },
                         )
                     }
+
+                    is Overlay.WidgetMenu ->
+                        WidgetMenuSheet(
+                            onAdjust = { onEvent(HomeEvent.Adjust(true)) },
+                            onRemove = {
+                                editLayout { WidgetPlacement.remove(it, o.widgetId) }
+                                onEvent(HomeEvent.Dismiss)
+                            },
+                            onEvent = onEvent,
+                        )
 
                     Overlay.MusicAccess -> MusicAccessSheet(onEvent)
 
@@ -785,6 +823,35 @@ private fun PopLayer(
             val artShift = { tilt().let { t -> Offset(t.x * k, t.y * k) } }
             // 枠とすき間に落ちる影は、コマの中より近い（人物と枠の間が狭い）ので、短く薄くする
             PersonLayers(g.face, art, person, maps, depth, artShift, { DepthStyle.lightDirection(tilt()) }, maxOf(parallax.art, kotlin.math.abs(k)), extra = pad, shadowScale = 0.6f, shadowAlpha = 0.8f)
+        }
+    }
+}
+
+/**
+ * ウィジェットに重なる人物（コマの中の分だけ）。ウィジェットと重なる長方形の中だけに描く。
+ * 人物の効果（影・縁取り）は描かず、絵の色と暗さだけを合わせる。
+ */
+@Composable
+private fun PersonOverWidgets(
+    g: PanelGeometry,
+    motion: PanelMotion,
+    art: ImageBitmap,
+    person: PersonMask,
+    /** 画面の座標のウィジェットの長方形。 */
+    widgets: List<Rect>,
+    tilt: () -> Tilt,
+    /** 傾き 1 のときに人物を動かす量（画素）。 */
+    shift: Float,
+) {
+    val b = g.bounds
+    PanelBox(b.left, b.top, b.width, b.height, motion, clipShape = g.shape) {
+        Box(
+            Modifier.fillMaxSize().drawWithContent {
+                val clip = Path().apply { widgets.forEach { addRect(androidx.compose.ui.geometry.Rect(it.left - b.left, it.top - b.top, it.right - b.left, it.bottom - b.top)) } }
+                clipPath(clip) { this@drawWithContent.drawContent() }
+            },
+        ) {
+            TiltLayer({ tilt().let { t -> Offset(t.x * shift, t.y * shift) } }, pad = kotlin.math.abs(shift) + 2f, cache = true) { drawPersonImage(g.face, art, person) }
         }
     }
 }

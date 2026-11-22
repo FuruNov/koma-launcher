@@ -15,6 +15,7 @@ import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutResolver
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.Panel
+import dev.furunov.komalauncher.model.layout.WidgetSpec
 import dev.furunov.komalauncher.ui.art.PanelFace
 import dev.furunov.komalauncher.ui.art.PanelStyle
 import kotlin.math.max
@@ -41,10 +42,21 @@ class PanelGeometry(
     val face = PanelFace(polygon, art, index, style, panel.art?.dim ?: 0f)
 }
 
+/** 自由に置くウィジェットと、画面の座標の長方形。 */
 @Immutable
+class WidgetGeometry(
+    val spec: WidgetSpec,
+    val bounds: Rect,
+)
+
 class HomeGeometry(
     val panels: List<PanelGeometry>,
+    /** 描く順（後のウィジェットが上）。 */
+    val widgets: List<WidgetGeometry> = emptyList(),
 ) {
+    /** 重なっていれば上のウィジェット。 */
+    fun widgetAt(x: Float, y: Float): WidgetGeometry? = widgets.lastOrNull { it.bounds.contains(Point(x, y)) }
+
     /** 画像の id → 読む大きさ（画素）。同じ画像を複数のコマで使うときは、最も大きく描くコマに合わせる。 */
     val artSizes: Map<String, Size> by lazy {
         val sizes = HashMap<String, Size>()
@@ -74,7 +86,8 @@ class HomeGeometry(
                     val image = fixedImage ?: r.panel.art?.image
                     PanelGeometry(r.panel, r.index, poly, b, poly.largestInscribedRect(), PolygonShape(poly, b.left, b.top), image, r.art, style)
                 }
-            return HomeGeometry(panels)
+            val widgets = (layout.shape as? LayoutShape.Tree)?.widgets.orEmpty().map { WidgetGeometry(it, Rect(it.x * width, it.y * height, (it.x + it.w) * width, (it.y + it.h) * height)) }
+            return HomeGeometry(panels, widgets)
         }
     }
 }

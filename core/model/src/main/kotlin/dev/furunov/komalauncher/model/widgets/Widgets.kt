@@ -19,6 +19,7 @@ data class WidgetRef(
 @Serializable
 data class WidgetAssignments(
     val version: Int = 1,
+    /** キーはウィジェットのコマの id か、自由に置くウィジェット（WidgetSpec）の id。保存した設定の互換のため名前は変えない。 */
     val byPanel: Map<String, WidgetRef> = emptyMap(),
 )
 
@@ -30,7 +31,7 @@ interface WidgetStore {
 
 object WidgetEdits {
     /**
-     * layout.json のウィジェットのコマに無い割り当て（コマの id）。
+     * layout.json のウィジェットのコマにも、自由に置くウィジェットにも無い割り当て（id）。
      * 利用者の layout.json を正しく読めたときだけ使うこと。見本に戻っているとき（JSON の誤り）に使うと、
      * 書き損じ 1 つで全部のウィジェットを外してしまうため。
      */
@@ -38,7 +39,7 @@ object WidgetEdits {
         assignments: WidgetAssignments,
         layout: Layout,
     ): Set<String> {
-        val live = layout.panels.filter { it.content is PanelContent.Widget }.map { it.id.value }.toSet()
+        val live = layout.panels.filter { it.content is PanelContent.Widget }.map { it.id.value }.toSet() + WidgetPlacement.widgetsOf(layout).map { it.id }
         return assignments.byPanel.keys - live
     }
 }

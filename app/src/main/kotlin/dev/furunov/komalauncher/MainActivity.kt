@@ -1,6 +1,7 @@
 package dev.furunov.komalauncher
 
 import android.Manifest
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -25,12 +26,16 @@ import dev.furunov.komalauncher.feature.home.HomeSlots
 import dev.furunov.komalauncher.feature.home.HomeViewModel
 import dev.furunov.komalauncher.feature.home.Overlay
 import dev.furunov.komalauncher.feature.home.PanelMenuItem
+import dev.furunov.komalauncher.feature.widgets.PickTarget
+import dev.furunov.komalauncher.feature.widgets.WidgetChoice
 import dev.furunov.komalauncher.feature.widgets.WidgetPanel
 import dev.furunov.komalauncher.feature.widgets.WidgetPicker
 import dev.furunov.komalauncher.model.apps.DrawerFolders
 import dev.furunov.komalauncher.model.folders.FolderEdits
+import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.settings.LauncherAction
+import dev.furunov.komalauncher.model.widgets.WidgetPlacement
 import dev.furunov.komalauncher.ui.apps.AppPicker
 import dev.furunov.komalauncher.ui.icons.LocalIconLoader
 import kotlinx.coroutines.Dispatchers
@@ -92,6 +97,15 @@ class MainActivity : ComponentActivity() {
                                 Overlay.HomeMenu ->
                                     HomeMenu(
                                         onAdjust = { home.onEvent(HomeEvent.Adjust(true)) },
+                                        onAddWidget =
+                                        if (state.layout.shape is LayoutShape.Tree) {
+                                            {
+                                                home.onEvent(HomeEvent.Dismiss)
+                                                container.widgets.pickerFor.value = PickTarget.Free
+                                            }
+                                        } else {
+                                            null
+                                        },
                                         onEditLayout = {
                                             home.onEvent(HomeEvent.Dismiss)
                                             startActivity(Intent(this@MainActivity, EditorActivity::class.java))
@@ -118,6 +132,7 @@ class MainActivity : ComponentActivity() {
                                 else -> Unit
                             }
                         },
+                        freeWidget = { spec, w, h -> WidgetPanel(spec.id, w, h, container.widgets, container.widgetStore) },
                         widget = { g ->
                             WidgetPanel(
                                 panelId = g.panel.id.value,
@@ -133,7 +148,7 @@ class MainActivity : ComponentActivity() {
                                 emptyList()
                             } else {
                                 buildList {
-                                    add(PanelMenuItem("ウィジェットを選択") { container.widgets.pickerFor.value = id })
+                                    add(PanelMenuItem("ウィジェットを選択") { container.widgets.pickerFor.value = PickTarget.Panel(id) })
                                     if (container.widgetStore.assignments.value.byPanel.containsKey(id)) {
                                         add(PanelMenuItem("ウィジェットを削除") { container.widgets.remove(id) })
                                     }
@@ -162,8 +177,28 @@ class MainActivity : ComponentActivity() {
                     media = media,
                     editLayout = container.layoutStore::update,
                 )
-                pickerFor?.let { panelId ->
-                    WidgetPicker(panelId, container.widgets, onDismiss = { container.widgets.pickerFor.value = null })
+                pickerFor?.let { target ->
+                    WidgetPicker(container.widgets, onPick = { activity, c -> placeWidget(activity, target, c) }, onDismiss = { container.widgets.pickerFor.value = null })
+                }
+            }
+        }
+    }
+
+    /** 選んだウィジェットを置く。自由に置くときは、許可と設定が済んでからコマ割りに書く。 */
+    private fun placeWidget(
+        activity: Activity,
+        target: PickTarget,
+        c: WidgetChoice,
+    ) {
+        when (target) {
+            is PickTarget.Panel -> container.widgets.place(activity, target.panelId, c)
+
+            PickTarget.Free -> {
+                val id = WidgetPlacement.newId(container.layoutSource.state.value.layout)
+                val provider = c.info.provider.flattenToString()
+                val m = resources.displayMetrics
+                container.widgets.place(activity, id, c) {
+                    container.layoutStore.update { WidgetPlacement.add(it, WidgetPlacement.initial(it, id, provider, c.widthDp, c.heightDp, m.widthPixels / m.density, m.heightPixels / m.density)) }
                 }
             }
         }

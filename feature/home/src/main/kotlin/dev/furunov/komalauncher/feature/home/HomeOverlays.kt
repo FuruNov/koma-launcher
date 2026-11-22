@@ -366,3 +366,22 @@ internal fun LinkPanelSheet(
         MenuRow(if (o.current == null) "✓ 同期しない" else "同期しない", color = if (o.current == null) Color(0xFFFFD54F) else Color.White) { onEvent(HomeEvent.LinkPanel(o.panelId, null)) }
     }
 }
+
+/** 自由に置くウィジェットの長押しのメニュー。移動と大きさの変更は「配置を調整」で行う。 */
+@Composable
+internal fun WidgetMenuSheet(
+    onAdjust: () -> Unit,
+    onRemove: () -> Unit,
+    onEvent: (HomeEvent) -> Unit,
+) {
+    BackHandler { onEvent(HomeEvent.Dismiss) }
+    Sheet(onDismiss = { onEvent(HomeEvent.Dismiss) }) {
+        BasicText(
+            "ウィジェット",
+            style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold),
+            modifier = Modifier.padding(16.dp),
+        )
+        MenuRow("配置を調整", onClick = onAdjust)
+        MenuRow("削除", onClick = onRemove)
+    }
+}

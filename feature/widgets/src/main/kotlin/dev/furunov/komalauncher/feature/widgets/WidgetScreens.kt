@@ -70,8 +70,8 @@ fun WidgetPanel(
 /** ウィジェットの選択画面。アプリごとに並べる。 */
 @Composable
 fun WidgetPicker(
-    panelId: String,
     controller: WidgetHostController,
+    onPick: (Activity, WidgetChoice) -> Unit,
     onDismiss: () -> Unit,
 ) {
     BackHandler(onBack = onDismiss)
@@ -89,7 +89,7 @@ fun WidgetPicker(
                     Column(
                         Modifier
                             .fillMaxWidth()
-                            .clickable { activity?.let { controller.place(it, panelId, c) } }
+                            .clickable { activity?.let { onPick(it, c) } }
                             .padding(horizontal = 20.dp, vertical = 12.dp),
                     ) {
                         BasicText(c.label, style = TextStyle(color = Color.White, fontSize = 16.sp))

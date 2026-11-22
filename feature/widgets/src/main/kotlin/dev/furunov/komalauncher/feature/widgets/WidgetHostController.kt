@@ -20,7 +20,20 @@ class WidgetChoice(
     val info: AppWidgetProviderInfo,
     val label: String,
     val appLabel: String,
+    /** ウィジェットが求める最小の大きさ（dp）。自由に置くときの最初の大きさに使う。 */
+    val widthDp: Float,
+    val heightDp: Float,
 )
+
+/** 選択画面で選んだウィジェットを置く先。 */
+sealed interface PickTarget {
+    data class Panel(
+        val panelId: String,
+    ) : PickTarget
+
+    /** コマから独立して置く。 */
+    data object Free : PickTarget
+}
 
 /**
  * ウィジェットの確保・bind・設定・表示をまとめる。
@@ -40,13 +53,15 @@ class WidgetHostController(
     /** bind や configure の結果を待っているコマ。 */
     private var pending: Pending? = null
 
-    /** ウィジェットの選択画面を出しているコマ（null なら出していない）。 */
-    val pickerFor = mutableStateOf<String?>(null)
+    /** ウィジェットの選択画面で選んだものを置く先（null なら選択画面を出していない）。 */
+    val pickerFor = mutableStateOf<PickTarget?>(null)
 
     private class Pending(
         val panelId: String,
         val appWidgetId: Int,
         val info: AppWidgetProviderInfo,
+        /** 置き終えたときに呼ぶ（自由に置くウィジェットなら、ここでコマ割りに書く）。 */
+        val onPlaced: () -> Unit = {},
     )
 
     /** Activity の onStart / onStop から呼ぶ。止めている間はウィジェットの更新を受けない。 */
@@ -61,7 +76,8 @@ class WidgetHostController(
                 val appLabel =
                     runCatching { pm.getApplicationLabel(pm.getApplicationInfo(info.provider.packageName, 0)).toString() }
                         .getOrDefault(info.provider.packageName)
-                WidgetChoice(info, info.loadLabel(pm), appLabel)
+                val d = context.resources.displayMetrics.density
+                WidgetChoice(info, info.loadLabel(pm), appLabel, info.minWidth / d, info.minHeight / d)
             }.sortedWith(compareBy({ it.appLabel }, { it.label }))
     }
 
@@ -80,15 +96,19 @@ class WidgetHostController(
         views[appWidgetId]?.updateAppWidgetSize(Bundle(), listOf(SizeF(widthDp, heightDp)))
     }
 
-    /** 選んだウィジェットを [panelId] に置く。許可や設定の画面が要れば Activity から開く。 */
+    /**
+     * 選んだウィジェットを [panelId]（コマか、自由に置くウィジェットの id）に置く。許可や設定の画面が要れば Activity から開く。
+     * 許可や設定を取り消したときは [onPlaced] を呼ばない。
+     */
     fun place(
         activity: Activity,
         panelId: String,
         choice: WidgetChoice,
+        onPlaced: () -> Unit = {},
     ) {
         pickerFor.value = null
         val id = host.allocateAppWidgetId()
-        val p = Pending(panelId, id, choice.info)
+        val p = Pending(panelId, id, choice.info, onPlaced)
         pending = p
         if (manager.bindAppWidgetIdIfAllowed(id, choice.info.provider)) {
             configureOrFinish(activity, p)
@@ -155,6 +175,7 @@ class WidgetHostController(
             views.remove(it.appWidgetId)
         }
         store.update { it.copy(byPanel = it.byPanel + (p.panelId to WidgetRef(p.appWidgetId, p.info.provider.flattenToString()))) }
+        p.onPlaced()
     }
 
     private fun abandon(p: Pending) {

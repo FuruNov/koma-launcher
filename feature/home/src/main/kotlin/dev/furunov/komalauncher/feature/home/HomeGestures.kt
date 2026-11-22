@@ -22,6 +22,9 @@ interface HomeGestureHandler {
 
     fun onPanelLongPress(panel: PanelGeometry, position: Offset)
 
+    /** 自由に置くウィジェットの長押し。 */
+    fun onWidgetLongPress(widget: WidgetGeometry) = Unit
+
     /** コマの上の左右のスワイプ。[toLeft] が true なら左へ払った。 */
     fun onPanelSwipe(panel: PanelGeometry, toLeft: Boolean)
 
@@ -52,13 +55,17 @@ fun Modifier.homeGestures(
         val down = awaitFirstDown(requireUnconsumed = false)
         if (!enabled.value) return@awaitEachGesture
         val geo = geometry.value ?: return@awaitEachGesture
-        val panel = geo.panelAt(down.position.x, down.position.y)
+        // ウィジェットの上のタップはウィジェットのビューが受けるので、下のコマのタップにしない
+        val widget = geo.widgetAt(down.position.x, down.position.y)
+        val panel = if (widget != null) null else geo.panelAt(down.position.x, down.position.y)
         panel?.let(handler::onPanelPress)
 
         val outcome = trackGesture(down.position, viewConfiguration.touchSlop, swipeDistance, viewConfiguration.longPressTimeoutMillis, handler::onSwipeUpStart)
         when (outcome) {
             is Outcome.Tap -> {
-                if (panel != null) {
+                if (widget != null) {
+                    // ウィジェットのビューが受ける
+                } else if (panel != null) {
                     handler.onPanelRelease(panel, tapped = true, down.position)
                 } else {
                     val now = down.uptimeMillis
@@ -74,7 +81,9 @@ fun Modifier.homeGestures(
             }
 
             is Outcome.LongPress -> {
-                if (panel != null) {
+                if (widget != null) {
+                    handler.onWidgetLongPress(widget)
+                } else if (panel != null) {
                     handler.onPanelRelease(panel, tapped = false, down.position)
                     handler.onPanelLongPress(panel, down.position)
                 } else {

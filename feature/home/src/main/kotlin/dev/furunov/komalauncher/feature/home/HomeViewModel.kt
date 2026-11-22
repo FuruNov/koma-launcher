@@ -63,6 +63,11 @@ sealed interface Overlay {
 
     data object HomeMenu : Overlay
 
+    /** 自由に置くウィジェットの長押しのメニュー。 */
+    data class WidgetMenu(
+        val widgetId: String,
+    ) : Overlay
+
     /** アイコンの長押しのメニュー。[fromPanel] はフォルダから開いたときのコマ（一覧からなら null）。 */
     data class PanelMenu(
         val panelId: PanelId,
