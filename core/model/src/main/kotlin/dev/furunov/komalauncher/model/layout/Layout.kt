@@ -18,9 +18,6 @@ sealed interface PanelContent {
         val initialApps: List<String>,
     ) : PanelContent
 
-    /** ウィジェットを表示するコマ。どのウィジェットかは端末ごとに違うので、ここには持たない。 */
-    data object Widget : PanelContent
-
     /** タップで全アプリ一覧を開くコマ。フォルダに入れていないアプリへの入口にする。 */
     data object Drawer : PanelContent
 }

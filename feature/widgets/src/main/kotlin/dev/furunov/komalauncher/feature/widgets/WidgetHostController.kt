@@ -38,10 +38,6 @@ class WidgetChoice(
 
 /** 選択画面で選んだウィジェットを置く先。 */
 sealed interface PickTarget {
-    data class Panel(
-        val panelId: String,
-    ) : PickTarget
-
     /** コマから独立して置く。 */
     data object Free : PickTarget
 
@@ -66,14 +62,14 @@ class WidgetHostController(
     private val host: AppWidgetHost = KomaWidgetHost(context, HOST_ID)
     private val views = mutableMapOf<Int, AppWidgetHostView>()
 
-    /** bind や configure の結果を待っているコマ。 */
+    /** bind や configure の結果を待っているウィジェット。 */
     private var pending: Pending? = null
 
     /** ウィジェットの選択画面で選んだものを置く先（null なら選択画面を出していない）。 */
     val pickerFor = mutableStateOf<PickTarget?>(null)
 
     private class Pending(
-        val panelId: String,
+        val widgetId: String,
         val appWidgetId: Int,
         val info: AppWidgetProviderInfo,
         /** 置き終えたときに呼ぶ（自由に置くウィジェットなら、ここでコマ割りに書く）。 */
@@ -129,7 +125,7 @@ class WidgetHostController(
     /** アプリから新しい中身が届いた回数（ビューを作る前なら null）。 */
     fun updates(appWidgetId: Int): StateFlow<Long>? = (views[appWidgetId] as? KomaWidgetHostView)?.updates
 
-    /** コマの大きさ（dp）をウィジェットに伝える。伝えないと、ウィジェットは最小の大きさで描かれる。 */
+    /** 置く大きさ（dp）をウィジェットに伝える。伝えないと、ウィジェットは最小の大きさで描かれる。 */
     fun updateSize(
         appWidgetId: Int,
         widthDp: Float,
@@ -139,18 +135,18 @@ class WidgetHostController(
     }
 
     /**
-     * 選んだウィジェットを [panelId]（コマか、自由に置くウィジェットの id）に置く。許可や設定の画面が要れば Activity から開く。
+     * 選んだウィジェットを、自由に置くウィジェット [widgetId] に割り当てる。許可や設定の画面が要れば Activity から開く。
      * 許可や設定を取り消したときは [onPlaced] を呼ばない。
      */
     fun place(
         activity: Activity,
-        panelId: String,
+        widgetId: String,
         choice: WidgetChoice,
         onPlaced: () -> Unit = {},
     ) {
         pickerFor.value = null
         val id = host.allocateAppWidgetId()
-        val p = Pending(panelId, id, choice.info, onPlaced)
+        val p = Pending(widgetId, id, choice.info, onPlaced)
         pending = p
         if (manager.bindAppWidgetIdIfAllowed(id, choice.info.provider)) {
             configureOrFinish(activity, p)
@@ -181,17 +177,17 @@ class WidgetHostController(
         return true
     }
 
-    /** コマのウィジェットを外し、確保していた id を返す。 */
-    fun remove(panelId: String) {
-        val ref = store.assignments.value.byPanel[panelId] ?: return
+    /** ウィジェットを外し、確保していた id を返す。 */
+    fun remove(widgetId: String) {
+        val ref = store.assignments.value.byPanel[widgetId] ?: return
         host.deleteAppWidgetId(ref.appWidgetId)
         views.remove(ref.appWidgetId)
-        store.update { it.copy(byPanel = it.byPanel - panelId) }
+        store.update { it.copy(byPanel = it.byPanel - widgetId) }
     }
 
     /**
-     * layout.json から消えたコマのウィジェットを外す。外さないと、見えないウィジェットが更新を受け続け、
-     * 外すための長押しのメニューも出せない（コマが無いため）。呼ぶのは layout.json を正しく読めたときだけ。
+     * layout.json から消えたウィジェットを外す。外さないと、見えないウィジェットが更新を受け続け、
+     * 外すための長押しのメニューも出せない。呼ぶのは layout.json を正しく読めたときだけ。
      */
     fun removeOrphans(layout: Layout) {
         WidgetEdits.orphans(store.assignments.value, layout).forEach(::remove)
@@ -212,11 +208,11 @@ class WidgetHostController(
     private fun finish(p: Pending) {
         pending = null
         // 前に置いていたウィジェットは外す（id を残すと、見えないウィジェットが更新を受け続ける）
-        store.assignments.value.byPanel[p.panelId]?.let {
+        store.assignments.value.byPanel[p.widgetId]?.let {
             host.deleteAppWidgetId(it.appWidgetId)
             views.remove(it.appWidgetId)
         }
-        store.update { it.copy(byPanel = it.byPanel + (p.panelId to WidgetRef(p.appWidgetId, p.info.provider.flattenToString()))) }
+        store.update { it.copy(byPanel = it.byPanel + (p.widgetId to WidgetRef(p.appWidgetId, p.info.provider.flattenToString()))) }
         p.onPlaced()
     }
 

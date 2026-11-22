@@ -33,7 +33,6 @@ class PanelTextTest {
         assertEquals("その他", PanelText.labelOf(Panel(PanelId("d"), PanelContent.Drawer, "その他"), null, english = true))
         assertNull(PanelText.labelOf(Panel(PanelId("d"), PanelContent.Drawer), null, english = true))
         assertNull(PanelText.labelOf(Panel(PanelId("e"), PanelContent.Folder(emptyList()), " "), null, english = false))
-        assertNull(PanelText.labelOf(Panel(PanelId("w"), PanelContent.Widget, "ウィジェット"), null, english = true))
     }
 
     @Test
@@ -95,7 +94,7 @@ class PanelTextTest {
 
     @Test
     fun clockAndMastheadPanels() {
-        val layout = LayoutEdits.template(LayoutEdits.Template.HERO, Layout.of(listOf(Panel(PanelId("x"), PanelContent.Widget))))
+        val layout = LayoutEdits.template(LayoutEdits.Template.HERO, Layout.of(listOf(Panel(PanelId("x"), PanelContent.Drawer))))
         val r = LayoutResolver.resolve(layout, 1220f, 2712f).panels
         val biggest = r.maxBy { it.polygon.bounds.width * it.polygon.bounds.height }.panel.id
         assertNull(PanelText.clockPanel(r, ClockSpec()))

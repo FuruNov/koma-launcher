@@ -20,7 +20,6 @@ object PanelText {
         name: String?,
         english: Boolean,
     ): String? {
-        if (panel.content == PanelContent.Widget) return null
         val ja = (name ?: panel.label)?.takeIf { it.isNotBlank() }
         val en = panel.labelEn?.takeIf { it.isNotBlank() }
         return if (english) en ?: ja else ja

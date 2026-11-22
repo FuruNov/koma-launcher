@@ -112,15 +112,14 @@ object LayoutEdits {
         target: PanelContent,
     ): Layout = updatePanel(layout, panelId) { p -> if (p.content::class == target::class) p else p.copy(content = target) }
 
-    /** 種類を フォルダ → ウィジェット → 全アプリ一覧 の順に切り替える（モックアップと同じ順）。 */
+    /** 種類を フォルダ → アプリドロワー の順に切り替える。 */
     fun cycleKind(
         layout: Layout,
         panelId: PanelId,
     ): Layout = updatePanel(layout, panelId) { p ->
         val next =
             when (p.content) {
-                is PanelContent.Folder -> PanelContent.Widget
-                PanelContent.Widget -> PanelContent.Drawer
+                is PanelContent.Folder -> PanelContent.Drawer
                 PanelContent.Drawer -> PanelContent.Folder(emptyList())
             }
         p.copy(content = next)
@@ -181,7 +180,7 @@ object LayoutEdits {
                         LayoutNode.Split(
                             0.1477f,
                             0.6503f,
-                            LayoutNode.Split(0.9004f, 0.3905f, leaf(PanelContent.Widget), leaf()),
+                            LayoutNode.Split(0.9004f, 0.3905f, leaf(), leaf()),
                             LayoutNode.Split(0.8774f, 0.3196f, leaf(), leaf(PanelContent.Drawer)),
                         ),
                     )

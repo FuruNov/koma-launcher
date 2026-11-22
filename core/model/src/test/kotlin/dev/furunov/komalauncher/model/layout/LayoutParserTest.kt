@@ -23,7 +23,8 @@ class LayoutParserTest {
         assertEquals(1, layout.version)
         assertEquals(3, layout.panels.size)
         assertEquals(PanelContent.Folder(listOf("com.android.chrome")), layout.panels[0].content)
-        assertEquals(PanelContent.Widget, layout.panels[1].content)
+        // 廃止したウィジェットのコマは、フォルダとして読む
+        assertEquals(PanelContent.Folder(emptyList()), layout.panels[1].content)
         assertEquals("仕事", layout.panels[0].label)
         assertEquals(0.45f, assertIs<LayoutShape.Fixed>(layout.shape).aspect)
         assertEquals(setOf("page.webp"), layout.images)

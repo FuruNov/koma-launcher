@@ -30,7 +30,8 @@ class LayoutV2ParserTest {
         assertEquals(2, layout.version)
         assertEquals(listOf("p43", "p44", "p47"), layout.panels.map { it.id.value })
         assertEquals(PanelContent.Folder(listOf("com.android.chrome")), layout.panels[0].content)
-        assertEquals(PanelContent.Widget, layout.panels[1].content)
+        // 廃止したウィジェットのコマは、フォルダとして読む
+        assertEquals(PanelContent.Folder(emptyList()), layout.panels[1].content)
         assertEquals(PanelContent.Drawer, layout.panels[2].content)
         assertEquals(PanelArt("pic-a-5", aspect = null, zoom = 1f, dx = -0.067f, dy = 0.0015f), layout.panels[0].art)
         assertEquals(1.7766f, layout.panels[1].art?.aspect)

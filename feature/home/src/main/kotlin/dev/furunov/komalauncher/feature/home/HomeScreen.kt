@@ -116,8 +116,6 @@ import kotlin.math.roundToInt
 
 /** ホーム画面の外から差し込む部分。機能のモジュールどうしが互いを知らずに済むよう、:app が渡す。 */
 class HomeSlots(
-    /** ウィジェットのコマの中身。[PanelGeometry.inscribed] の位置に置く。 */
-    val widget: @Composable (PanelGeometry) -> Unit = {},
     /** 自由に置くウィジェットの中身。引数はウィジェットと、置く大きさ（dp）。 */
     val freeWidget: @Composable (WidgetSpec, Float, Float) -> Unit = { _, _, _ -> },
     /** 自由に置いたウィジェットを、別のウィジェットに入れ替える選択画面を開く。引数はウィジェットの id。 */
@@ -126,7 +124,7 @@ class HomeSlots(
     val overlay: @Composable (Overlay) -> Unit = {},
     /** 全アプリ一覧。開く瞬間に一から作らないよう、閉じている間も作っておく。引数は開いているか。 */
     val drawer: @Composable (Boolean) -> Unit = {},
-    /** コマの長押しのメニューに、外から加える項目（ウィジェットの選択など）。 */
+    /** コマの長押しのメニューに、外から加える項目。 */
     val panelMenuItems: (PanelGeometry) -> List<PanelMenuItem> = { emptyList() },
 )
 
@@ -388,11 +386,6 @@ fun HomeScreen(
                             spectrum = media?.spectrum,
                             flash = flash,
                         )
-                    }
-                    if (g.panel.content is PanelContent.Widget) {
-                        PanelBox(g.inscribed.left, g.inscribed.top, g.inscribed.width, g.inscribed.height, motions.getValue(g.panel.id)) {
-                            slots.widget(g)
-                        }
                     }
                 }
                 // 自由に置くウィジェットは、すべてのコマの上に描く。人物の後ろのものを描き、人物を描き直し、人物の前のものを描く

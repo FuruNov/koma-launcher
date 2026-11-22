@@ -225,18 +225,15 @@ private fun PanelControls(
     }
     // 種類を全て並べ、今の種類を光らせる。押すたびに切り替える形では、どんな種類があるのか前もって分からなかった
     ChipRow("種類") {
-        listOf(PanelContent.Folder(emptyList()), PanelContent.Drawer, PanelContent.Widget).forEach { kind ->
+        listOf(PanelContent.Folder(emptyList()), PanelContent.Drawer).forEach { kind ->
             Chip(kindLabel(kind), selected = panel.content::class == kind::class) { vm.setKind(kind) }
         }
     }
     if (panel.iconAt != null || panel.iconScale != 1f) {
         ChipRow("アイコン") { Chip("位置と大きさを自動に戻す") { vm.resetIcons(panel.id) } }
     }
-    // ウィジェットのコマには名前を表示しないので、欄も出さない
-    if (panel.content != PanelContent.Widget) {
-        val folderName = folders.byPanel[panel.id.value]?.name
-        NameFields(vm, panel, folderName, state.restored, onClearFolderName = { folderDeps.store.update { FolderEdits.rename(it, panel.id.value, null) } })
-    }
+    val folderName = folders.byPanel[panel.id.value]?.name
+    NameFields(vm, panel, folderName, state.restored, onClearFolderName = { folderDeps.store.update { FolderEdits.rename(it, panel.id.value, null) } })
     if (panel.content is PanelContent.Folder) FolderControls(folderDeps, folders, panel, onAddApps)
     ChipRow("画像") {
         Chip(if (state.busy) "読み込み中…" else "画像を選択", enabled = !state.busy, onClick = onPickImage)
@@ -412,7 +409,6 @@ internal val LABEL_WIDTH = 84.dp
 
 internal fun kindLabel(c: PanelContent): String = when (c) {
     is PanelContent.Folder -> "フォルダ"
-    PanelContent.Widget -> "ウィジェット"
     PanelContent.Drawer -> "アプリドロワー"
 }
 

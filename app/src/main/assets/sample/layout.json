@@ -14,7 +14,7 @@
       "cut": { "ta": 0.1477, "tb": 0.6503 },
       "a": {
         "cut": { "ta": 0.9004, "tb": 0.3905 },
-        "a": { "panel": { "id": "sample-2", "kind": "widget" } },
+        "a": { "panel": { "id": "sample-2", "kind": "folder" } },
         "b": { "panel": { "id": "sample-3", "kind": "folder",
                           "apps": ["com.google.android.contacts", "com.android.contacts",
                                    "com.google.android.apps.messaging", "com.android.messaging",

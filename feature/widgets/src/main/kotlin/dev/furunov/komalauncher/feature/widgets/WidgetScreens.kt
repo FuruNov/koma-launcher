@@ -42,21 +42,21 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.min
 
-/** ウィジェットのコマの中身。置いていなければ、置き方の案内を薄く出す。 */
+/** 自由に置くウィジェットの中身。割り当てが無ければ（バックアップから戻した直後など）、置き直し方の案内を薄く出す。 */
 @Composable
-fun WidgetPanel(
-    panelId: String,
+fun FreeWidget(
+    widgetId: String,
     widthDp: Float,
     heightDp: Float,
     controller: WidgetHostController,
     store: WidgetStore,
 ) {
     val assignments by store.assignments.collectAsStateWithLifecycle()
-    val ref = assignments.byPanel[panelId]
+    val ref = assignments.byPanel[widgetId]
     if (ref == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            // 白い紙のコマ（BlankPage.LIGHT）とベタのコマのどちらの上でも読める中間の灰色
-            BasicText("長押しでウィジェットを配置", style = TextStyle(color = Color(0xFF8A8D96), fontSize = 13.sp))
+            // 明るい絵の上でも暗い絵の上でも読める中間の灰色
+            BasicText("長押しの「変更」で置き直す", style = TextStyle(color = Color(0xFF8A8D96), fontSize = 13.sp))
         }
         return
     }

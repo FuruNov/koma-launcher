@@ -19,17 +19,12 @@ class WidgetEditsTest {
     private val assigned =
         WidgetAssignments(byPanel = mapOf("w1" to WidgetRef(1, "a/.A"), "w2" to WidgetRef(2, "b/.B"), "f1" to WidgetRef(3, "c/.C")))
 
+    // 廃止したウィジェットのコマの割り当ては、すべて外す
     @Test
-    fun keepsLiveWidgetPanels() = assertEquals(setOf("w2", "f1"), WidgetEdits.orphans(assigned, layout("w1" to PanelContent.Widget)))
+    fun oldWidgetPanelsAreOrphans() = assertEquals(setOf("w1", "w2", "f1"), WidgetEdits.orphans(assigned, layout("w1" to PanelContent.Folder(emptyList()))))
 
     @Test
-    fun panelThatBecameFolderIsOrphan() = assertEquals(
-        setOf("f1"),
-        WidgetEdits.orphans(assigned, layout("w1" to PanelContent.Widget, "w2" to PanelContent.Widget, "f1" to PanelContent.Folder(emptyList()))),
-    )
-
-    @Test
-    fun nothingAssigned() = assertEquals(emptySet(), WidgetEdits.orphans(WidgetAssignments(), layout("w1" to PanelContent.Widget)))
+    fun nothingAssigned() = assertEquals(emptySet(), WidgetEdits.orphans(WidgetAssignments(), layout("w1" to PanelContent.Folder(emptyList()))))
 }
 
 class WidgetPlacementTest {

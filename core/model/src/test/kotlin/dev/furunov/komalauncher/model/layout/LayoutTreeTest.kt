@@ -154,7 +154,7 @@ class LayoutResolverTest {
 
     @Test
     fun layoutOfStacksPanelsTopToBottom() {
-        val layout = Layout.of(listOf("1", "2", "3").map { Panel(PanelId(it), PanelContent.Widget) })
+        val layout = Layout.of(listOf("1", "2", "3").map { Panel(PanelId(it), PanelContent.Drawer) })
         val r = LayoutResolver.resolve(layout, 1080f, 1920f)
         assertEquals(listOf("1", "2", "3"), r.panels.map { it.panel.id.value })
         assertTrue(r.panels[0].polygon.centroid.y < r.panels[1].polygon.centroid.y)

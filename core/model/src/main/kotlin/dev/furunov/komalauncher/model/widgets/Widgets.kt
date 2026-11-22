@@ -1,7 +1,6 @@
 package dev.furunov.komalauncher.model.widgets
 
 import dev.furunov.komalauncher.model.layout.Layout
-import dev.furunov.komalauncher.model.layout.PanelContent
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.Serializable
 
@@ -19,7 +18,7 @@ data class WidgetRef(
 @Serializable
 data class WidgetAssignments(
     val version: Int = 1,
-    /** キーはウィジェットのコマの id か、自由に置くウィジェット（WidgetSpec）の id。保存した設定の互換のため名前は変えない。 */
+    /** キーは自由に置くウィジェット（WidgetSpec）の id。廃止したウィジェットのコマの id だった名残で byPanel と呼ぶ（保存した設定の互換のため名前は変えない）。 */
     val byPanel: Map<String, WidgetRef> = emptyMap(),
 )
 
@@ -31,7 +30,7 @@ interface WidgetStore {
 
 object WidgetEdits {
     /**
-     * layout.json のウィジェットのコマにも、自由に置くウィジェットにも無い割り当て（id）。
+     * layout.json の自由に置くウィジェットに無い割り当て（id）。廃止したウィジェットのコマの割り当ても、ここで外れる。
      * 利用者の layout.json を正しく読めたときだけ使うこと。見本に戻っているとき（JSON の誤り）に使うと、
      * 書き損じ 1 つで全部のウィジェットを外してしまうため。
      */
@@ -39,7 +38,7 @@ object WidgetEdits {
         assignments: WidgetAssignments,
         layout: Layout,
     ): Set<String> {
-        val live = layout.panels.filter { it.content is PanelContent.Widget }.map { it.id.value }.toSet() + WidgetPlacement.widgetsOf(layout).map { it.id }
+        val live = WidgetPlacement.widgetsOf(layout).map { it.id }.toSet()
         return assignments.byPanel.keys - live
     }
 }

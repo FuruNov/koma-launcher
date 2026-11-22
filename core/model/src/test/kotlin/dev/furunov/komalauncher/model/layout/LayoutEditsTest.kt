@@ -82,16 +82,14 @@ class LayoutEditsTest {
         val node = assertIs<LayoutNode.Split>(LayoutEdits.nodeAt(assertIs<LayoutShape.Tree>(moved.shape).root, "b"))
         assertEquals(0.2f, node.ta, 1e-5f)
         assertEquals(0.6503f, node.tb, 1e-5f)
-        // ウィジェットのコマ（道筋 baa）を割っている線は ba
+        // 中段の左のコマ（道筋 baa）を割っている線は ba
         assertEquals("ba", LayoutEdits.parentCutPath(hero, hero.panels[1].id))
         assertNull(LayoutEdits.parentCutPath(one, PanelId("p1")))
     }
 
     @Test
-    fun cycleKindGoesFolderWidgetDrawer() {
-        val w = LayoutEdits.cycleKind(one, PanelId("p1"))
-        assertEquals(PanelContent.Widget, w.panels[0].content)
-        val d = LayoutEdits.cycleKind(w, PanelId("p1"))
+    fun cycleKindGoesFolderDrawer() {
+        val d = LayoutEdits.cycleKind(one, PanelId("p1"))
         assertEquals(PanelContent.Drawer, d.panels[0].content)
         assertIs<PanelContent.Folder>(LayoutEdits.cycleKind(d, PanelId("p1")).panels[0].content)
     }
@@ -99,7 +97,6 @@ class LayoutEditsTest {
     @Test
     fun setKindChangesToChosenKind() {
         assertEquals(PanelContent.Drawer, LayoutEdits.setKind(one, PanelId("p1"), PanelContent.Drawer).panels[0].content)
-        assertEquals(PanelContent.Widget, LayoutEdits.setKind(one, PanelId("p1"), PanelContent.Widget).panels[0].content)
     }
 
     @Test
@@ -114,14 +111,13 @@ class LayoutEditsTest {
         assertEquals(5, hero.panels.size)
         assertFalse(hero.panels.any { it.id == PanelId("p1") })
         assertEquals(frame, assertIs<LayoutShape.Tree>(hero.shape).frame)
-        assertTrue(hero.panels.any { it.content == PanelContent.Widget })
         assertTrue(hero.panels.any { it.content == PanelContent.Drawer })
         assertEquals(5, LayoutResolver.resolve(hero, 1220f, 2712f).panels.size)
     }
 
     @Test
     fun versionOneIsNotEdited() {
-        val v1 = Layout.of(listOf(Panel(PanelId("a"), PanelContent.Widget)))
+        val v1 = Layout.of(listOf(Panel(PanelId("a"), PanelContent.Drawer)))
         assertNull(LayoutEdits.split(v1, PanelId("a"), SplitDirection.HORIZONTAL, listOf(Point(0f, 0f), Point(1f, 0f), Point(1f, 1f))))
         assertSame(v1, LayoutEdits.merge(v1, PanelId("a")))
     }

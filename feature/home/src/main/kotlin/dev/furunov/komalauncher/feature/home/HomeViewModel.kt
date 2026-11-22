@@ -464,8 +464,6 @@ class HomeViewModel(
                     }
 
                     PanelContent.Drawer -> overlay.value = Overlay.Drawer
-
-                    PanelContent.Widget -> Unit
                 }
             }
 

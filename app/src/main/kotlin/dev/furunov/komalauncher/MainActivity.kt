@@ -26,9 +26,9 @@ import dev.furunov.komalauncher.feature.home.HomeSlots
 import dev.furunov.komalauncher.feature.home.HomeViewModel
 import dev.furunov.komalauncher.feature.home.Overlay
 import dev.furunov.komalauncher.feature.home.PanelMenuItem
+import dev.furunov.komalauncher.feature.widgets.FreeWidget
 import dev.furunov.komalauncher.feature.widgets.PickTarget
 import dev.furunov.komalauncher.feature.widgets.WidgetChoice
-import dev.furunov.komalauncher.feature.widgets.WidgetPanel
 import dev.furunov.komalauncher.feature.widgets.WidgetPicker
 import dev.furunov.komalauncher.model.apps.DrawerFolders
 import dev.furunov.komalauncher.model.folders.FolderEdits
@@ -132,30 +132,8 @@ class MainActivity : ComponentActivity() {
                                 else -> Unit
                             }
                         },
-                        freeWidget = { spec, w, h -> WidgetPanel(spec.id, w, h, container.widgets, container.widgetStore) },
+                        freeWidget = { spec, w, h -> FreeWidget(spec.id, w, h, container.widgets, container.widgetStore) },
                         replaceWidget = { container.widgets.pickerFor.value = PickTarget.Replace(it) },
-                        widget = { g ->
-                            WidgetPanel(
-                                panelId = g.panel.id.value,
-                                widthDp = g.inscribed.width / resources.displayMetrics.density,
-                                heightDp = g.inscribed.height / resources.displayMetrics.density,
-                                controller = container.widgets,
-                                store = container.widgetStore,
-                            )
-                        },
-                        panelMenuItems = { g ->
-                            val id = g.panel.id.value
-                            if (g.panel.content !is PanelContent.Widget) {
-                                emptyList()
-                            } else {
-                                buildList {
-                                    add(PanelMenuItem("ウィジェットを選択") { container.widgets.pickerFor.value = PickTarget.Panel(id) })
-                                    if (container.widgetStore.assignments.value.byPanel.containsKey(id)) {
-                                        add(PanelMenuItem("ウィジェットを削除") { container.widgets.remove(id) })
-                                    }
-                                }
-                            }
-                        },
                     )
                 }
             val pickerFor by container.widgets.pickerFor
@@ -197,8 +175,6 @@ class MainActivity : ComponentActivity() {
         c: WidgetChoice,
     ) {
         when (target) {
-            is PickTarget.Panel -> container.widgets.place(activity, target.panelId, c)
-
             PickTarget.Free -> {
                 val id = WidgetPlacement.newId(container.layoutSource.state.value.layout)
                 val provider = c.info.provider.flattenToString()

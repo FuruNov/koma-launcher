@@ -121,7 +121,7 @@ has Contacts
 [ $? -ne 0 ]
 check "戻るボタンでフォルダが閉じる" $?
 
-# ウィジェットのコマとツールのコマの間の余白
+# 中段の左のコマとツールのコマの間の余白
 adb shell input tap 300 1454
 sleep 1
 has Contacts

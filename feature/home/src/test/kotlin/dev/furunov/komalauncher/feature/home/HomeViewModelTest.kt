@@ -41,12 +41,11 @@ import kotlin.test.assertEquals
 class HomeViewModelTest {
     private val chrome = AppKey("com.android.chrome", "Main")
 
-    /** id の頭文字で種類を決める（w: ウィジェット、d: 全アプリ一覧、それ以外: フォルダ）。 */
+    /** id の頭文字で種類を決める（d: 全アプリ一覧、それ以外: フォルダ）。 */
     private fun layout(vararg ids: String) = Layout.of(
         ids.map {
             val content =
                 when {
-                    it.startsWith("w") -> PanelContent.Widget
                     it.startsWith("d") -> PanelContent.Drawer
                     else -> PanelContent.Folder(listOf("com.android.chrome"))
                 }
@@ -181,12 +180,6 @@ class HomeViewModelTest {
     fun tapFolderPanelOpensIt() {
         vm.onEvent(HomeEvent.TapPanel(PanelId("p1")))
         assertEquals(Overlay.Folder(PanelId("p1")), vm.state.value.overlay)
-    }
-
-    @Test
-    fun tapWidgetPanelDoesNotOpenFolder() {
-        vm.onEvent(HomeEvent.TapPanel(PanelId("w1")))
-        assertEquals(Overlay.None, vm.state.value.overlay)
     }
 
     @Test

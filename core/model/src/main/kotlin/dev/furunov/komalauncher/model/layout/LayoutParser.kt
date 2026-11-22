@@ -564,7 +564,10 @@ object LayoutParser {
             content =
             when (kind) {
                 Kind.FOLDER -> PanelContent.Folder(apps.orEmpty())
-                Kind.WIDGET -> PanelContent.Widget
+
+                // ウィジェットのコマは廃止した（ウィジェットはコマから独立して置く）。古い layout.json ではフォルダとして読む
+                Kind.WIDGET -> PanelContent.Folder(apps.orEmpty())
+
                 Kind.DRAWER -> PanelContent.Drawer
             },
             label = label,
@@ -583,7 +586,6 @@ object LayoutParser {
                 kind =
                 when (p.content) {
                     is PanelContent.Folder -> Kind.FOLDER
-                    PanelContent.Widget -> Kind.WIDGET
                     PanelContent.Drawer -> Kind.DRAWER
                 },
                 label = p.label,
