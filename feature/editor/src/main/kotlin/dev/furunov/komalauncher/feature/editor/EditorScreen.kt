@@ -803,7 +803,7 @@ private fun TextControls(
     }
     // フォルダのコマに先頭のアプリのアイコンを置くか（どのコマに何のアプリがあるか分かるように）
     ToggleRow("アイコン", text.icon) { v -> vm.setTree { it.copy(text = it.text.copy(icon = v)) } }
-    Hint("時計と大見出しは、ホームの余白の長押しの「ウィジェットを追加」で「コマランチャー」から置きます。名前とアイコンの位置と大きさは、ホームの「配置を調整」で変えられます")
+    Hint("時計と大見出しは、ホームの余白の長押しの「ウィジェットを追加」で「Koma Launcher」から置きます。名前とアイコンの位置と大きさは、ホームの「配置を調整」で変えられます")
     ToggleRow("視差", tree.fx.parallax) { v -> vm.setTree { it.copy(fx = it.fx.copy(parallax = v)) } }
     if (tree.fx.parallax) {
         SliderRow("強さ", tree.fx.strength * 100f, 10f..200f, step = 10f, mark = 40f) { v -> vm.setTree(record = false) { it.copy(fx = it.fx.copy(strength = v / 100f)) } }

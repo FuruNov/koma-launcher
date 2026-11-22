@@ -75,7 +75,8 @@ fun WidgetPicker(
     onPickBuiltin: ((BuiltinWidget) -> Unit)? = null,
 ) {
     BackHandler(onBack = onDismiss)
-    val activity = LocalContext.current.findActivity()
+    val context = LocalContext.current
+    val activity = context.findActivity()
     val loaded by produceState<List<WidgetChoice>?>(null) { value = controller.loadChoices() }
     val choices = loaded.orEmpty()
     val byKey = remember(choices) { choices.associateBy { it.entry.key } }
@@ -108,7 +109,9 @@ fun WidgetPicker(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            val builtins = if (onPickBuiltin == null) emptyList() else BUILTINS.filter { (_, name) -> query.isBlank() || AppSearch.match(query, name) != null || AppSearch.match(query, "コマランチャー") != null }
+            // 見出しはアプリドロワーなどと同じく、このアプリの名前（Koma Launcher）にする
+            val appName = remember { context.applicationInfo.loadLabel(context.packageManager).toString() }
+            val builtins = if (onPickBuiltin == null) emptyList() else BUILTINS.filter { (_, name) -> query.isBlank() || listOf(name, appName, "コマランチャー").any { AppSearch.match(query, it) != null } }
             if (loaded == null) {
                 BasicText("読み込み中", style = TextStyle(color = Color(0xFF9A9AA2), fontSize = 14.sp), modifier = Modifier.padding(20.dp))
             } else if (groups.isEmpty() && builtins.isEmpty()) {
@@ -119,7 +122,7 @@ fun WidgetPicker(
                 if (builtins.isNotEmpty()) {
                     item(key = "builtin") {
                         Column(Modifier.padding(top = 14.dp)) {
-                            BasicText("コマランチャー", style = TextStyle(color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 20.dp))
+                            BasicText(appName, style = TextStyle(color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 20.dp))
                             Row(Modifier.padding(start = 16.dp, top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 builtins.forEach { (kind, name) -> BuiltinCard(kind, name) { onPickBuiltin?.invoke(kind) } }
                             }
