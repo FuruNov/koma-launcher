@@ -77,6 +77,27 @@ object FolderEdits {
         return f.copy(byPanel = f.byPanel + (panelId to folder.copy(apps = folder.apps - app)))
     }
 
+    /**
+     * 全てのフォルダと「割り当てなし」で、[old] のどれかが最初にあった位置に [new] を置き、残りの [old] を外す。
+     * 同じショートカットを追加し直したときに、古い方の位置を新しい方に引き継ぐ。[new] がすでにあるフォルダでは [old] を外すだけにする。
+     */
+    fun replace(
+        f: Folders,
+        old: List<AppKey>,
+        new: AppKey,
+    ): Folders {
+        if (old.isEmpty()) return f
+        val gone = old.toSet()
+
+        fun swap(apps: List<AppKey>): List<AppKey> {
+            val at = apps.indexOfFirst { it in gone }
+            if (at < 0) return apps
+            val rest = apps.toMutableList().apply { if (new !in apps) set(at, new) }
+            return rest.filterNot { it in gone }
+        }
+        return f.copy(byPanel = f.byPanel.mapValues { (_, folder) -> folder.copy(apps = swap(folder.apps)) }, unassigned = swap(f.unassigned))
+    }
+
     /** 入っていれば外し、無ければ末尾に入れる。アプリを選ぶ画面から呼ぶ。 */
     fun toggle(
         f: Folders,

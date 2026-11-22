@@ -28,6 +28,20 @@ class FolderEditsTest {
     fun addDuplicateIsNoop() = assertSame(base, FolderEdits.add(base, "p1", a))
 
     @Test
+    fun replaceKeepsPositionInEveryFolder() {
+        val f = FolderEdits.replace(base.copy(byPanel = base.byPanel + ("p3" to Folder(listOf(c, a)))), listOf(a), c)
+        assertEquals(listOf(c, b), f.appsOf("p1"))
+        // p3 には c がもう入っているので、a を外すだけにする
+        assertEquals(listOf(c), f.appsOf("p3"))
+    }
+
+    @Test
+    fun replaceSeveralOldKeepsFirstPosition() = assertEquals(listOf(c), FolderEdits.replace(base, listOf(a, b), c).appsOf("p1"))
+
+    @Test
+    fun replaceInUnassigned() = assertEquals(listOf(c), FolderEdits.replace(Folders(unassigned = listOf(a)), listOf(a), c).unassigned)
+
+    @Test
     fun addTakesFromUnassigned() {
         val f = FolderEdits.add(base.copy(unassigned = listOf(c)), "p1", c)
         assertEquals(emptyList(), f.unassigned)

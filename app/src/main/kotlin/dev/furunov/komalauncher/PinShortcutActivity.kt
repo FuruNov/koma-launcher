@@ -39,11 +39,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.furunov.komalauncher.model.apps.AppKey
+import dev.furunov.komalauncher.model.apps.PinnedShortcuts
 import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.layout.PanelId
 import dev.furunov.komalauncher.model.ports.LayoutState
 import dev.furunov.komalauncher.platform.apps.IconRenderer
 import dev.furunov.komalauncher.ui.art.PanelPicker
+import kotlinx.coroutines.launch
 
 /**
  * ブラウザなど（Vivaldi の PWA など）からの「ホーム画面に追加」の依頼を受ける。依頼は既定のホームアプリにだけ届く。
@@ -65,6 +67,8 @@ class PinShortcutActivity : ComponentActivity() {
             return
         }
         val label = (info.shortLabel ?: info.longLabel ?: info.id).toString()
+        // 同じページを追加し直すと、ブラウザは別の id で依頼してくる。追加したら古い方の固定を解除し、フォルダの位置を引き継ぐ
+        val duplicates = PinnedShortcuts.sameAs(container.appCatalog.apps.value, info.`package`, label, info.id)
         val iconPx = (48 * resources.displayMetrics.density).toInt()
         val icon =
             // 追加した後と同じ見た目にするため、設定のアイコンの形で描く
@@ -118,16 +122,25 @@ class PinShortcutActivity : ComponentActivity() {
                         modifier = Modifier.heightIn(max = 360.dp).align(Alignment.CenterHorizontally),
                     )
                     BasicText("コマを選ばないと、アプリの一覧にだけ追加します", style = TextStyle(color = Color(0xFF9A9EAB), fontSize = 12.sp))
+                    if (duplicates.isNotEmpty()) {
+                        BasicText("同じ名前の「$label」は追加済みです。追加すると、追加済みのものと置き換えます", style = TextStyle(color = Color(0xFFFFE082), fontSize = 12.sp))
+                    }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton("キャンセル", ::finish)
                         TextButton("追加") {
                             if (adding) return@TextButton
                             adding = true
                             if (request.accept()) {
-                                selected?.let { panel ->
-                                    container.folderStore.update { FolderEdits.add(it, panel.value, AppKey.shortcut(info.`package`, info.id)) }
+                                val key = AppKey.shortcut(info.`package`, info.id)
+                                if (duplicates.isNotEmpty() || selected != null) {
+                                    container.folderStore.update { f ->
+                                        val replaced = FolderEdits.replace(f, duplicates, key)
+                                        selected?.let { FolderEdits.add(replaced, it.value, key) } ?: replaced
+                                    }
                                     container.flushStores()
                                 }
+                                // この画面はすぐ閉じるので、解除はアプリ全体のスコープで行う。失敗しても古い方が残るだけなので知らせない
+                                if (duplicates.isNotEmpty()) container.scope.launch { duplicates.forEach { container.appCatalog.unpin(it) } }
                             } else {
                                 Toast.makeText(this@PinShortcutActivity, "追加できませんでした", Toast.LENGTH_SHORT).show()
                             }
