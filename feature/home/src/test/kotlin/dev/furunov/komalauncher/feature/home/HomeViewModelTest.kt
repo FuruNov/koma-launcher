@@ -517,6 +517,26 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun drawerMenusKeepDrawerOpen() {
+        vm.onEvent(HomeEvent.ShowAppMenu(chrome, fromPanel = null, fromDrawer = true))
+        assert(vm.state.value.overlay.overDrawer)
+        vm.onEvent(HomeEvent.ShowDrawerFolders(chrome))
+        assert(vm.state.value.overlay.overDrawer)
+        vm.onEvent(HomeEvent.ShowAppMenu(chrome, fromPanel = "p1"))
+        assert(!vm.state.value.overlay.overDrawer)
+    }
+
+    @Test
+    fun removingShortcutFromDrawerReturnsToDrawer() {
+        withShortcutInTwoFolders()
+        vm.onEvent(HomeEvent.ShowAppMenu(sc, fromPanel = null, fromDrawer = true))
+        vm.onEvent(HomeEvent.RemoveShortcut(sc))
+        assert(vm.state.value.overlay.overDrawer)
+        vm.onEvent(HomeEvent.ConfirmRemoveShortcut(sc))
+        assertEquals(Overlay.Drawer, vm.state.value.overlay)
+    }
+
+    @Test
     fun dismissFolderMenuReturnsHome() {
         vm.onEvent(HomeEvent.ShowAppMenu(chrome, fromPanel = "p1"))
         vm.onEvent(HomeEvent.Dismiss)

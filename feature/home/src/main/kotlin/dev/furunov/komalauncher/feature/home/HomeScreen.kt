@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -314,7 +315,7 @@ fun HomeScreen(
                     Modifier.homeGestures(geometryState, gesturesEnabled, handler)
                 }
             // 全アプリ一覧を開いている間は、ホームを写しの画像で描く（Freeze.kt）。アイコンをホームへ運んでいる間は、運ぶ先を見せるため普段どおり描く
-            Box(Modifier.fillMaxSize().then(gestures).freezable(state.overlay == Overlay.Drawer && !dnd.isDragging, freezePrepare)) {
+            Box(Modifier.fillMaxSize().then(gestures).freezable(state.overlay.overDrawer && !dnd.isDragging, freezePrepare)) {
                 for (g in geometry.panels) {
                     PanelLayer(
                         g = g,
@@ -373,7 +374,14 @@ fun HomeScreen(
                 )
             }
 
-            slots.drawer(state.overlay == Overlay.Drawer)
+            // 一覧の上に重ねたメニューの間も、一覧を開いたままにする
+            slots.drawer(state.overlay.overDrawer)
+            // 一覧の上にメニューを重ねたら、キーボードを閉じる（中央のメニューの下半分を隠すため）。名前の入力では入力に使うので閉じない
+            val keyboard = LocalSoftwareKeyboardController.current
+            LaunchedEffect(state.overlay) {
+                val o = state.overlay
+                if (o.overDrawer && o != Overlay.Drawer && o !is Overlay.DrawerFolderName) keyboard?.hide()
+            }
             when (val o = state.overlay) {
                 is Overlay.Folder -> geometry.panels.firstOrNull { it.panel.id == o.panelId }?.let { g ->
                     FolderPopup(

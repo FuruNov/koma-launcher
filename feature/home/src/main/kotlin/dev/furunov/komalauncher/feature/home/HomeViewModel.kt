@@ -43,13 +43,21 @@ import kotlinx.coroutines.launch
 
 /** ホームの上に重ねて表示するもの。同時に 1 つだけ。 */
 sealed interface Overlay {
+    /**
+     * true なら、全アプリ一覧を開いたまま、その上に重ねて表示する（一覧で開いたメニューなど）。閉じたら一覧に戻る。
+     * 一覧で長押ししたメニューのたびに一覧を閉じると、開いていたフォルダや位置が分からなくなり、直感的でないと利用者から指摘があった（2026-11-22）。
+     */
+    val overDrawer: Boolean get() = false
+
     data object None : Overlay
 
     data class Folder(
         val panelId: PanelId,
     ) : Overlay
 
-    data object Drawer : Overlay
+    data object Drawer : Overlay {
+        override val overDrawer: Boolean get() = true
+    }
 
     data object HomeMenu : Overlay
 
@@ -68,14 +76,20 @@ sealed interface Overlay {
         val shortcuts: List<AppShortcut>,
         /** true なら全アプリ一覧で長押しした。「非表示」を表示し、閉じたら一覧に戻る。 */
         val fromDrawer: Boolean = false,
-    ) : Overlay
+    ) : Overlay {
+        override val overDrawer: Boolean get() = fromDrawer
+    }
 
     /** 追加したショートカット（PWA など）の削除の確認。固定の解除はランチャーから戻せないので、押す前に尋ねる。 */
     data class ConfirmRemove(
         val app: AppKey,
         /** true なら、前回の解除に失敗した。確認の画面にそのことを表示する。 */
         val failed: Boolean = false,
-    ) : Overlay
+        /** true なら全アプリ一覧のメニューから開いた。 */
+        val fromDrawer: Boolean = false,
+    ) : Overlay {
+        override val overDrawer: Boolean get() = fromDrawer
+    }
 
     /** 音楽プレイヤーに必要な「通知へのアクセス」の説明。 */
     data object MusicAccess : Overlay
@@ -85,14 +99,18 @@ sealed interface Overlay {
         val app: AppKey,
         val choices: List<Pair<String, String>>,
         val current: String,
-    ) : Overlay
+    ) : Overlay {
+        override val overDrawer: Boolean get() = true
+    }
 
     /** 全アプリ一覧のフォルダの名前の入力。[folderId] が null なら新しいフォルダを作って [app] を移し、そうでなければ名前を変える。 */
     data class DrawerFolderName(
         val app: AppKey?,
         val folderId: String?,
         val current: String,
-    ) : Overlay
+    ) : Overlay {
+        override val overDrawer: Boolean get() = true
+    }
 
     /** フォルダに入れるアプリを選ぶ画面。全アプリの一覧が要るので、中身はホームの外（MainActivity）が作る。 */
     data class AddApps(
@@ -414,14 +432,9 @@ class HomeViewModel(
             }
 
             HomeEvent.Dismiss -> {
-                // 全アプリ一覧で開いたメニューを閉じたら、一覧に戻る
-                val fromDrawer =
-                    when (val o = overlay.value) {
-                        is Overlay.AppMenu -> o.fromDrawer
-                        is Overlay.DrawerFolderMenu, is Overlay.DrawerFolderName -> true
-                        else -> false
-                    }
-                overlay.value = if (fromDrawer) Overlay.Drawer else Overlay.None
+                // 全アプリ一覧の上に重ねたメニューを閉じたら、一覧に戻る。一覧そのものを閉じたらホームに戻る
+                val o = overlay.value
+                overlay.value = if (o.overDrawer && o != Overlay.Drawer) Overlay.Drawer else Overlay.None
                 adjusting.value = false
             }
 
@@ -506,18 +519,19 @@ class HomeViewModel(
                 overlay.value = Overlay.None
             }
 
-            is HomeEvent.RemoveShortcut -> overlay.value = Overlay.ConfirmRemove(event.app)
+            is HomeEvent.RemoveShortcut -> overlay.value = Overlay.ConfirmRemove(event.app, fromDrawer = overlay.value.overDrawer)
 
             is HomeEvent.ConfirmRemoveShortcut ->
                 viewModelScope.launch {
+                    val fromDrawer = overlay.value.overDrawer
                     // 解除できたときだけフォルダから外す。失敗したら、確認の画面に残して知らせる
                     if (!apps.unpin(event.app)) {
-                        overlay.value = Overlay.ConfirmRemove(event.app, failed = true)
+                        overlay.value = Overlay.ConfirmRemove(event.app, failed = true, fromDrawer = fromDrawer)
                         return@launch
                     }
                     // 全てのコマと「割り当てなし」から外す
                     folderStore.update { f -> f.byPanel.keys.fold(f) { acc, panel -> FolderEdits.remove(acc, panel, event.app) }.let { it.copy(unassigned = it.unassigned - event.app) } }
-                    overlay.value = Overlay.None
+                    overlay.value = if (fromDrawer) Overlay.Drawer else Overlay.None
                 }
 
             is HomeEvent.SwipePanel ->
