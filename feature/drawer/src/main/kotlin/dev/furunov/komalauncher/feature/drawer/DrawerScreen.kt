@@ -245,16 +245,16 @@ fun DrawerScreen(
     val focusManager = LocalFocusManager.current
     LaunchedEffect(open) {
         if (open) {
-            // 開くたびに、空の検索と一覧の先頭から始める。キーボードは出てくる動きが終わってから出す
+            // 開くたびに、「すべて」と空の検索と一覧の先頭から始め、すぐ打てるようキーボードを出す。キーボードは出てくる動きが終わってから出す。
+            // 前は最後に開いていたフォルダを残し、そのときはキーボードを出さなかったが、開いても打てないと利用者から指摘があった（2026-11-22）。
+            // 一覧の上に重ねたメニューの間は一覧を閉じないので、メニューを閉じた後は開いていたフォルダのまま戻る
             query = ""
+            tab = null
             grid.scrollToItem(0)
             slide.snapTo(1f)
             slide.animateTo(0f, tween(220))
-            // フォルダを開いたまま閉じたときは、キーボードを出さない（中身を見に戻ったので）
-            if (tab == null) {
-                focus.requestFocus()
-                keyboard?.show()
-            }
+            focus.requestFocus()
+            keyboard?.show()
         } else {
             keyboard?.hide()
             focusManager.clearFocus()
