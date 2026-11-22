@@ -18,6 +18,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -68,6 +69,7 @@ import dev.furunov.komalauncher.model.layout.ResolvedPanel
 import dev.furunov.komalauncher.model.layout.Tilt
 import dev.furunov.komalauncher.model.ports.TiltSource
 import dev.furunov.komalauncher.model.settings.GestureKind
+import dev.furunov.komalauncher.model.settings.LauncherAction
 import dev.furunov.komalauncher.ui.art.BlankPage
 import dev.furunov.komalauncher.ui.art.DepthMaps
 import dev.furunov.komalauncher.ui.art.DepthStyle
@@ -226,9 +228,16 @@ fun HomeScreen(
 
         fun ctx(g: PanelGeometry, order: Int = 0) = MotionContext(g.bounds, wPx, hPx, order, anim.staggerMs, anim.speed)
 
+        // 上へ払い始めた時刻。全アプリ一覧を開く前に、ホームの写しを先に作る合図（Freeze.kt）
+        var freezePrepare by remember { mutableLongStateOf(0L) }
+
         val handler =
             remember(geometry, pressAnim, anim) {
                 object : HomeGestureHandler {
+                    override fun onSwipeUpStart() {
+                        if (currentState.value.settings.actionFor(GestureKind.SwipeUp) == LauncherAction.OpenDrawer) freezePrepare = System.nanoTime()
+                    }
+
                     override fun onPanelPress(panel: PanelGeometry) {
                         if (!anim.enabled) return
                         scope.launch { pressAnim.pressDown(motions.getValue(panel.panel.id), ctx(panel)) }
@@ -304,7 +313,8 @@ fun HomeScreen(
                 } else {
                     Modifier.homeGestures(geometryState, gesturesEnabled, handler)
                 }
-            Box(Modifier.fillMaxSize().then(gestures)) {
+            // 全アプリ一覧を開いている間は、ホームを写しの画像で描く（Freeze.kt）。アイコンをホームへ運んでいる間は、運ぶ先を見せるため普段どおり描く
+            Box(Modifier.fillMaxSize().then(gestures).freezable(state.overlay == Overlay.Drawer && !dnd.isDragging, freezePrepare)) {
                 for (g in geometry.panels) {
                     PanelLayer(
                         g = g,

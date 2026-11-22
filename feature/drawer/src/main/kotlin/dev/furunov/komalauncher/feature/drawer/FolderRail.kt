@@ -5,7 +5,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -23,9 +22,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -47,6 +52,9 @@ private val MaxItemHeight = 56.dp
  * 一覧の左端の縦の列。先頭の「すべて」（[selected] が null）の後に、中身のあるフォルダを記号と名前で並べる。
  * 項目の高さは、全ての項目が列に収まるように [MinItemHeight]〜[MaxItemHeight] で決める。
  * 最も詰めても収まらないときだけスクロールする（記号と名前を 56dp ずつで並べると 16 個のフォルダが画面に収まらず、40dp でも 18 個では最後の 1 個が切れた。POCO X7 Pro）。
+ *
+ * 高さは、これまでに見た最も高い列の高さから決める。キーボードが出て列が縮んでも項目の高さは変えず、下の項目は隠れてスクロールで見る。
+ * 列の高さに合わせて詰め直すと、キーボードが動く間の毎フレームで全ての項目を測り直し、UI スレッドが 16〜30ms かかった（2026-11-22）。
  * 長押しの並べ替えとメニューは [modifier] の [reorderable] が受ける。
  */
 @Composable
@@ -60,18 +68,23 @@ internal fun FolderRail(
     onSelect: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(modifier.width(68.dp).fillMaxHeight()) {
-        val count = folders.size + 1
-        val itemHeight = ((maxHeight - 8.dp) / count).coerceIn(MinItemHeight, MaxItemHeight)
-        LazyColumn(
-            state = state,
-            contentPadding = PaddingValues(vertical = 4.dp),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            item(key = "all") { RailItem(ALL_SYMBOL, "すべて", selected == null, itemHeight, Modifier.clickable { onSelect(null) }) }
-            items(folders, key = { it.id }) { f ->
-                RailItem(f.symbol, f.name, f.id == selected, itemHeight, Modifier.animateItem().lifted(f.id == dragKey || f.id == dropTarget).clickable { onSelect(f.id) }, target = f.id == dropTarget)
-            }
+    var tallest by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val count = folders.size + 1
+    val itemHeight =
+        if (tallest == 0) MaxItemHeight else (with(density) { tallest.toDp() } - 8.dp).div(count).coerceIn(MinItemHeight, MaxItemHeight)
+    LazyColumn(
+        state = state,
+        contentPadding = PaddingValues(vertical = 4.dp),
+        modifier =
+        modifier
+            .width(68.dp)
+            .fillMaxHeight()
+            .onSizeChanged { if (it.height > tallest) tallest = it.height },
+    ) {
+        item(key = "all") { RailItem(ALL_SYMBOL, "すべて", selected == null, itemHeight, Modifier.clickable { onSelect(null) }) }
+        items(folders, key = { it.id }) { f ->
+            RailItem(f.symbol, f.name, f.id == selected, itemHeight, Modifier.animateItem().lifted(f.id == dragKey || f.id == dropTarget).clickable { onSelect(f.id) }, target = f.id == dropTarget)
         }
     }
 }

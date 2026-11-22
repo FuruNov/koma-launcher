@@ -26,6 +26,9 @@ interface HomeGestureHandler {
     fun onPanelSwipe(panel: PanelGeometry, toLeft: Boolean)
 
     fun onGesture(kind: GestureKind, position: Offset)
+
+    /** 1 本指で上へ動き始めたとき（指を離す前）。上へのスワイプに備えて、重い準備を先に済ませるために使う。1 回の操作で 1 度だけ呼ぶ。 */
+    fun onSwipeUpStart() = Unit
 }
 
 /**
@@ -52,7 +55,7 @@ fun Modifier.homeGestures(
         val panel = geo.panelAt(down.position.x, down.position.y)
         panel?.let(handler::onPanelPress)
 
-        val outcome = trackGesture(down.position, viewConfiguration.touchSlop, swipeDistance, viewConfiguration.longPressTimeoutMillis)
+        val outcome = trackGesture(down.position, viewConfiguration.touchSlop, swipeDistance, viewConfiguration.longPressTimeoutMillis, handler::onSwipeUpStart)
         when (outcome) {
             is Outcome.Tap -> {
                 if (panel != null) {
@@ -117,8 +120,10 @@ private suspend fun AwaitPointerEventScope.trackGesture(
     slop: Float,
     swipeDistance: Float,
     longPressMs: Long,
+    onSwipeUpStart: () -> Unit,
 ): Outcome {
     var moved = false
+    var swipingUp = false
     var multi = false
     var multiStartCentroid = Offset.Zero
     var multiStartSpread = 0f
@@ -157,6 +162,11 @@ private suspend fun AwaitPointerEventScope.trackGesture(
                 if (change.pressed) {
                     last = change.position
                     if ((last - start).getDistance() > slop) moved = true
+                    val d = last - start
+                    if (moved && !swipingUp && d.y < 0 && abs(d.y) > abs(d.x)) {
+                        swipingUp = true
+                        onSwipeUpStart()
+                    }
                     continue
                 }
                 // 指が離れた
