@@ -224,6 +224,16 @@ private class SymbolPen(
                 line(16f, 5f, 21f, 5f)
             }
 
+            "lock" -> {
+                // 錠前: 掛け金の弧と本体と鍵穴
+                arc(7f, 3f, 10f, 11f, 180f, 180f)
+                line(7f, 8.5f, 7f, 11f)
+                line(17f, 8.5f, 17f, 11f)
+                rect(4.5f, 11f, 15f, 10.5f, r = 2.5f)
+                circle(12f, 15.5f, 1.3f, fill = true)
+                line(12f, 16.5f, 12f, 18.5f)
+            }
+
             "tool" -> {
                 // スパナ: 柄と、先端の開いた輪
                 line(5f, 19f, 13.5f, 10.5f)
