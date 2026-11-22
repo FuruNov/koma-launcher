@@ -26,8 +26,8 @@ android {
         // 実機は Android 15 以降だが、確認に使う Waydroid が Android 13（API 33）なので 33 にする
         minSdk = 33
         targetSdk = 36
-        versionCode = 16
-        versionName = "0.12.2"
+        versionCode = 17
+        versionName = "0.13.0"
     }
 
     signingConfigs {
