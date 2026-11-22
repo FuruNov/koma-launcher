@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import dev.furunov.komalauncher.model.apps.AppCatalog
 import dev.furunov.komalauncher.model.apps.AppEntry
 import dev.furunov.komalauncher.model.apps.AppKey
+import dev.furunov.komalauncher.model.apps.AppMigration
 import dev.furunov.komalauncher.model.apps.AppShortcut
 import dev.furunov.komalauncher.model.apps.DrawerFolders
 import dev.furunov.komalauncher.model.folders.FolderEdits
@@ -179,7 +180,7 @@ data class HomeUiState(
 ) {
     fun labelOf(app: AppKey): String = labels[app] ?: app.packageName
 
-    /** 表示するフォルダの中身。一覧に無いショートカットを隠す（Folders.shownAppsOf）。 */
+    /** 表示するフォルダの中身。一覧に無いアプリとショートカットを隠す（Folders.shownAppsOf）。 */
     fun shownAppsOf(panelId: String): List<AppKey> = folders.shownAppsOf(panelId, labels.keys)
 }
 
@@ -417,6 +418,23 @@ class HomeViewModel(
                         }
                 }
             }.launchIn(viewModelScope)
+
+        // アプリの一覧を読み込んだら、機種変更などで入口の名前だけが違う同じアプリを今の入口に読み替え、
+        // 登録してあるアプリの名前を覚える（まだ入れていないアプリの名前を、新しい端末で出すため）。AppMigration
+        apps.apps
+            .onEach { list ->
+                if (list.isEmpty()) return@onEach
+                val drawer = settingsStore.settings.value.drawer
+                val m = AppMigration.remapping(AppMigration.registered(folderStore.folders.value, drawer) + drawer.hidden, list)
+                if (m.isNotEmpty()) {
+                    folderStore.update { AppMigration.remap(it, m) }
+                    settingsStore.update { it.copy(drawer = AppMigration.remap(it.drawer, m)) }
+                }
+                settingsStore.update { s ->
+                    val names = AppMigration.names(folderStore.folders.value, s.drawer, list, s.appNames)
+                    if (names == s.appNames) s else s.copy(appNames = names)
+                }
+            }.launchIn(viewModelScope)
     }
 
     fun onEvent(event: HomeEvent) {
@@ -620,11 +638,11 @@ class HomeViewModel(
 
     private fun drop(e: HomeEvent.Drop) {
         val before = shown()
-        // フォルダの画面の位置は、一覧に無いショートカットを隠した並びの位置なので、データの中の位置に直す
+        // フォルダの画面の位置は、一覧に無いアプリとショートカットを隠した並びの位置なので、データの中の位置に直す
         val target =
             (e.target as? DropTarget.Panel)?.takeIf { it.index != null }?.let { t ->
                 val available = apps.apps.value.mapTo(HashSet()) { it.key }
-                t.copy(index = FolderEdits.dataIndex(before.appsOf(t.panelId), t.index!!) { !it.isShortcut || it in available })
+                t.copy(index = FolderEdits.dataIndex(before.appsOf(t.panelId), t.index!!) { available.isEmpty() || it in available })
             } ?: e.target
         val after =
             when {

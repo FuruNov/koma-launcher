@@ -565,6 +565,16 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun appListRemapsOldEntryAndRemembersNames() {
+        val old = AppKey("com.android.chrome", "OldMain")
+        folders.flow.value = Folders(byPanel = mapOf("p1" to Folder(listOf(old))), seeded = setOf("p1"))
+        // 一覧が更新されたときに読み替える（機種変更で入口の名前だけが違う同じアプリ）。初期値と同じ値では更新が届かないので、別の値にする
+        appsFake.list.value = listOf(AppEntry(chrome, "Chrome"), AppEntry(AppKey("com.example.other", "Main"), "Other"))
+        assertEquals(listOf(chrome), folders.flow.value.appsOf("p1"))
+        assertEquals(mapOf("com.android.chrome" to "Chrome"), settings.flow.value.appNames)
+    }
+
+    @Test
     fun dismissFolderMenuReturnsHome() {
         vm.onEvent(HomeEvent.ShowAppMenu(chrome, fromPanel = "p1"))
         vm.onEvent(HomeEvent.Dismiss)

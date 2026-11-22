@@ -35,13 +35,14 @@ data class Folders(
     fun appsOf(panelId: String): List<AppKey> = byPanel[panelId]?.apps.orEmpty()
 
     /**
-     * 表示するフォルダの中身。固定したショートカットのうち、今の一覧 [available] に無いもの（別の端末に復元した、ブラウザの側で消した）を隠す。
-     * データからは外さない。ロックの解除前などで一時的に一覧に無いだけのことがあるため。アプリは今までどおり全て返す。
+     * 表示するフォルダの中身。今の一覧 [available] に無いアプリとショートカット（別の端末に復元した、アンインストールした、ブラウザの側で消した）を隠す。
+     * データからは外さない。入れ直すと元の位置に戻り、ロックの解除前などで一時的に一覧に無いだけのこともあるため。
+     * 一覧をまだ読み込めていない（空の）間は、全て返す。読み込む前にフォルダが空に見えないように。
      */
     fun shownAppsOf(
         panelId: String,
         available: Set<AppKey>,
-    ): List<AppKey> = appsOf(panelId).filter { !it.isShortcut || it in available }
+    ): List<AppKey> = appsOf(panelId).filter { available.isEmpty() || it in available }
 
     /** 音楽プレイヤーにしたコマの id。どれもオフなら null。 */
     fun musicPanel(): String? = byPanel.entries.firstOrNull { it.value.musicPlayer }?.key

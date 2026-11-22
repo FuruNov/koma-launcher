@@ -137,11 +137,13 @@ class FolderEditsTest {
     }
 
     @Test
-    fun shownAppsHidesMissingShortcutsOnly() {
+    fun shownAppsHidesMissingAppsAndShortcuts() {
         val s1 = AppKey.shortcut("v", "1")
         val s2 = AppKey.shortcut("v", "2")
         val f = Folders(byPanel = mapOf("p1" to Folder(listOf(a, s1, b, s2))))
-        assertEquals(listOf(a, b, s2), f.shownAppsOf("p1", setOf(a, s2)))
+        assertEquals(listOf(a, s2), f.shownAppsOf("p1", setOf(a, s2)))
+        // 一覧を読み込む前は全て見せる
+        assertEquals(listOf(a, s1, b, s2), f.shownAppsOf("p1", emptySet()))
     }
 
     @Test

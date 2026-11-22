@@ -23,6 +23,7 @@ import java.io.File
  * - mask/<名前>.(png|webp): 白が人物の切り抜き（BiRefNet などの出力）
  * - inv/<名前>.(png|webp): 白が人物以外の切り抜き（モックアップの INV）
  * - <名前>.mask.* と <名前>.inv.*: 取り込み口と同じ名前の切り抜き
+ * - depth3d/: 試作の深度の層と切り抜き（<名前>.keep.png・<名前>.pop.png など）。中のファイルを全て、端末の depth3d/ へそのまま写す
  *
  * 画像と切り抜きは、最終的なコマ割りが参照する分だけを取り込み口へ写し、最後にコマ割りを取り込み口の layout.json に書く。
  * 書いた後の取り込みは FileLayoutStore が行う。
@@ -46,6 +47,9 @@ class SafFolderRestorer(
         var backup: Uri? = null
         var layout: Uri? = null
         var layoutImported: Uri? = null
+
+        /** depth3d/ の中のファイルの名前 → 元のファイル。 */
+        val depth3d = HashMap<String, Uri>()
     }
 
     override suspend fun restoreFolder(treeUri: String): String = withContext(Dispatchers.IO) {
@@ -78,11 +82,27 @@ class SafFolderRestorer(
                     is LayoutResult.Error -> return@withContext if (design != null) "$LAYOUT: ${r.message}" else "$BACKUP のコマ割り: ${r.message}"
                 }
             }
-        if (parsed == null && design == null && listing.files.isEmpty()) {
+        if (parsed == null && design == null && listing.files.isEmpty() && listing.depth3d.isEmpty()) {
             return@withContext "フォルダに $BACKUP・$LAYOUT・画像のいずれもありません"
         }
 
         parsed?.let(backup::apply)
+
+        // 深度の層と切り抜きは、コマ割りに関係なく全て写す（どの画像の分かはファイル名で決まる）
+        var depthFiles = 0
+        if (listing.depth3d.isNotEmpty()) {
+            val dir = context.getExternalFilesDir(null)?.let { File(it, DEPTH3D) }?.apply { mkdirs() }
+            if (dir != null) {
+                for ((name, uri) in listing.depth3d) {
+                    try {
+                        copy(resolver, uri, File(dir, name))
+                        depthFiles++
+                    } catch (e: Exception) {
+                        Log.w(TAG, "$uri を写せない", e)
+                    }
+                }
+            }
+        }
 
         var images = 0
         var masks = 0
@@ -125,6 +145,7 @@ class SafFolderRestorer(
             if (parsed != null) add("設定を復元しました")
             if (design != null) add("$LAYOUT のコマ割りを適用しました")
             add("画像 $images 枚、切り抜き $masks 枚を読み込みました")
+            if (depthFiles > 0) add("深度のファイル $depthFiles 個を読み込みました")
             if (notFound.isNotEmpty()) add("フォルダに無い画像: ${notFound.joinToString()}")
             // ウィジェットの配置し直しには許可の画面が要るので、ここでは行わず、どのコマに何があったかを知らせる
             if ((parsed?.widgetCount ?: 0) > 0) add("ウィジェットはコマを長押しして再配置してください（${parsed?.widgetCount} 個）")
@@ -153,6 +174,8 @@ class SafFolderRestorer(
         fun uriOf(c: Child) = DocumentsContract.buildDocumentUriUsingTree(tree, c.id)
         for (c in children(resolver, tree, DocumentsContract.getTreeDocumentId(tree))) {
             when {
+                c.isDirectory && c.name.lowercase() == DEPTH3D -> children(resolver, tree, c.id).filter { !it.isDirectory }.forEach { f -> listing.depth3d[f.name] = uriOf(f) }
+
                 c.isDirectory -> {
                     val rename: ((String) -> String?)? =
                         when (c.name.lowercase()) {
@@ -226,6 +249,7 @@ class SafFolderRestorer(
         const val TAG = "SafFolderRestorer"
         const val BACKUP = "koma-launcher-backup.json"
         const val LAYOUT = "layout.json"
+        const val DEPTH3D = "depth3d"
         const val LOADING_TRIES = 20
         const val LOADING_WAIT_MS = 500L
         val IMAGE_EXTENSIONS = listOf("webp", "jpg", "jpeg", "png")

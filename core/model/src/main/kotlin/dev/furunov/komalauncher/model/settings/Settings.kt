@@ -190,6 +190,11 @@ data class Settings(
     val animation: AnimationSettings = AnimationSettings(),
     val drawer: DrawerSettings = DrawerSettings(),
     val music: MusicSettings = MusicSettings(),
+    /**
+     * コマのフォルダと全アプリ一覧に登録してあるアプリのパッケージ名 → 名前。アプリの一覧を読み込むたびに更新する（AppMigration.names）。
+     * バックアップに含め、機種変更の後に、まだ入れていないアプリの名前を出すために使う。
+     */
+    val appNames: Map<String, String> = emptyMap(),
 ) {
     fun actionFor(g: GestureKind): LauncherAction = gestures[g] ?: DEFAULT_GESTURES[g] ?: LauncherAction.None
 

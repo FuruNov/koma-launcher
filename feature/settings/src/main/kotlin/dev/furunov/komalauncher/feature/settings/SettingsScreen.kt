@@ -70,6 +70,10 @@ class SettingsDeps(
     val openMusicAccess: () -> Unit,
     val openEditor: () -> Unit,
     val onClose: () -> Unit,
+    /** 登録してあるのに入っていないアプリ（パッケージ名と名前）。機種変更の後に入れ直すために並べる。 */
+    val missingApps: () -> List<Pair<String, String>> = { emptyList() },
+    /** Play ストアでアプリ（パッケージ名）のページを開く。 */
+    val openStorePage: (String) -> Unit = {},
 )
 
 private val Bg = Color(0xFF121216)
@@ -85,6 +89,7 @@ fun SettingsScreen(deps: SettingsDeps) {
     val audioStatus by deps.audioStatus.collectAsStateWithLifecycle()
     var autoBackupMenu by remember { mutableStateOf(false) }
     var hiddenMenu by remember { mutableStateOf(false) }
+    var missingMenu by remember { mutableStateOf(false) }
     // 既存のバックアップがあった保存先のフォルダ（tree の URI）。復元か上書きかを尋ねる
     var existingBackup by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -147,6 +152,7 @@ fun SettingsScreen(deps: SettingsDeps) {
             ActionKey.AutoBackup -> if (autoBackup.folder == null) pickBackupFolder.launch(null) else autoBackupMenu = true
             ActionKey.HomeApp -> deps.openHomeSettings()
             ActionKey.HiddenApps -> if (settings.drawer.hidden.isEmpty()) message = "全アプリ一覧でアプリを長押しし、「非表示」を選ぶと、ここに表示されます" else hiddenMenu = true
+            ActionKey.MissingApps -> missingMenu = true
         }
     }
 
@@ -203,6 +209,8 @@ fun SettingsScreen(deps: SettingsDeps) {
                                             autoBackupSummary(autoBackup)
                                         } else if (row.key == ActionKey.HiddenApps) {
                                             if (settings.drawer.hidden.isEmpty()) "なし" else "${settings.drawer.hidden.size} 個・選ぶと再表示"
+                                        } else if (row.key == ActionKey.MissingApps) {
+                                            deps.missingApps().size.let { if (it == 0) "なし" else "$it 個・機種変更の後に入れ直す" }
                                         } else {
                                             row.subtitle
                                         }
@@ -258,6 +266,15 @@ fun SettingsScreen(deps: SettingsDeps) {
             ) { autoBackupMenu = false }
         }
 
+        if (missingMenu) {
+            MissingAppsScreen(
+                missing = deps.missingApps(),
+                columns = settings.drawer.columns,
+                onOpen = deps.openStorePage,
+                onClose = { missingMenu = false },
+            )
+        }
+
         if (hiddenMenu) {
             HiddenAppsScreen(
                 hidden = settings.drawer.hidden,
@@ -299,7 +316,7 @@ fun SettingsScreen(deps: SettingsDeps) {
             }
         }
     }
-    BackHandler(enabled = choosing == null && !autoBackupMenu && !hiddenMenu && existingBackup == null) { deps.onClose() }
+    BackHandler(enabled = choosing == null && !autoBackupMenu && !hiddenMenu && !missingMenu && existingBackup == null) { deps.onClose() }
 }
 
 @Composable
