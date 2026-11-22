@@ -956,17 +956,25 @@ private fun rememberShownTilt(
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             source.start()
             try {
-                // 目標へ寄せる途中の値は手元で持ち、画面に渡す値は 1 画素ずつ動く刻みに丸める。
-                // 刻みが変わったときだけ状態が変わるので、1 画素未満の動きでは描き直さない（手に持つと毎フレーム描いていたため）
+                // 目標へ寄せる途中の値は手元で持ち、画面に渡す値は刻みに丸める（刻みが変わったときだけ描き直す）。
+                // 止まっているときは 1 画素未満の差を無視する（手に持つと毎フレーム描いていたため）。
+                // 1 画素以上の差が出たら意図して傾けたとみなし、止まるまで 1/4 画素の刻みで描き直す
+                // （1 画素ずつだと、ゆっくり傾けたときに 0.1 秒ごとに跳んで見えた。2026-11-22 に動画で確認）
                 val step = if (maxShiftPx > 0f) 1f / maxShiftPx else 1f
+                val fine = step / Tilt.FINE_STEPS
                 var current = shown.value
+                var moving = false
                 source.target.collectLatest { target ->
+                    if (!moving && !Tilt.startsMoving(shown.value, target, step)) return@collectLatest
+                    moving = true
                     while (current != target) {
                         TiltMotion.moving = true
                         withFrameNanos { }
                         current = Tilt.follow(current, target)
-                        shown.value = Tilt.quantize(current, step)
+                        shown.value = Tilt.quantize(current, fine)
                     }
+                    // 目標に着いたら止まっているとみなす。次の 1 画素未満の揺れでは描き直さない
+                    moving = false
                     // 止まって 0.2 秒たったら「動いていない」にする（すぐ次の傾きが来たら、この待ちは打ち切られる）
                     kotlinx.coroutines.delay(200)
                     TiltMotion.moving = false

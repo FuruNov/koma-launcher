@@ -49,3 +49,12 @@ class TiltTest {
         assertEquals(Tilt.quantize(Tilt(0.31f, 0f), 0.1f), Tilt.quantize(Tilt(0.34f, 0f), 0.1f))
     }
 }
+
+class TiltStartTest {
+    @Test
+    fun smallJitterDoesNotStartMoving() {
+        kotlin.test.assertFalse(Tilt.startsMoving(Tilt(0.2f, 0f), Tilt(0.25f, 0.04f), step = 0.1f))
+        kotlin.test.assertTrue(Tilt.startsMoving(Tilt(0.2f, 0f), Tilt(0.31f, 0f), step = 0.1f))
+        kotlin.test.assertTrue(Tilt.startsMoving(Tilt.ZERO, Tilt(0.01f, 0f), step = 0f))
+    }
+}

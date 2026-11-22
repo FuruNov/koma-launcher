@@ -43,6 +43,19 @@ data class Tilt(
             step: Float,
         ): Tilt = if (step <= 0f) tilt else Tilt((tilt.x / step).roundToInt() * step, (tilt.y / step).roundToInt() * step)
 
+        /** 動いている間に丸める刻みの細かさ（1 画素の何分の 1 か）。1 画素ずつだと、ゆっくり傾けたときに 0.1 秒ごとに跳んで見えた（2026-11-22）。 */
+        const val FINE_STEPS = 4
+
+        /**
+         * 止まっている表示 [shown] から [target] へ動き始めるか。差が 1 刻み（[step]、1 画素ぶん）未満なら、手に持ったときの揺れとみなして動かさない。
+         * 動き始めたら、止まるまでは [FINE_STEPS] 分の 1 の刻みで描き直す。
+         */
+        fun startsMoving(
+            shown: Tilt,
+            target: Tilt,
+            step: Float,
+        ): Boolean = step <= 0f || maxOf(abs(target.x - shown.x), abs(target.y - shown.y)) >= step
+
         /** [current] を [target] へ 1 フレーム分寄せる。十分近ければ目標そのものを返す（描き直しを止めるため）。 */
         fun follow(
             current: Tilt,
