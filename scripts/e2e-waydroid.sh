@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Waydroid（1080x1920、ウィンドウを最大化した状態）で、ホームの基本の操作を確かめる。
-# 見本のレイアウト（app/src/main/assets/sample/layout.json、version 2 の大ゴマ）を前提にした座標を使う。
-# 始める前に、アプリの内部のレイアウトを消して見本に戻す（Waydroid の su を使う）。
+# Waydroid（1080x1920、ウィンドウを最大化した状態）で、ホームの基本の操作を確認する。
+# サンプルのレイアウト（app/src/main/assets/sample/layout.json、version 2 の大ゴマ）を前提にした座標を使う。
+# 始める前に、アプリの内部のレイアウトを消してサンプルに戻す（Waydroid の su を使う）。
 # 使い方: scripts/e2e-waydroid.sh [スクリーンショットの保存先]
 set -uo pipefail
 
@@ -51,12 +51,12 @@ tap_text() { # ラベル [dy]
 }
 focus() { adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'; }
 
-# HOME キーでこのランチャーが開くよう、確かめる間だけ既定のホームにする。終わったら元のホームに戻す
+# HOME キーでこのランチャーが開くよう、確認する間だけデフォルトのホームにする。終わったら元のホームに戻す
 prev_home=$(adb shell cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN | tail -1 | tr -d "\r")
-# ファイルを差し替える間の既定のホーム。このランチャーが再起動して、差し替えの途中のファイルを読み書きしないようにする
+# ファイルを差し替える間のデフォルトのホーム。このランチャーが再起動して、差し替えの途中のファイルを読み書きしないようにする
 other_home=$(adb shell cmd package query-activities --brief -c android.intent.category.HOME -a android.intent.action.MAIN | tr -d "\r" | grep / | grep -v "^$PKG/" | head -1)
 FILES=/data/data/$PKG/files
-# 利用者のレイアウト・絵・フォルダは、確かめる前に退避し、終わったら戻す（見本で確かめると上書きされるため）。
+# 利用者のレイアウト・絵・フォルダは、確認する前に退避し、終わったら戻す（サンプルで確認すると上書きされるため）。
 # 端末の中の退避に加え、PC にも控えを置く。戻せなかったときに、次の実行で退避を上書きして失わないように
 BACKUP=/data/local/tmp/koma-e2e-files
 HOST_BACKUP="$OUT/files-backup-$(date +%Y%m%d-%H%M%S).tar"
@@ -86,7 +86,7 @@ su_sh "tar -C /data/data/$PKG -cf $BACKUP.tar files && chmod 644 $BACKUP.tar" &&
 }
 restore() {
   park
-  # 一時ディレクトリへ写してから差し替える。元と一致したときだけ端末の退避を消す
+  # 一時ディレクトリへコピーしてから差し替える。元と一致したときだけ端末の退避を消す
   if su_sh "rm -rf $FILES.restore && cp -a $BACKUP $FILES.restore && rm -rf $FILES && mv $FILES.restore $FILES && restorecon -R $FILES && diff -r $BACKUP $FILES >/dev/null"; then
     adb shell am force-stop "$PKG"
     su_sh "rm -rf $BACKUP"
@@ -97,7 +97,7 @@ restore() {
   [ -n "$prev_home" ] && adb shell cmd package set-home-activity "$prev_home" >/dev/null
 }
 trap restore EXIT
-# インストール直後と同じ状態から始める。フォルダの割り当てが残っていると、見本のフォルダに初期のアプリが入らない。
+# インストール直後と同じ状態から始める。フォルダの割り当てが残っていると、サンプルのフォルダに初期のアプリが入らない。
 # 起動の記録があると、全アプリ一覧の上に「よく使う」の行が加わり、アイコンの位置が変わる
 su_sh "rm -rf $FILES/layout.json $FILES/art $FILES/launches.json $FILES/folders.json $FILES/widgets.json $FILES/settings.json"
 # park の force-stop の直後に、システムがこのアプリを起動し直すことがある（2026-11-21 に Waydroid で確認。原因は未確認）。
@@ -185,7 +185,7 @@ check "アイコンの長押しでメニューが開く" $?
 adb shell input keyevent BACK
 sleep 1
 
-# 長押しのまま運ぶ: 指を下ろし、長押しの時間を待ってから少しずつ動かす
+# 長押しのままドラッグする: 指を下ろし、長押しの時間を待ってから少しずつ動かす
 dragto() { # x1 y1 x2 y2
   adb shell "input motionevent DOWN $1 $2; sleep 0.9; input motionevent MOVE $(( ($1 * 3 + $3) / 4 )) $(( ($2 * 3 + $4) / 4 )); sleep 0.1; input motionevent MOVE $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 )); sleep 0.1; input motionevent MOVE $3 $4; sleep 0.4; input motionevent UP $3 $4"
   sleep 1.2
@@ -197,7 +197,7 @@ adb shell input tap 850 1200
 sleep 1
 read -r cx cy <<<"$(center_of Contacts 40)"
 read -r mx my <<<"$(center_of Messages 40)"
-# すでに Contacts が先なら、逆に Messages を先頭へ運んで並べ替えを確かめる
+# すでに Contacts が先なら、逆に Messages を先頭へドラッグして並べ替えを確認する
 if [ "$cx" -lt "$mx" ]; then dragto "$mx" "$my" "$cx" "$cy"; first=Messages; else dragto "$cx" "$cy" "$mx" "$my"; first=Contacts; fi
 order=$(labels_in_folder)
 echo "     並べ替え後: $order"
@@ -291,7 +291,7 @@ open_editor() {
   tap_text コマ割りを編集
   sleep 2
 }
-# 編集画面の縮小図（content-desc）の中の、割合 (fx, fy) の位置を叩く
+# 編集画面のプレビュー（content-desc）の中の、割合 (fx, fy) の位置を叩く
 # 保存されたレイアウトのコマの数。新しいコマには名前を付けないので、画面の文字では数えられない
 panel_count() { su_sh "cat $FILES/layout.json" | grep -o "\"kind\"" | wc -l | tr -d " "; }
 tap_preview() { # fx fy

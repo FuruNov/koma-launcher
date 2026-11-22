@@ -21,10 +21,10 @@ import java.io.File
  *
  * - Room や DataStore を使わないのは、依存とメモリを増やさないため。保存する値は数 KB で、
  *   全体をメモリに持って丸ごと書き直せば足りる。
- * - AtomicFile で書くので、書き込みの途中で強制終了しても前の版が残る。
+ * - AtomicFile で書くので、書き込みの途中で強制終了しても前のバージョンが残る。
  * - ドラッグで並べ替えると短い間に何度も変わるので、[debounceMs] の間まとめてから書く。
  *   まとめている間にプロセスが止まると失われるので、ホームが裏に回ったら [flush] ですぐ書く。
- * - 読めないファイルは .broken に退避し、既定値で始めたことを [brokenFile] で知らせる。
+ * - 読めないファイルは .broken に退避し、デフォルト値で始めたことを [brokenFile] で知らせる。
  */
 @OptIn(FlowPreview::class)
 class JsonFileStore<T>(
@@ -41,7 +41,7 @@ class JsonFileStore<T>(
             encodeDefaults = true
         }
 
-    /** 読めずに既定値で始めたとき、退避したファイル。画面で知らせるために使う。 */
+    /** 読めずにデフォルト値で始めたとき、退避したファイル。画面で知らせるために使う。 */
     var brokenFile: File? = null
         private set
     private val state = MutableStateFlow(read() ?: default())

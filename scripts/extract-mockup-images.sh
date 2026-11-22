@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # モックアップのページ（公開された HTML）に data URI で埋め込まれた画像と人物の切り抜きを、
-# scripts/import-mockup.sh が読む並びのファイルに書き出す。
+# scripts/import-mockup.sh が読む並びのファイルに出力する。
 #
 # 使い方: scripts/extract-mockup-images.sh <ページの HTML> [出力先のディレクトリ]
 #   ページの HTML: Artifact の read で保存された HTML（docs/mockups/editor.template.html の {{IMAGES_JSON}} などを埋めたもの）
 #   出力先: 省くと art/mockup/（art/ は .gitignore にある。画像には版権があるので、リポジトリの外か art/ に置く）
 #
-# 書き出す先:
+# 出力先:
 #   const IMG  = {名前: data URI}  → <出力先>/<名前>.<拡張子>
 #   const INV  = {名前: data URI}  → <出力先>/inv/<名前>.<拡張子>（白が人物以外）
 #   const MASK = {名前: data URI}  → <出力先>/mask/<名前>.<拡張子>（白が人物）

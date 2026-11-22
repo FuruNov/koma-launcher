@@ -61,7 +61,7 @@ private val CardWidth = 156.dp
 private val PreviewHeight = 112.dp
 
 /**
- * ウィジェットの選択画面。アプリごとの見出しの下に、見本・名前・大きさ（マス数）を横に並べる。
+ * ウィジェットの選択画面。アプリごとの見出しの下に、プレビュー・名前・大きさ（マス数）を横に並べる。
  * 文字だけの一覧では、どのウィジェットか見分けられないと利用者から指摘があった（2026-11-22）。
  * 上の検索欄で、ウィジェットの名前かアプリの名前で絞る。
  */
@@ -180,7 +180,7 @@ private fun WidgetCard(
 }
 
 /**
- * 見本。アプリが見本のレイアウト（previewLayout）を持てばそれを描き、無ければ見本の画像、それも無ければアイコン。
+ * プレビュー。アプリがプレビューのレイアウト（previewLayout）を持てばそれを描き、無ければプレビューの画像、それも無ければアイコン。
  * レイアウトはウィジェットの大きさで作り、枠に収まるよう縮める。展開と画像の読み込みはメインスレッドの外で行う
  * （メインスレッドで行うと、選択画面を開くときとスクロールが重かった。2026-11-22 に利用者が指摘）。
  */
@@ -261,7 +261,7 @@ private fun Context.findActivity(): Activity? = when (this) {
 
 private val BUILTINS = listOf(BuiltinWidget.CLOCK to "時計", BuiltinWidget.TEXT to "テキスト")
 
-/** 内蔵のウィジェットの見本。ホームと同じ書体で描く。 */
+/** 内蔵のウィジェットのプレビュー。ホームと同じフォントで描く。 */
 @Composable
 private fun BuiltinCard(
     kind: BuiltinWidget,

@@ -7,7 +7,7 @@ import java.io.InputStream
 import java.io.OutputStream
 
 /**
- * ビジュアライザーが読んだ生の値の記録。debug 版が実機で書き、tools/vis-replay が PC で読んで、棒の計算を設定ごとに比べる。
+ * ビジュアライザーが読んだ生の値の記録。debug ビルドが実機で書き、tools/vis-replay が PC で読んで、棒の計算を設定ごとに比べる。
  * 画面のフレームごとに 1 件書く（Visualizer は同じ波形を続けて返すことがあるが、アプリと同じ間隔で再生できるよう、そのまま残す）。
  */
 object SpectrumRecording {
@@ -23,7 +23,7 @@ object SpectrumRecording {
         val wave: ByteArray,
     )
 
-    /** 書き始めに 1 回だけ書く、形式の印と版。 */
+    /** 書き始めに 1 回だけ書く、形式の印とバージョン。 */
     private const val MAGIC = 0x4B564953 // "KVIS"
     private const val VERSION = 1
 

@@ -47,7 +47,7 @@ class HomeMedia(
     val spectrum: AudioSpectrum?,
 )
 
-/** 再生中のコマを操作したときに、中央に一瞬表示する記号。 */
+/** 再生中のコマを操作したときに、中央に一瞬表示するアイコン。 */
 enum class PlayerFlash {
     PLAY,
     PAUSE,
@@ -56,17 +56,17 @@ enum class PlayerFlash {
     ;
 
     companion object {
-        /** タップした時点で記号を決める（状態が届いた時点で記号が切り替わらないように）。 */
+        /** タップした時点でアイコンを決める（状態が届いた時点でアイコンが切り替わらないように）。 */
         fun forTap(playing: Boolean): PlayerFlash = if (playing) PAUSE else PLAY
     }
 }
 
-/** 表示中の記号と、操作した時刻（System.nanoTime。同じ記号が続いても表示し直すため）。 */
+/** 表示中のアイコンと、操作した時刻（System.nanoTime。同じアイコンが続いても表示し直すため）。 */
 data class PlayerFlashEvent(
     val kind: PlayerFlash,
     val at: Long,
 ) {
-    /** [nanos] より後の操作か。層が現れる前の操作の記号は表示しない。 */
+    /** [nanos] より後の操作か。層が現れる前の操作のアイコンは表示しない。 */
     fun isNewerThan(nanos: Long): Boolean = at > nanos
 }
 
@@ -133,7 +133,7 @@ private fun DrawScope.drawCover(
 }
 
 /**
- * 再生中のコマの上に重ねる層: 下の辺のビジュアライザー、一時停止の記号、操作の記号。
+ * 再生中のコマの上に重ねる層: 下の辺のビジュアライザー、一時停止のアイコン、操作のアイコン。
  * ジャケットはコマの絵と同じ層（PanelLayer）に描く。時計と大見出しをジャケットの上に残すため。
  */
 @Composable
@@ -226,9 +226,9 @@ internal fun PlayerLayer(
     }
 
     val flashProgress = remember { Animatable(1f) }
-    // 前回の再生のときの操作の記号を、次に再生したときに表示しないよう、層が現れた時刻より後の操作だけを表示する
+    // 前回の再生のときの操作のアイコンを、次に再生したときに表示しないよう、層が現れた時刻より後の操作だけを表示する
     val shownSince = remember { System.nanoTime() }
-    // アニメーションを始めた記号。始まる前の 1 フレームも、記号を表示し始めとして描くために使う
+    // アニメーションを始めたアイコン。始まる前の 1 フレームも、アイコンを表示し始めとして描くために使う
     var started by remember { mutableStateOf<PlayerFlashEvent?>(null) }
     LaunchedEffect(flash) {
         if (flash == null || !flash.isNewerThan(shownSince)) return@LaunchedEffect
@@ -250,7 +250,7 @@ internal fun PlayerLayer(
             val fp = if (fresh && started !== flash) 0f else flashProgress.value
             val flashing = fresh && fp < 1f
             if (!playing) {
-                // 操作の記号が消えていくのに合わせて浮かび上がらせる（2 つの記号が重なって別の記号に見えないように）
+                // 操作のアイコンが消えていくのに合わせて浮かび上がらせる（2 つのアイコンが重なって別のアイコンに見えないように）
                 val a = if (flashing) fp else 1f
                 drawCircle(Color.Black.copy(alpha = 0.45f * a), radius = 26.dp.toPx(), center = Offset(cx, cy))
                 drawPlayMark(cx + 2.dp.toPx(), cy, 22.dp.toPx(), Color.White.copy(alpha = a))

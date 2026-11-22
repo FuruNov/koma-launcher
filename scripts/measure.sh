@@ -19,7 +19,7 @@ center_of() { # 属性 [fx] [fy]
 # 見つからなければ何もしない（set -e で計測の途中で止まらないよう、常に成功で返す）
 tap_at() { if [ -n "$1" ]; then adb shell input tap $1; fi; }
 
-# HOME キーでこのランチャーが開くよう、測る間だけ既定のホームにする。終わったら元のホームに戻す
+# HOME キーでこのランチャーが開くよう、測る間だけデフォルトのホームにする。終わったら元のホームに戻す
 prev_home=$(adb shell cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN | tail -1 | tr -d "\r")
 adb shell cmd package set-home-activity "$PKG/.MainActivity" >/dev/null
 trap '[ -n "$prev_home" ] && adb shell cmd package set-home-activity "$prev_home" >/dev/null' EXIT
@@ -61,7 +61,7 @@ trap '[ -n "$prev_home" ] && adb shell cmd package set-home-activity "$prev_home
   echo
   echo "## 編集画面を開き、割る・元に戻す・閉じるを 10 回した後のメモリ（使用量が増え続けないか）"
   for _ in $(seq 1 10); do
-    # コマの間の余白（見本とモックアップの大ゴマで同じ位置）を長押ししてホームのメニュー
+    # コマの間の余白（サンプルとモックアップの大ゴマで同じ位置）を長押ししてホームのメニュー
     adb shell input swipe 300 1452 300 1452 1000
     sleep 1
     tap_at "$(center_of 'text="コマ割りを編集"')"

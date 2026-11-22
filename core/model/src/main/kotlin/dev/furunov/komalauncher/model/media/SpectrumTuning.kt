@@ -1,7 +1,7 @@
 package dev.furunov.komalauncher.model.media
 
 /**
- * ビジュアライザーの棒の計算で調整する値。アプリは既定の値を使い、記録の再生（tools/vis-replay）で別の値と比べる。
+ * ビジュアライザーの棒の計算で調整する値。アプリはデフォルトの値を使い、記録の再生（tools/vis-replay）で別の値と比べる。
  * 大きさは、全振幅の正弦波を 0dB とする。getFft の値（全振幅の正弦波で約 512）で決めた以前の閾値からは、54dB を引くと換算できる。
  */
 data class SpectrumTuning(

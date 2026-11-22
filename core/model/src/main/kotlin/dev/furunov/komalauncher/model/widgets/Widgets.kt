@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * コマに置いたウィジェット。appWidgetId は端末ごとに違うので layout.json には書かず、
- * バックアップには [provider]（コンポーネント名）だけを書き出して、読み込み時に配置し直す。
+ * バックアップには [provider]（コンポーネント名）だけを書き込んで、読み込み時に配置し直す。
  */
 @Serializable
 data class WidgetRef(
@@ -31,7 +31,7 @@ interface WidgetStore {
 object WidgetEdits {
     /**
      * layout.json の自由に置くウィジェットに無い割り当て（id）。廃止したウィジェットのコマの割り当ても、ここで外れる。
-     * 利用者の layout.json を正しく読めたときだけ使うこと。見本に戻っているとき（JSON の誤り）に使うと、
+     * 利用者の layout.json を正しく読めたときだけ使うこと。サンプルに戻っているとき（JSON の誤り）に使うと、
      * 書き損じ 1 つで全部のウィジェットを外してしまうため。
      */
     fun orphans(

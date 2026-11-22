@@ -81,7 +81,7 @@ data class Appearance(
     val highlightColor: Long = 0xFFFFD54F,
     /** コマの間の余白の色（ARGB）。 */
     val gutterColor: Long = 0xFF111111,
-    /** アイコンの形。既定は端末の標準（Android のアイコンをそのまま描く）。 */
+    /** アイコンの形。デフォルトは端末の標準（Android のアイコンをそのまま描く）。 */
     val iconShape: IconShape = IconShape.SYSTEM,
     /** アイコンの縁。形の縁の内側に描く。 */
     val iconRim: IconRim = IconRim.NONE,
@@ -165,13 +165,13 @@ data class DrawerSettings(
     val hidden: Set<AppKey> = emptySet(),
     /** 利用者が別のフォルダへ移したアプリ。Android の分類による自動の分け方より優先する（DrawerFolders）。 */
     val moved: List<DrawerMove> = emptyList(),
-    /** フォルダの id → 名前。利用者が作ったフォルダ（id が u で始まる）と、名前を変えた既定のフォルダだけを持つ。 */
+    /** フォルダの id → 名前。利用者が作ったフォルダ（id が u で始まる）と、名前を変えたデフォルトのフォルダだけを持つ。 */
     val folderNames: Map<String, String> = emptyMap(),
     /** フォルダの id → 並べ替えたアプリの順。ここに無いアプリ（後から入れたものなど）は、その後ろに名前順で並べる。 */
     val appOrder: Map<String, List<AppKey>> = emptyMap(),
-    /** 並べ替えたタブ（フォルダの id）の順。ここに無いフォルダは、その後ろに既定の順で並べる。 */
+    /** 並べ替えたタブ（フォルダの id）の順。ここに無いフォルダは、その後ろにデフォルトの順で並べる。 */
     val tabOrder: List<String> = emptyList(),
-    /** フォルダの id → 左端に描く記号の id。既定のフォルダは選ばなくても記号を持つ（DrawerFolders.symbolOf）。 */
+    /** フォルダの id → 左端に描くアイコンの id。デフォルトのフォルダは選ばなくてもアイコンを持つ（DrawerFolders.symbolOf）。 */
     val folderSymbols: Map<String, String> = emptyMap(),
 )
 

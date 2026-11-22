@@ -140,7 +140,7 @@ class LayoutV2ParserTest {
         val shape = assertIs<LayoutShape.Tree>(layout.shape)
         assertEquals(DepthSpec(), shape.depth)
         assertTrue(layout.panels.none { it.pop })
-        // 既定のままなら depth を書かない（既存の layout.json の見た目を変えない）
+        // デフォルトのままなら depth を書かない（既存の layout.json の見た目を変えない）
         assertTrue("depth" !in LayoutParser.encode(layout))
         val changed =
             Layout(
@@ -185,7 +185,7 @@ class LayoutV2ParserTest {
 class SampleLayoutTest {
     @Test
     fun bundledSampleIsValid() {
-        // 見本が壊れていると、初回の起動で何も表示できない
+        // サンプルが壊れていると、初回の起動で何も表示できない
         val text = java.io.File("../../app/src/main/assets/sample/layout.json").readText()
         val layout = assertIs<LayoutResult.Ok>(LayoutParser.parse(text)).layout
         assertEquals(2, layout.version)

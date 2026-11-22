@@ -87,7 +87,7 @@ object LayoutParser {
         if (panels.isEmpty()) return "コマが 1 つもありません"
         val aspect = dto.aspect ?: return "aspect を書いてください"
         if (!aspect.isFinite() || aspect <= 0f) return "aspect は正の数にしてください"
-        // 絵は files/art/ の下にこの名前で写すので、別の場所を指せないようにする
+        // 絵は files/art/ の下にこの名前でコピーするので、別の場所を指せないようにする
         if (dto.image != null && !FILE_NAME.matches(dto.image)) return "image にはファイル名だけを書いてください: ${dto.image}"
         duplicate(panels.map { it.id })?.let { return it }
         // version 1 では描かないが、art.image も version 2 と同じく、別の場所を指せないようにしておく
@@ -330,7 +330,7 @@ object LayoutParser {
         fun toModel() = FxSpec(parallax, strength)
     }
 
-    /** 前景の人物の立体感。省いた項目は既定の値（どの効果も切ってある）。 */
+    /** 前景の人物の立体感。省いた項目はデフォルトの値（どの効果も切ってある）。 */
     @Serializable
     private data class DepthDto(
         val shadow: ShadowDto = ShadowDto(),
@@ -587,7 +587,7 @@ object LayoutParser {
         val iconScale: Float = 1f,
         /** true なら人物を枠の外へはみ出させる（depth.pop）。 */
         val pop: Boolean = false,
-        /** 重ね順（先頭が背景の絵のすぐ上）。"icons"・"label"・"masthead"・"clock"・"person"。省くと既定の順。 */
+        /** 重ね順（先頭が背景の絵のすぐ上）。"icons"・"label"・"masthead"・"clock"・"person"。省くとデフォルトの順。 */
         val order: List<LayerDto>? = null,
         val apps: List<String>? = null,
         val art: ArtDto? = null,

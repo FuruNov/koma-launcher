@@ -27,7 +27,7 @@ fun rememberArts(
     paths: Map<String, String>,
     /** 画像の id → 描く大きさ（画素）。 */
     sizes: Map<String, Size>,
-    /** 画像を取り込み直した回数。同じファイル名のまま中身が変わったときに読み直すため。 */
+    /** 画像をインポートし直した回数。同じファイル名のまま中身が変わったときに読み直すため。 */
     revision: Long,
 ): State<Map<String, ImageBitmap>> = produceState(emptyMap(), paths, sizes, revision) {
     // 前の画像を残したまま読み直す。読み終えるまでの間、仮の色に戻って見えないように

@@ -63,7 +63,7 @@ internal fun FolderStrip(
     folders: List<DrawerFolder>,
     selected: String?,
     dragKey: Any?,
-    /** 運んでいるアプリを離すと入るフォルダの id。枠で強調する。 */
+    /** ドラッグしているアプリを離すと入るフォルダの id。枠で強調する。 */
     dropTarget: String?,
     onSelect: (String?) -> Unit,
     /**
@@ -113,7 +113,7 @@ internal fun FolderStrip(
         }
         val rest = entries.drop(railCount)
         if (rest.isNotEmpty()) {
-            // 角の項目は左の列と同じ幅にして、記号を左の列とそろえる。残りは、少ないときは同じ幅で左から並べ、多いときは残りの横幅を等分する
+            // 角の項目は左の列と同じ幅にして、アイコンを左の列とそろえる。残りは、少ないときは同じ幅で左から並べ、多いときは残りの横幅を等分する
             val share = rest.size * RailWidth.value > with(density) { size.width.toDp() }.value
             Row(Modifier.fillMaxWidth().height(ItemHeight)) {
                 rest.forEachIndexed { i, f -> entry(railCount + i, f, if (i == 0 || !share) Modifier.width(RailWidth) else Modifier.weight(1f)) }
@@ -128,7 +128,7 @@ private fun RailItem(
     name: String,
     selected: Boolean,
     modifier: Modifier,
-    /** true なら、運んでいるアプリの入る先として枠を付ける。 */
+    /** true なら、ドラッグしているアプリの入る先として枠を付ける。 */
     target: Boolean = false,
 ) {
     Column(
@@ -143,7 +143,7 @@ private fun RailItem(
                 .then(if (target) Modifier.border(2.dp, Color(0xFFFFD54F), RoundedCornerShape(16.dp)) else Modifier),
             contentAlignment = Alignment.Center,
         ) { FolderSymbol(symbol, if (selected) Color.White else Dim, 22.dp) }
-        // 5 文字までは切れない幅（既定のフォルダ名は 5 文字以内にしてある）
+        // 5 文字までは切れない幅（デフォルトのフォルダ名は 5 文字以内にしてある）
         BasicText(
             name,
             maxLines = 1,
@@ -176,7 +176,7 @@ internal fun FolderMenu(
     }
 }
 
-/** 記号を選ぶ画面。今の記号に印を付ける。 */
+/** アイコンを選ぶ画面。今のアイコンに印を付ける。 */
 @Composable
 internal fun SymbolPicker(
     current: String,

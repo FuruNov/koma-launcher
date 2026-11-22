@@ -42,7 +42,7 @@ class LauncherAppsCatalog(
     // 一覧の作り直しは IO で並行に走るので、後に始めたものの結果だけを残す（先に始めたものが後に終わっても、古い一覧で上書きしない）
     private val generation = AtomicLong()
 
-    // 前回の作り直しのときに、固定したショートカットを取得できたか。既定のホームアプリに戻ったことを refresh で知るのに使う
+    // 前回の作り直しのときに、固定したショートカットを取得できたか。デフォルトのホームアプリに戻ったことを refresh で知るのに使う
     @Volatile private var hadShortcutAccess = false
     override val apps: StateFlow<List<AppEntry>> = state
 
@@ -188,7 +188,7 @@ class LauncherAppsCatalog(
         }
     }
 
-    // 既定のホームアプリでない間は固定したショートカットを取得できず、戻っても通知が来ないので、取れるようになったときに作り直す
+    // デフォルトのホームアプリでない間は固定したショートカットを取得できず、戻っても通知が来ないので、取れるようになったときに作り直す
     override fun refresh() {
         if (!hadShortcutAccess && launcherApps.hasShortcutHostPermission()) reload()
     }
@@ -208,7 +208,7 @@ class LauncherAppsCatalog(
     }
 
     /**
-     * 固定したショートカット（このランチャーが固定を受け付けたもの）。既定のホームアプリでなければ空。
+     * 固定したショートカット（このランチャーが固定を受け付けたもの）。デフォルトのホームアプリでなければ空。
      * ロック中などで問い合わせが失敗したら空を返し、Activity だけで一覧を作る（フォルダのデータには触れない）。
      */
     private fun pinnedShortcuts(): List<AppEntry> = try {

@@ -29,7 +29,7 @@ data class Folders(
     val byPanel: Map<String, Folder> = emptyMap(),
     /** コマの絵を替えて行き場を失ったアプリ。設定画面から別のコマへ移せる。 */
     val unassigned: List<AppKey> = emptyList(),
-    /** layout.json の初期値を取り込み済みのコマ。2 回目以降に初期値で上書きしないため。 */
+    /** layout.json の初期値をインポート済みのコマ。2 回目以降に初期値で上書きしないため。 */
     val seeded: Set<String> = emptySet(),
 ) {
     fun appsOf(panelId: String): List<AppKey> = byPanel[panelId]?.apps.orEmpty()
@@ -191,7 +191,7 @@ object FolderEdits {
      * layout.json に合わせて整える。
      * - 初めて見るフォルダのコマには、layout.json の初期値を 1 度だけ入れる（[seedOnly]）
      * - layout.json から消えたコマの中身は unassigned へ移す（消さない）
-     * 見本のレイアウトに戻っているとき（JSON の誤り）は呼ばないこと。書き損じ 1 つで割り当てを失うため。
+     * サンプルのレイアウトに戻っているとき（JSON の誤り）は呼ばないこと。書き損じ 1 つで割り当てを失うため。
      */
     fun reconcile(
         f: Folders,
@@ -202,7 +202,7 @@ object FolderEdits {
         val liveIds = layout.panels.filter { it.content is PanelContent.Folder }.map { it.id.value }.toSet()
         val orphans = result.byPanel.filterKeys { it !in liveIds }
         if (orphans.isEmpty()) return result
-        // 見本のコマの中身は利用者が選んだものではないので、unassigned に混ぜずに捨てる
+        // サンプルのコマの中身は利用者が選んだものではないので、unassigned に混ぜずに捨てる
         val moved = orphans.filterKeys { !it.startsWith(SAMPLE_PREFIX) }.values.flatMap { it.apps }
         return result.copy(
             byPanel = result.byPanel - orphans.keys,
@@ -230,6 +230,6 @@ object FolderEdits {
         return result
     }
 
-    /** 見本のレイアウトのコマの id の接頭辞。利用者の layout.json の id と重ならないようにする。 */
+    /** サンプルのレイアウトのコマの id の接頭辞。利用者の layout.json の id と重ならないようにする。 */
     const val SAMPLE_PREFIX = "sample-"
 }

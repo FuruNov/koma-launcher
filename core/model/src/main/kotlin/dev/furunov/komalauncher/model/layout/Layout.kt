@@ -30,7 +30,7 @@ sealed interface PanelContent {
 data class PanelArt(
     /** 内部の files/art/<image>.webp を指す。 */
     val image: String,
-    /** 画像の幅 / 高さ。null なら画像をまだ取り込んでいない（絵を描かない）。 */
+    /** 画像の幅 / 高さ。null なら画像をまだインポートしていない（絵を描かない）。 */
     val aspect: Float? = null,
     val zoom: Float = 1f,
     val dx: Float = 0f,
@@ -89,7 +89,7 @@ object LayerOrder {
         BACK,
     }
 
-    /** 重複を除き、足りないものを既定の順で後ろに付けて、5 つがそろった並びにする。 */
+    /** 重複を除き、足りないものをデフォルトの順で後ろに付けて、5 つがそろった並びにする。 */
     fun of(order: List<LayerKind>?): List<LayerKind> {
         val given = order.orEmpty().distinct()
         return given + DEFAULT.filter { it !in given }
@@ -208,8 +208,8 @@ data class Frame(
 enum class Tone { NONE, SOFT }
 
 /**
- * コマの見た目（段階 3）。値はどれも 0〜1。
- * 既定は何もしない（version 2 の初めのファイルに look が無くても、見た目が変わらないように）。
+ * コマの見た目。値はどれも 0〜1。
+ * デフォルトは何もしない（version 2 の初めのファイルに look が無くても、見た目が変わらないように）。
  */
 data class Look(
     val tone: Tone = Tone.NONE,
@@ -224,10 +224,10 @@ data class Look(
 /** コマの名前の向き。 */
 enum class LabelMode { NONE, VERTICAL, HORIZONTAL }
 
-/** 文字（段階 4）。名前と大見出しは、切り抜きがあれば人物の後ろに置く。 */
+/** 文字。名前と大見出しは、切り抜きがあれば人物の後ろに置く。 */
 data class TextSpec(
     val label: LabelMode = LabelMode.NONE,
-    /** true なら英語の名前（モックアップの既定）。 */
+    /** true なら英語の名前（モックアップのデフォルト）。 */
     val english: Boolean = true,
     /** 大見出し。空なら出さない。 */
     val masthead: String = "",
@@ -241,7 +241,7 @@ data class TextSpec(
     val icon: Boolean = true,
 )
 
-/** ランチャーが描く時計（段階 4）。利用者が選んだ「人物の後ろ」だけを持つ。 */
+/** ランチャーが描く時計。利用者が選んだ「人物の後ろ」だけを持つ。 */
 data class ClockSpec(
     val enabled: Boolean = false,
     /** 置くコマ。null か存在しないコマなら、いちばん大きいコマ。 */
@@ -269,7 +269,7 @@ data class WidgetSpec(
     /** 幅と高さ。 */
     val w: Float,
     val h: Float,
-    /** true なら人物の前に描く。false（既定）なら人物の後ろ。 */
+    /** true なら人物の前に描く。false（デフォルト）なら人物の後ろ。 */
     val front: Boolean = false,
     /** 内蔵のウィジェットの見た目。ほかのアプリのウィジェットでは使わない。 */
     val style: WidgetStyle = WidgetStyle(),
@@ -291,16 +291,16 @@ enum class BuiltinWidget(
 
 enum class DateFormat { LONG, SHORT, NONE }
 
-/** 文字の色。AUTO は、下のコマが白い紙なら墨、それ以外は白（以前の時計と大見出しと同じ）。 */
+/** 文字の色。AUTO は、下のコマが白い紙なら黒、それ以外は白（以前の時計と大見出しと同じ）。 */
 enum class TextColor { AUTO, WHITE, BLACK, ACCENT }
 
 /**
- * 内蔵のウィジェットの見た目。既定の値は、以前の時計と大見出しと同じ見た目にする。
- * [font] は書体の id（[WidgetFonts]）。null なら種類ごとの既定（時計は Dela Gothic One、テキストは Bodoni Moda）。
+ * 内蔵のウィジェットの見た目。デフォルトの値は、以前の時計と大見出しと同じ見た目にする。
+ * [font] はフォントの id（[WidgetFonts]）。null なら種類ごとのデフォルト（時計は Dela Gothic One、テキストは Bodoni Moda）。
  */
 data class WidgetStyle(
     val font: String? = null,
-    /** 太さ（100〜900）。null なら種類ごとの既定。太さが 1 種類だけの書体では使わない。 */
+    /** 太さ（100〜900）。null なら種類ごとのデフォルト。太さが 1 種類だけのフォントでは使わない。 */
     val weight: Int? = null,
     val date: DateFormat = DateFormat.LONG,
     val h24: Boolean = true,
@@ -310,11 +310,11 @@ data class WidgetStyle(
     val shadow: Boolean = true,
     /** テキストの文字。 */
     val text: String = "",
-    /** テキストを斜体にするか。null なら書体の既定（Bodoni Moda は斜体）。 */
+    /** テキストを斜体にするか。null ならフォントのデフォルト（Bodoni Moda は斜体）。 */
     val italic: Boolean? = null,
 )
 
-/** 内蔵のウィジェットで選べる書体の id。端末の書体は、端末によって形が違う。 */
+/** 内蔵のウィジェットで選べるフォントの id。端末のフォントは、端末によって形が違う。 */
 object WidgetFonts {
     const val DELA = "dela"
     const val BODONI = "bodoni"
@@ -324,16 +324,16 @@ object WidgetFonts {
     const val CONDENSED = "condensed"
     val ALL = listOf(DELA, BODONI, SANS, SERIF, MONO, CONDENSED)
 
-    /** 太さを選べる書体（端末の書体）。同梱の 2 つは太さが 1 種類だけ。 */
+    /** 太さを選べるフォント（端末のフォント）。同梱の 2 つは太さが 1 種類だけ。 */
     fun hasWeights(font: String): Boolean = font in setOf(SANS, SERIF, MONO, CONDENSED)
 
     fun defaultFor(kind: BuiltinWidget): String = if (kind == BuiltinWidget.CLOCK) DELA else BODONI
 }
 
-/** 視差（段階 5）。端末を傾けると、絵・文字・時計を別の量で動かす。 */
+/** 視差。端末を傾けると、絵・文字・時計を別の量で動かす。 */
 data class FxSpec(
     val parallax: Boolean = false,
-    /** 動かす量の倍率（0.1〜2）。既定の 0.4 は、利用者が実機で試してちょうどよいとした値（2026-11-20）。 */
+    /** 動かす量の倍率（0.1〜2）。デフォルトの 0.4 は、利用者が実機で試してちょうどよいとした値（2026-11-20）。 */
     val strength: Float = 0.4f,
 ) {
     /** 基準の幅（refWidth）のときの、絵・時計・文字を動かす最大の量。モックアップの PARALLAX。 */
@@ -351,9 +351,9 @@ data class FxSpec(
 }
 
 /**
- * 前景の人物の立体感。人物の切り抜きがある絵にだけ掛ける。どれも既定は切ってある。
+ * 前景の人物の立体感。人物の切り抜きがある絵にだけ掛ける。どれもデフォルトは切ってある。
  * 長さは基準の幅（refWidth）のときの画素で持ち、描くときに画面の幅に合わせる。
- * 値の既定は、モックアップ（2026-11-21、実機の絵で比べたもの）の初めの値。
+ * 値のデフォルトは、モックアップ（2026-11-21、実機の絵で比べたもの）の初めの値。
  */
 data class DepthSpec(
     val shadow: ShadowFx = ShadowFx(),
@@ -419,7 +419,7 @@ sealed interface LayoutShape {
 
     /** version 1。1 枚の絵と、絵に対する 0〜1 の相対座標の多角形。 */
     data class Fixed(
-        /** 内部の files/art/ の下のファイル名。null なら見本の仮の絵を描く。 */
+        /** 内部の files/art/ の下のファイル名。null ならサンプルの仮の絵を描く。 */
         val image: String?,
         /** 画像の幅 / 高さ。画像を読む前にコマの位置を決められるよう、JSON に持たせる。 */
         val aspect: Float,
@@ -445,7 +445,7 @@ data class Layout(
         }
     }
 
-    /** 画面に描く画像の id（重複なし）。取り込みで写す画像と、描画で読む画像を決めるのに使う。 */
+    /** 画面に描く画像の id（重複なし）。インポートでコピーする画像と、描画で読む画像を決めるのに使う。 */
     val images: Set<String> by lazy {
         when (shape) {
             is LayoutShape.Tree -> panels.mapNotNull { it.art?.image }.toSet()

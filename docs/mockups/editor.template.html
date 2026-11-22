@@ -197,7 +197,7 @@
   const W = 1220, H = 2712, MARGIN = 24;
   const SVGNS = "http://www.w3.org/2000/svg";
   const IMG = {{IMAGES_JSON}};
-  // 人物の切り抜き（白が人物）。PC で isnet-anime で作った（INV は BiRefNet から作った版を使う）。アプリでは端末の中で作る想定
+  // 人物の切り抜き（白が人物）。PC で isnet-anime で作った（INV は BiRefNet から作ったものを使う）。アプリでは端末の中で作る想定
   const MASK = {{MASKS_JSON}};
   // 白黒を反転し、縁をはっきりさせた切り抜き（白が人物以外）。人物の後ろの文字を切り抜くのに使う。
   // BiRefNet（birefnet-general-lite）で作った。isnet-anime は大写しの絵で背景まで人物に含めることがあったため
@@ -471,7 +471,7 @@
         for (let i = 0; i < grid.length; i++) grid[i] = 1 - px[i * 4] / 255; // 1 が人物
         COVER[key] = grid;
         render();
-      } catch (e) { /* 地図が無ければ既定の位置に置く */ }
+      } catch (e) { /* 地図が無ければデフォルトの位置に置く */ }
     };
     img.src = src;
   });
@@ -547,7 +547,7 @@
   // 大見出し: 雑誌の表紙のように、コマの幅いっぱいの斜体のセリフ体で置く
   function drawMasthead(inner, p, poly, b) {
     const word = (state.text.word || "").trim(); if (!word) return;
-    // 書体ごとに字の幅が違うので、文字列の幅をコマの幅の 9 割に合わせる（はみ出さないように）
+    // フォントごとに字の幅が違うので、文字列の幅をコマの幅の 9 割に合わせる（はみ出さないように）
     const size = Math.min(b.h * 0.16, b.w * 0.42);
     const t = el("text", { class: "ptext", x: b.cx, y: b.t + state.text.mastheadY * b.h, "text-anchor": "middle", "dominant-baseline": "central", textLength: b.w * 0.9, lengthAdjust: "spacingAndGlyphs", ...textStyle(size, "Bodoni Moda, Didot, serif"), "font-style": "italic", "font-weight": 800 });
     t.textContent = word;
@@ -992,7 +992,7 @@
   });
   svg.addEventListener("pointerleave", () => { if (!gotSensor) { tilt.tx = 0; tilt.ty = 0; } });
 
-  // 全アプリ一覧の見本: アプリと同じく、検索欄とアイコンの格子を画面の上に重ねる。押すと閉じる
+  // 全アプリ一覧のサンプル: アプリと同じく、検索欄とアイコンの格子を画面の上に重ねる。押すと閉じる
   const MOCK_APPS = ["Chrome", "Gmail", "LINE", "X", "YouTube", "Spotify", "カメラ", "カレンダー", "設定", "マップ", "ゲーム","時計", "電卓", "ファイル", "写真", "Play ストア"];
   function openDrawerMock() {
     if (svg.querySelector("#drawer-mock")) return;

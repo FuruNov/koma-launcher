@@ -12,13 +12,13 @@ import kotlinx.coroutines.flow.StateFlow
 sealed interface LayoutState {
     val layout: Layout
 
-    /** 画面に表示する知らせ（取り込みの失敗など）。null なら何も表示しない。 */
+    /** 画面に表示する知らせ（インポートの失敗など）。null なら何も表示しない。 */
     val error: String?
 
     /**
      * 利用者のレイアウトを読めた。[images] は画像の id → 絵のファイルの絶対パス（ファイルがある画像だけ）。
-     * [error] は、新しい layout.json の取り込みに失敗して、前のレイアウトを表示し続けているときの理由。
-     * [revision] は画像を取り込んだ回数。画像のファイル名は変わらないので、読み直しの合図に使う。
+     * [error] は、新しい layout.json のインポートに失敗して、前のレイアウトを表示し続けているときの理由。
+     * [revision] は画像をインポートした回数。画像のファイル名は変わらないので、読み直しの合図に使う。
      */
     data class Loaded(
         override val layout: Layout,
@@ -30,7 +30,7 @@ sealed interface LayoutState {
     ) : LayoutState
 
     /**
-     * 利用者のレイアウトが無いか壊れているので、見本を表示している。
+     * 利用者のレイアウトが無いか壊れているので、サンプルを表示している。
      * [error] が null なら単に未配置。このときはフォルダとウィジェットの整理をしない。
      */
     data class Fallback(
@@ -74,12 +74,12 @@ interface ScreenEvents {
 
 /** レイアウトの書き換え。編集画面が使う。 */
 interface LayoutStore : LayoutSource {
-    /** レイアウトを書き換える。見本を表示しているときは、見本を元に書き換える（書いた時点で利用者のレイアウトになる）。 */
+    /** レイアウトを書き換える。サンプルを表示しているときは、サンプルを元に書き換える（書いた時点で利用者のレイアウトになる）。 */
     fun update(transform: (Layout) -> Layout)
 
     /**
-     * 利用者が選んだ画像（content:// の URI）を内部へ写し、コマ [panel] に置く。置いた画像を返す（読めなければ null）。
-     * 写すことと置くことを 1 つの排他の中で行う。間に [pruneImages] が入ると、まだどのコマも使っていない新しい画像が消されるため。
+     * 利用者が選んだ画像（content:// の URI）を内部へコピーし、コマ [panel] に置く。置いた画像を返す（読めなければ null）。
+     * コピーすることと置くことを 1 つの排他の中で行う。間に [pruneImages] が入ると、まだどのコマも使っていない新しい画像が消されるため。
      * 長辺 2048 以下に縮めるので、IO のスレッドで時間がかかる。
      */
     suspend fun addImage(
@@ -89,7 +89,7 @@ interface LayoutStore : LayoutSource {
 
     /**
      * どのコマも使っていない画像を消す。元に戻す履歴が要らなくなってから（編集画面を閉じたときに）呼ぶ。
-     * すぐに戻り、消すのは IO のスレッドで、取り込み・画像の追加と排他にして行う。
+     * すぐに戻り、消すのは IO のスレッドで、インポート・画像の追加と排他にして行う。
      */
     fun pruneImages()
 }

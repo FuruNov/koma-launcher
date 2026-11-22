@@ -12,7 +12,7 @@ import android.media.session.PlaybackState
 import android.os.SystemClock
 
 /**
- * 音楽アプリにログインできない Waydroid で、再生中のコマを確かめるための仮の再生セッション。
+ * 音楽アプリにログインできない Waydroid で、再生中のコマを確認するための仮の再生セッション。
  * 音は鳴らさない。ランチャーからの再生・一時停止・曲送りを受けて、状態とジャケットを切り替える。
  * 例: am broadcast -a dev.furunov.komalauncher.DEBUG_MEDIA --es state play（pause・stop も使える）
  */

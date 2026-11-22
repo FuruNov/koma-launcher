@@ -114,8 +114,8 @@ import kotlin.math.hypot
 import kotlin.math.roundToInt
 
 /**
- * コマ割りの編集画面（モックアップの「線で割る」）。上に画面の縮小図、下に操作を並べる。
- * 縮小図の上の操作: コマを押して選ぶ、選んだコマの線の端（丸）を縁に沿って動かす、
+ * コマ割りの編集画面（モックアップの「線で割る」）。上に画面のプレビュー、下に操作を並べる。
+ * プレビューの上の操作: コマを押して選ぶ、選んだコマの線の端（丸）を縁に沿って動かす、
  * 選んだコマの絵をドラッグで動かし 2 本指で拡大する。
  */
 @Composable
@@ -145,7 +145,7 @@ fun EditorScreen(
     // コマを押して選んだら、そのコマの設定を見せる
     LaunchedEffect(state.selected) { if (state.selected != null) tab = EditorTab.Panel }
     val names = remember(folders) { folders.byPanel.mapNotNull { (id, f) -> f.name?.let { id to it } }.toMap() }
-    // コマに置くアイコンのアプリ（フォルダは先頭から順、全アプリ一覧は記号で null）。ホームと同じ位置に縮小図にも描く
+    // コマに置くアイコンのアプリ（フォルダは先頭から順、全アプリ一覧はアイコンで null）。ホームと同じ位置にプレビューにも描く
     val iconApps =
         remember(folders, state.layout) {
             folders.byPanel.filterValues { it.apps.isNotEmpty() }.mapValues { (_, f) -> f.apps.map<AppKey, AppKey?> { it } } +
@@ -168,7 +168,7 @@ fun EditorScreen(
                 Chip("選択中のコマ", selected = tab == EditorTab.Panel) { tab = EditorTab.Panel }
                 Chip("全体", selected = tab == EditorTab.Whole) { tab = EditorTab.Whole }
             }
-            // 操作の欄が伸びても縮小図が潰れないよう、高さを分け合う（操作の欄は中でスクロールする）
+            // 操作の欄が伸びてもプレビューが潰れないよう、高さを分け合う（操作の欄は中でスクロールする）
             Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp)) {
                 state.message?.let {
                     BasicText(it, style = TextStyle(color = Color(0xFFFFD54F), fontSize = 13.sp), modifier = Modifier.padding(vertical = 4.dp).clickable(onClick = vm::dismissMessage))
@@ -411,14 +411,14 @@ internal fun kindLabel(c: PanelContent): String = when (c) {
     PanelContent.Drawer -> "アプリドロワー"
 }
 
-/** 画面の縮小図と、その上の指の操作。 */
+/** 画面のプレビューと、その上の指の操作。 */
 @Composable
 private fun Preview(
     vm: EditorViewModel,
     state: EditorUiState,
-    /** フォルダに付けた名前（コマの id → 名前）。ホームと同じ名前を縮小図に表示する。 */
+    /** フォルダに付けた名前（コマの id → 名前）。ホームと同じ名前をプレビューに表示する。 */
     names: Map<String, String>,
-    /** コマに置くアイコンのアプリ（コマの id → 先頭から順。全アプリ一覧の記号は null）。 */
+    /** コマに置くアイコンのアプリ（コマの id → 先頭から順。全アプリ一覧のアイコンは null）。 */
     iconApps: Map<String, List<AppKey?>>,
     screenWidth: Float,
     screenHeight: Float,
@@ -436,7 +436,7 @@ private fun Preview(
     // 影の Paint などを毎回作らないよう、形か見た目が変わったときだけ作る
     val faces =
         remember(resolved, state.layout, gutter) {
-            // 枠の色を自動にしているときは、縮小図のすき間の色から決める
+            // 枠の色を自動にしているときは、プレビューのすき間の色から決める
             val style = PanelStyle.of(state.layout, screenWidth, gutter.toArgb().toLong() and 0xFFFFFFFFL)
             resolved.panels.map { PanelFace(it.polygon, it.art, it.index, style, it.panel.art?.dim ?: 0f) }
         }
@@ -700,7 +700,7 @@ internal fun Chip(
  * - 触れただけでは値を変えない。横へ動かし始めてから変える（縦のスクロールで値が飛ばないように）
  * - 指の位置へ値を飛ばさず、動かした量だけ値を変える
  * - 値を [step] ごとに止め、[tick] ごとに目盛りを描く。目盛りを通るたびに端末を軽く振動させる
- * - [mark]（既定の値など）の目盛りは長く描く
+ * - [mark]（デフォルトの値など）の目盛りは長く描く
  */
 @Composable
 private fun SliderRow(

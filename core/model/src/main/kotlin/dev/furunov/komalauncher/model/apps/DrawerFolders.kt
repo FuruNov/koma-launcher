@@ -8,7 +8,7 @@ data class DrawerFolder(
     val id: String,
     val name: String,
     val apps: List<AppEntry>,
-    /** 一覧の左端に描く記号の id（[DrawerFolders.symbols] のどれか）。 */
+    /** 一覧の左端に描くアイコンの id（[DrawerFolders.symbols] のどれか）。 */
     val symbol: String = DrawerFolders.FOLDER_SYMBOL,
 )
 
@@ -19,12 +19,12 @@ data class DrawerFolder(
 object DrawerFolders {
     const val OTHER = "other"
 
-    /** 利用者が作ったフォルダの id の頭。既定のフォルダの id と重ならないようにする。 */
+    /** 利用者が作ったフォルダの id の頭。デフォルトのフォルダの id と重ならないようにする。 */
     private const val CUSTOM_PREFIX = "u"
 
     // 名前は全角 5 文字以内にする。全アプリ一覧の左の列（幅 68dp・10.5sp）で、それより長いと末尾が省略される
 
-    /** 既定のフォルダの id と名前。タブはこの順に並べ、利用者が作ったフォルダは「その他」の前に入れる。 */
+    /** デフォルトのフォルダの id と名前。タブはこの順に並べ、利用者が作ったフォルダは「その他」の前に入れる。 */
     val builtIn: List<Pair<String, String>> =
         listOf(
             AppCategory.GAME.id to "ゲーム",
@@ -43,7 +43,7 @@ object DrawerFolders {
 
     const val FOLDER_SYMBOL = "folder"
 
-    /** 選べる記号の id。絵は :feature:drawer が描く。並びは選ぶ画面の順。 */
+    /** 選べるアイコンの id。絵は :feature:drawer が描く。並びは選ぶ画面の順。 */
     val symbols: List<String> =
         listOf(
             "game", "music", "mic", "video", "photo", "chat", "globe", "map", "plane", "food",
@@ -77,13 +77,13 @@ object DrawerFolders {
         s: DrawerSettings,
     ): String = s.folderNames[id] ?: builtInNames[id] ?: id
 
-    /** 記号の id。利用者が選んだもの、既定のフォルダの記号、どれでもなければフォルダの記号の順に決める。 */
+    /** アイコンの id。利用者が選んだもの、デフォルトのフォルダのアイコン、どれでもなければフォルダのアイコンの順に決める。 */
     fun symbolOf(
         id: String,
         s: DrawerSettings,
     ): String = s.folderSymbols[id]?.takeIf { it in symbols } ?: builtInSymbols[id] ?: FOLDER_SYMBOL
 
-    /** 記号を変える。 */
+    /** アイコンを変える。 */
     fun setSymbol(
         s: DrawerSettings,
         id: String,
@@ -169,7 +169,7 @@ object DrawerFolders {
         return s.copy(folderNames = s.folderNames + (id to trimmed)) to id
     }
 
-    /** 名前を変える。既定のフォルダを空の名前にすると、既定の名前に戻す。利用者が作ったフォルダは空の名前にしない。 */
+    /** 名前を変える。デフォルトのフォルダを空の名前にすると、デフォルトの名前に戻す。利用者が作ったフォルダは空の名前にしない。 */
     fun rename(
         s: DrawerSettings,
         id: String,

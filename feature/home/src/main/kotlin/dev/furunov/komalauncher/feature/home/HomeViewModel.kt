@@ -90,7 +90,7 @@ sealed interface Overlay {
         val fromDrawer: Boolean = false,
         /**
          * メニューの下に表示したまま残す画面（全アプリ一覧かフォルダ）。閉じたらここに戻る。
-         * 長押しですぐメニューを出すので、長押しした元の画面を消すと、続けて運ぶ操作も止まってしまう。そのため残す。
+         * 長押しですぐメニューを出すので、長押しした元の画面を消すと、続けてドラッグの操作も止まってしまう。そのため残す。
          */
         val under: Overlay = None,
     ) : Overlay {
@@ -172,11 +172,11 @@ data class HomeUiState(
     val layout: Layout,
     /** 画像の id → ファイルの絶対パス。 */
     val images: Map<String, String>,
-    /** 画像を取り込み直した回数（読み直しの合図）。 */
+    /** 画像をインポートし直した回数（読み直しの合図）。 */
     val imagesRevision: Long,
     /** 画像の id → 人物の切り抜きのファイルの絶対パス。 */
     val masks: Map<String, String> = emptyMap(),
-    /** レイアウトの読み込み・取り込みの誤りの内容。画面の上端に示す。 */
+    /** レイアウトの読み込み・インポートの誤りの内容。画面の上端に示す。 */
     val layoutError: String?,
     val folders: Folders,
     val overlay: Overlay,
@@ -237,7 +237,7 @@ sealed interface HomeEvent {
 
     data object ClearUndo : HomeEvent
 
-    /** [fromPanel] が null なら全アプリ一覧から運んだ。 */
+    /** [fromPanel] が null なら全アプリ一覧からドラッグした。 */
     data class Drop(
         val app: AppKey,
         val fromPanel: String?,
@@ -414,9 +414,9 @@ class HomeViewModel(
             )
 
     init {
-        // 利用者の layout.json を読めたときだけ、フォルダの初期値の取り込みと、消えたコマの整理をする。
-        // 見本に戻っているとき（JSON の誤り）に整理すると、書き損じ 1 つで割り当てを失うため。
-        // 見本を表示しているときも初期値だけは取り込む（初回の起動で空のフォルダにならないように）。
+        // 利用者の layout.json を読めたときだけ、フォルダの初期値のインポートと、消えたコマの整理をする。
+        // サンプルに戻っているとき（JSON の誤り）に整理すると、書き損じ 1 つで割り当てを失うため。
+        // サンプルを表示しているときも初期値だけはインポートする（初回の起動で空のフォルダにならないように）。
         layoutSource.state
             .onEach { l ->
                 when (l) {
@@ -618,7 +618,7 @@ class HomeViewModel(
 
             is HomeEvent.SwipePanel ->
                 if (state.value.player?.panelId == event.panelId) {
-                    // 右へ払うと次の曲、左へ払うと前の曲（利用者が実機で試し、こちらが直感に合うとした。2026-11-20）
+                    // 右へスワイプすると次の曲、左へスワイプすると前の曲（利用者が実機で試し、こちらが直感に合うとした。2026-11-20）
                     if (event.toLeft) media.previous() else media.next()
                 }
 

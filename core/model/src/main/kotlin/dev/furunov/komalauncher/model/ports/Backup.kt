@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
  */
 interface RestoreService {
     /**
-     * フォルダにあるもの（koma-launcher-backup.json・layout.json・画像・切り抜き）をすべて取り込む。
+     * フォルダにあるもの（koma-launcher-backup.json・layout.json・画像・切り抜き）をすべてインポートする。
      * layout.json があれば、バックアップのコマ割りより優先する。利用者に見せる文（結果か失敗の理由）を返す。
      */
     suspend fun restoreFolder(treeUri: String): String

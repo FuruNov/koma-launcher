@@ -18,8 +18,8 @@ class DebugReceiver : BroadcastReceiver() {
         if (intent.action == "dev.furunov.komalauncher.DEBUG_PLAY_UNLOCK") {
             (context.applicationContext as KomaApplication).container.screenEvents.simulateUnlock()
         }
-        // センサーの無い Waydroid で視差を確かめる。例: am broadcast -a dev.furunov.komalauncher.DEBUG_TILT --ef x 1 --ef y -0.5
-        // --ef period <秒> を付けると、左右 x・前後 y を半径とする円を period 秒で一周する動きを、dur 秒（既定 12）続ける。
+        // センサーの無い Waydroid で視差を確認する。例: am broadcast -a dev.furunov.komalauncher.DEBUG_TILT --ef x 1 --ef y -0.5
+        // --ef period <秒> を付けると、左右 x・前後 y を半径とする円を period 秒で一周する動きを、dur 秒（デフォルト 12）続ける。
         // 値を毎フレーム変えるので、adb から少しずつ送るよりも滑らかに動く（動画を撮るとき）
         if (intent.action == "dev.furunov.komalauncher.DEBUG_TILT") {
             val tilt = (context.applicationContext as KomaApplication).container.tilt
@@ -29,11 +29,11 @@ class DebugReceiver : BroadcastReceiver() {
             TiltAnimation.stop()
             if (period > 0f) TiltAnimation.start(x, y, period, intent.getFloatExtra("dur", 12f)) { tilt.simulate(it) } else tilt.simulate(Tilt(x, y))
         }
-        // 音楽アプリにログインできない Waydroid で、再生中のコマを確かめる。例: am broadcast -a dev.furunov.komalauncher.DEBUG_MEDIA --es state play
+        // 音楽アプリにログインできない Waydroid で、再生中のコマを確認する。例: am broadcast -a dev.furunov.komalauncher.DEBUG_MEDIA --es state play
         if (intent.action == "dev.furunov.komalauncher.DEBUG_MEDIA") {
             DebugMediaSession.handle(context, intent.getStringExtra("state"))
         }
-        // ブラウザの無い Waydroid で、ホーム画面への追加の依頼を確かめる。自分自身のショートカットの固定を依頼する。
+        // ブラウザの無い Waydroid で、ホーム画面への追加の依頼を確認する。自分自身のショートカットの固定を依頼する。
         // 例: am broadcast -p dev.furunov.komalauncher -a dev.furunov.komalauncher.DEBUG_PIN --ei n 1
         // --ez update true を付けると、固定済みのショートカットの名前とアイコンを変える（ブラウザの側でアイコンが変わった場合を再現する）。色は --ei color <ARGB の整数> で変える
         if (intent.action == "dev.furunov.komalauncher.DEBUG_PIN") {

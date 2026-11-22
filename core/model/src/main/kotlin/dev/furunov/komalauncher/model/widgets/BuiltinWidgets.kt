@@ -140,7 +140,7 @@ object BuiltinWidgets {
         return Rect((span?.first ?: b.left) + inset, b.top + inset, (span?.second ?: b.right) - inset, b.bottom - inset)
     }
 
-    /** 新しく置く内蔵のウィジェットの既定の大きさ（画面に対する割合）。時計は以前の既定の大きさ。 */
+    /** 新しく置く内蔵のウィジェットのデフォルトの大きさ（画面に対する割合）。時計は以前のデフォルトの大きさ。 */
     fun defaultSize(
         kind: BuiltinWidget,
         layout: Layout,

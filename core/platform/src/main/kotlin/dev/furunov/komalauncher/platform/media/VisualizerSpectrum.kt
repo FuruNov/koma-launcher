@@ -44,10 +44,10 @@ class VisualizerSpectrum(
 
     /**
      * 取得の倍率の決め方。NORMALIZED は、オーディオの処理単位（数〜20ms）ごとに最大の標本が 0.99 になるよう倍率をかける
-     * （AOSP の EffectVisualizer.cpp で確かめた）。AS_PLAYED は音量をかけた後の音をそのまま 8 ビットにするので、値がメディアの音量に比例する。
+     * （AOSP の EffectVisualizer.cpp で確認した）。AS_PLAYED は音量をかけた後の音をそのまま 8 ビットにするので、値がメディアの音量に比例する。
      * 実機（2026-11-21、YT Music）では、AS_PLAYED は音量 2/30 で音楽の中身が 8 ビットの 1 段階より小さくなって消え、10/30 でも
      * 8kHz より上が雑音の大きさ（-70dB ほど）まで下がった。全帯域がそろって上下する量は、NORMALIZED と比べて 1 割ほどしか減らなかったので、
-     * NORMALIZED を使う。debug 版の実験で切り替えると、すぐに反映する。
+     * NORMALIZED を使う。debug ビルドの実験で切り替えると、すぐに反映する。
      */
     var scalingMode: Int = Visualizer.SCALING_MODE_NORMALIZED
         set(value) {
@@ -56,7 +56,7 @@ class VisualizerSpectrum(
             Log.i(TAG, "倍率の決め方を $value にした（結果 $scalingResult）")
         }
 
-    /** この時刻（elapsedRealtime）まで、読んだ値を 0.1 秒ごとにログへ書く。棒の見え方を調べるための debug 版の実験用。 */
+    /** この時刻（elapsedRealtime）まで、読んだ値を 0.1 秒ごとにログへ書く。棒の見え方を調べるための debug ビルドの実験用。 */
     @Volatile
     var logUntil: Long = 0L
 
@@ -69,7 +69,7 @@ class VisualizerSpectrum(
 
     /**
      * 最後に分かった取得の状態（開始できたか、音を受け取っているか、無音だけか）。まだ一度も開始していなければ null。
-     * 端末によって取得できないことがあり、Release の APK では adb のログを見られないので、設定画面に表示して原因を確かめる。
+     * 端末によって取得できないことがあり、Release の APK では adb のログを見られないので、設定画面に表示して原因を確認する。
      */
     val status: StateFlow<String?> = statusFlow
 
@@ -104,7 +104,7 @@ class VisualizerSpectrum(
     private var volumeCheckedAt = 0L
 
     /**
-     * 読んだ生の値（波形、RMS、音量）を書く先。debug 版の実験で、記録を PC で再生して棒の計算を比べるために使う（tools/vis-replay）。
+     * 読んだ生の値（波形、RMS、音量）を書く先。debug ビルドの実験で、記録を PC で再生して棒の計算を比べるために使う（tools/vis-replay）。
      * 画面のスレッドからだけ書き換える。
      */
     var recorder: SpectrumRecording.Writer? = null
@@ -217,7 +217,7 @@ class VisualizerSpectrum(
 
     /**
      * 空間オーディオ（HyperOS ではイマーシブサウンド）がオンだと、音楽の音は専用の経路を通り、セッション 0 の Visualizer に届かない
-     * （2026-11-20 に実機で確かめた。オフにすると取得できた）。無音の理由として示す。
+     * （2026-11-20 に実機で確認した。オフにすると取得できた）。無音の理由として示す。
      */
     private fun spatialHint(): String {
         val s = audio?.spatializer ?: return ""

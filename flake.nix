@@ -14,10 +14,10 @@
           android_sdk.accept_license = true;
         };
       };
-      # compileSdk 37 に合わせる（Compose BOM 2026.09 と lifecycle 2.11 が 37 を要求する）。エミュレータは使わず Waydroid と実機で確かめるので含めない
+      # compileSdk 37 に合わせる（Compose BOM 2026.09 と lifecycle 2.11 が 37 を要求する）。エミュレータは使わず Waydroid と実機で確認するので含めない
       android = pkgs.androidenv.composeAndroidPackages {
         platformVersions = [ "37.0" ];
-        # AGP 9.5 の既定の build-tools は 36.0.0。aapt2 の差し替えにも同じ版を使う
+        # AGP 9.5 のデフォルトの build-tools は 36.0.0。aapt2 の差し替えにも同じバージョンを使う
         buildToolsVersions = [ "36.0.0" ];
         includeEmulator = false;
         includeNDK = false;

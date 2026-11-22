@@ -194,7 +194,7 @@ fun HomeScreen(
         val imageIds = remember(geometry) { geometry.panels.mapNotNull { it.image }.toSet() }
         val depth3d by rememberDepthLayers(depth3dDir, imageIds, state.imagesRevision)
         val folderNames = remember(state.folders) { state.folders.byPanel.mapNotNull { (id, f) -> f.name?.let { id to it } }.toMap() }
-        // アイコンを置くコマと、置けるアイコンの数（フォルダはアプリの数、全アプリ一覧は記号 1 つ）
+        // アイコンを置くコマと、置けるアイコンの数（フォルダはアプリの数、全アプリ一覧はアイコン 1 つ）
         val iconPanels =
             remember(state.folders, state.layout) {
                 state.folders.byPanel.filterValues { it.apps.isNotEmpty() }.mapValues { it.value.apps.size } +
@@ -262,7 +262,7 @@ fun HomeScreen(
                     onDragBegin = { onEvent(HomeEvent.HideAppMenu) },
                 )
             }
-        // 指の下のフォルダのコマ。運んでいる間だけ光らせる
+        // 指の下のフォルダのコマ。ドラッグしている間だけ光らせる
         val hovered by remember(geometry) {
             derivedStateOf {
                 val item = dnd.item
@@ -279,7 +279,7 @@ fun HomeScreen(
 
         fun ctx(g: PanelGeometry, order: Int = 0) = MotionContext(g.bounds, wPx, hPx, order, anim.staggerMs, anim.speed)
 
-        // 上へ払い始めた時刻。全アプリ一覧を開く前に、ホームの写しを先に作る合図（Freeze.kt）
+        // 上へスワイプし始めた時刻。全アプリ一覧を開く前に、ホームのスナップショットを先に作る合図（Freeze.kt）
         var freezePrepare by remember { mutableLongStateOf(0L) }
 
         val handler =
@@ -366,7 +366,7 @@ fun HomeScreen(
                 } else {
                     Modifier.homeGestures(geometryState, gesturesEnabled, handler)
                 }
-            // 全アプリ一覧を開いている間は、ホームを写しの画像で描く（Freeze.kt）。アイコンをホームへ運んでいる間は、運ぶ先を見せるため普段どおり描く
+            // 全アプリ一覧を開いている間は、ホームをスナップショットの画像で描く（Freeze.kt）。アイコンをホームへドラッグしている間は、ドラッグ先を見せるため普段どおり描く
             Box(Modifier.fillMaxSize().then(gestures).freezable(state.overlay.overDrawer && !dnd.isDragging, freezePrepare)) {
                 for (g in geometry.panels) {
                     PanelLayer(
@@ -784,7 +784,7 @@ private fun PanelLayer(
             if (motion.press.value > 0f) drawRect(Color.Black.copy(alpha = 0.18f * motion.press.value))
             if (highlight != null) drawRect(highlight.copy(alpha = 0.35f))
         }
-        // 絵が無いコマ（見本や、画像をまだ置いていないコマ）だけ、紙かベタの上に名前を表示する
+        // 絵が無いコマ（サンプルや、画像をまだ置いていないコマ）だけ、紙かベタの上に名前を表示する
         if (art == null && label != null && player == null) {
             BasicText(
                 label,
@@ -990,13 +990,13 @@ private fun rememberShownTilt(
 
 private val NO_ART = kotlinx.coroutines.flow.MutableStateFlow<androidx.compose.ui.graphics.ImageBitmap?>(null)
 
-/** コマに置くアイコン。[app] が null なら全アプリ一覧の記号。[rect] はコマの左上が原点の画素。 */
+/** コマに置くアイコン。[app] が null なら全アプリ一覧のアイコン。[rect] はコマの左上が原点の画素。 */
 internal data class PanelIcon(
     val app: AppKey?,
     val rect: Rect,
 )
 
-/** [position]（画面の座標）がコマのアイコンの枠の中なら、そのアプリ。全アプリ一覧の記号と、再生中のコマは除く。 */
+/** [position]（画面の座標）がコマのアイコンの枠の中なら、そのアプリ。全アプリ一覧のアイコンと、再生中のコマは除く。 */
 private fun iconAppAt(
     panel: PanelGeometry,
     position: Offset,
@@ -1009,7 +1009,7 @@ private fun iconAppAt(
     return panelIcons(panel, texts[panel.panel.id], state).firstOrNull { x in it.rect.left..it.rect.right && y in it.rect.top..it.rect.bottom }?.app
 }
 
-/** コマに置くアイコン。フォルダは先頭から順のアプリ、全アプリ一覧は記号（app が null）。 */
+/** コマに置くアイコン。フォルダは先頭から順のアプリ、全アプリ一覧はアイコン（app が null）。 */
 private fun panelIcons(
     g: PanelGeometry,
     spec: PanelTextSpec?,

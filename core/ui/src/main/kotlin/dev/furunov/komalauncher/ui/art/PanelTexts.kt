@@ -61,12 +61,12 @@ import java.io.File
 import java.time.LocalDateTime
 import kotlin.math.roundToInt
 
-/** 書体。どちらも SIL Open Font License（licenses/ に全文）。 */
+/** フォント。どちらも SIL Open Font License（licenses/ に全文）。 */
 object KomaFonts {
     /** 時計の数字と日本語の名前。 */
     val dela = FontFamily(Font(R.font.dela_gothic_one))
 
-    /** 大見出しと英語の名前。可変の書体なので、太さ 800 を指定して読む。 */
+    /** 大見出しと英語の名前。可変のフォントなので、太さ 800 を指定して読む。 */
     @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
     val bodoniItalic =
         FontFamily(
@@ -145,7 +145,7 @@ data class MastheadText(
     val centerY: Float,
     val size: Float,
     val width: Float,
-    /** 内蔵のテキストのウィジェットの見た目。既定は以前の大見出しと同じ。 */
+    /** 内蔵のテキストのウィジェットの見た目。デフォルトは以前の大見出しと同じ。 */
     val style: WidgetStyle = WidgetStyle(),
 )
 
@@ -157,7 +157,7 @@ data class ClockText(
     val k: Float,
     /** はみ出さずに描ける範囲。収まらなければ、中心を保ったまま縮めて描く。null なら縮めない。 */
     val limit: Rect? = null,
-    /** 内蔵の時計のウィジェットの見た目。既定は以前の時計と同じ。 */
+    /** 内蔵の時計のウィジェットの見た目。デフォルトは以前の時計と同じ。 */
     val style: WidgetStyle = WidgetStyle(),
 )
 
@@ -190,7 +190,7 @@ private val layerPaint = Paint()
 
 private val WEEKDAYS = listOf("月", "火", "水", "木", "金", "土", "日")
 
-/** 時計の表示（モックアップの timeText）。既定の [style] では「9:05」と「11月22日（日）」。 */
+/** 時計の表示（モックアップの timeText）。デフォルトの [style] では「9:05」と「11月22日（日）」。 */
 fun clockStrings(
     now: LocalDateTime,
     style: WidgetStyle = WidgetStyle(),
@@ -214,7 +214,7 @@ fun clockStrings(
     return time to listOf(ampm, date).filter { it.isNotEmpty() }.joinToString(" ")
 }
 
-/** 内蔵のウィジェットの書体。端末の書体は、端末によって形が違う。 */
+/** 内蔵のウィジェットのフォント。端末のフォントは、端末によって形が違う。 */
 fun widgetFontFamily(id: String): FontFamily = when (id) {
     WidgetFonts.BODONI -> KomaFonts.bodoniItalic
     WidgetFonts.SANS -> FontFamily.SansSerif
@@ -227,7 +227,7 @@ fun widgetFontFamily(id: String): FontFamily = when (id) {
 /** 選べる色のうちのアクセントの色（ランチャーの画面の強調の色と同じ）。 */
 private val ACCENT = Color(0xFFFFD54F)
 
-/** 文字の色。自動なら、白い紙のコマの上では墨、それ以外は白（以前の時計と大見出しと同じ）。 */
+/** 文字の色。自動なら、白い紙のコマの上では黒、それ以外は白（以前の時計と大見出しと同じ）。 */
 private fun WidgetStyle.textColor(ink: Boolean): Color = when (color) {
     TextColor.AUTO -> if (ink) BlankPage.INK else Color.White
     TextColor.WHITE -> Color.White
@@ -235,13 +235,13 @@ private fun WidgetStyle.textColor(ink: Boolean): Color = when (color) {
     TextColor.ACCENT -> ACCENT
 }
 
-/** 影を付けるか。墨の文字には付けない（以前と同じく、白い紙の上の文字には影を付けない）。 */
+/** 影を付けるか。黒の文字には付けない（以前と同じく、白い紙の上の文字には影を付けない）。 */
 private fun WidgetStyle.withShadow(ink: Boolean): Boolean = shadow && textColor(ink) != BlankPage.INK
 
 /**
  * 文字を描く。切り抜き [mask] があれば、文字だけの層を作り、人物の形を抜いた切り抜きで切ってから重ねる（人物の後ろに見える）。
  * 人物の画像を文字の上に重ねる作りにしないのは、切り抜きの縁の半透明から文字が透け、視差で動かしたときにちらつくため（モックアップと同じ判断）。
- * [maskOffset]・[maskSize] は絵と同じ置き場所（コマの左上が原点）。[textShift] は文字を動かす量（段階 5 の視差）。
+ * [maskOffset]・[maskSize] は絵と同じ置き場所（コマの左上が原点）。[textShift] は文字を動かす量（視差）。
  */
 fun DrawScope.drawPanelTexts(
     spec: PanelTextSpec,
@@ -265,13 +265,13 @@ fun DrawScope.drawPanelTexts(
     /** アイコンの影の画像（[icons] と同じ順）と、影をずらす向き（光の向きと反対の単位ベクトル）。影の無い設定なら空。 */
     iconShadows: List<ImageBitmap?> = emptyList(),
     shadowDir: Offset = Offset(0.64f, 0.77f),
-    /** true なら白い紙のコマ（BlankPage.LIGHT）の上なので、名前・大見出し・時計を墨で描く。 */
+    /** true なら白い紙のコマ（BlankPage.LIGHT）の上なので、名前・大見出し・時計を黒で描く。 */
     ink: Boolean = false,
 ) {
     val shownIcons = spec.icons.zip(icons).withIndex().filter { it.value.second != null }
     if (spec.isEmpty && shownIcons.isEmpty()) return
     val behind = mask != null && maskOffset != null && maskSize != null
-    // 層はコマの外接長方形の大きさ（編集画面では縮小図のキャンバスより大きいことがあるので、size は使わない）
+    // 層はコマの外接長方形の大きさ（編集画面ではプレビューのキャンバスより大きいことがあるので、size は使わない）
     if (behind) drawIntoCanvas { it.saveLayer(androidx.compose.ui.geometry.Rect(Offset.Zero, area), layerPaint) }
     translate(iconShift.x, iconShift.y) {
         shownIcons.forEach { (i, pair) ->
@@ -313,7 +313,7 @@ private fun DrawScope.drawOutlined(
     ink: Boolean,
 ) {
     if (ink) {
-        // 白い紙の上では、縁と影を付けずに墨で描く
+        // 白い紙の上では、縁と影を付けずに黒で描く
         drawText(layout, color = BlankPage.INK, topLeft = topLeft)
         return
     }
@@ -374,12 +374,12 @@ private fun DrawScope.drawMasthead(
 ) {
     val s = t.style
     val font = s.font ?: WidgetFonts.BODONI
-    // 既定は以前の大見出しと同じ（Bodoni Moda の斜体、太さ 800）
+    // デフォルトは以前の大見出しと同じ（Bodoni Moda の斜体、太さ 800）
     val weight = if (WidgetFonts.hasWeights(font)) FontWeight(s.weight ?: 800) else FontWeight.ExtraBold
     val italic = s.italic ?: (font == WidgetFonts.BODONI)
     val m = measurer.measure(t.text, TextStyle(fontFamily = widgetFontFamily(font), fontSize = px(t.size), fontWeight = weight, fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal))
     val w = m.size.width.toFloat().coerceAtLeast(1f)
-    // 書体ごとに字の幅が違うので、文字列の幅を枠の幅に合わせる
+    // フォントごとに字の幅が違うので、文字列の幅を枠の幅に合わせる
     scale(t.width / w, 1f, pivot = Offset(t.centerX, t.centerY)) {
         val topLeft = Offset(t.centerX - w / 2f, t.centerY - m.size.height / 2f)
         if (s.color == TextColor.AUTO && s.shadow) {
@@ -398,7 +398,7 @@ private fun DrawScope.drawClock(
 ) {
     val st = c.style
     val (hm, date) = clockStrings(now, st)
-    // 既定では、白い紙の上では墨で描き、影を付けない
+    // デフォルトでは、白い紙の上では黒で描き、影を付けない
     val color = st.textColor(ink)
     val shadow = st.withShadow(ink)
     val font = st.font ?: WidgetFonts.DELA
@@ -476,7 +476,7 @@ fun buildPanelTexts(
     viewHeight: Float,
     names: Map<String, String>,
     masks: Map<String, PersonMask>,
-    /** アイコンを置くコマと、置けるアイコンの数（フォルダのアプリの数。全アプリ一覧の記号は 1）。 */
+    /** アイコンを置くコマと、置けるアイコンの数（フォルダのアプリの数。全アプリ一覧のアイコンは 1）。 */
     iconPanels: Map<String, Int> = emptyMap(),
 ): Map<PanelId, PanelTextSpec> {
     val tree = layout.shape as? LayoutShape.Tree ?: return emptyMap()
@@ -510,7 +510,7 @@ fun buildPanelTexts(
                 } else {
                     val vertical = text.label == LabelMode.VERTICAL
                     val pl = PanelText.placeLabel(box, label.length, vertical, text.english, cover, area = b.inset(inset), fits = fits, scale = p.panel.labelScale)
-                    // 置き場所を決めたときの箱の長さに収める。書体の字の幅が見積もりより広くても、箱の外へ出ないように
+                    // 置き場所を決めたときの箱の長さに収める。フォントの字の幅が見積もりより広くても、箱の外へ出ないように
                     val maxLength = if (vertical) pl.boxHeight else pl.boxWidth
                     listOf(LabelText(label, pl.centerX - b.left, pl.centerY - b.top, pl.size, vertical, text.english, maxLength))
                 }
@@ -556,7 +556,7 @@ fun buildPanelTexts(
 }
 
 /**
- * アイコンを置く場所（1 個ずつの正方形。コマの左上が原点）。[available] はフォルダのアプリの数（全アプリ一覧の記号なら 1）。
+ * アイコンを置く場所（1 個ずつの正方形。コマの左上が原点）。[available] はフォルダのアプリの数（全アプリ一覧のアイコンなら 1）。
  * 大きさはコマの広さ（内接する長方形 [box] の面積の平方根）に合わせ、画面の幅に対する範囲に収める。
  * 個数は、内接する長方形の長い辺の 7 割に並べられるだけ（最大 [MAX_ICONS]）。並べる向きは、内接する長方形が横長なら横、縦長なら縦。
  * 複数並べるときは 1 個のときより少し小さくする。まとまり全体の置き場所が見つからなければ、個数を減らして探し直す。

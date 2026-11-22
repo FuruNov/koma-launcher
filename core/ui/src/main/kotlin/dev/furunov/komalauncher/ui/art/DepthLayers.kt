@@ -99,7 +99,7 @@ private fun decodeHalf(file: File): Bitmap = ImageDecoder.decodeBitmap(ImageDeco
     d.setTargetSize((info.size.width / 2).coerceAtLeast(1), (info.size.height / 2).coerceAtLeast(1))
 }
 
-/** 灰色の画像を、1 画素 1 バイトの不透明度（ALPHA_8）にする。GPU 側に写せれば写す。 */
+/** 灰色の画像を、1 画素 1 バイトの不透明度（ALPHA_8）にする。GPU 側に転送できれば転送する。 */
 private fun decodeAlpha(file: File): Bitmap {
     val soft = ImageDecoder.decodeBitmap(ImageDecoder.createSource(file)) { d, _, _ -> d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE }
     val w = soft.width

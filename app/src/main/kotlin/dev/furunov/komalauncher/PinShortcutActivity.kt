@@ -48,8 +48,8 @@ import dev.furunov.komalauncher.ui.art.PanelPicker
 import kotlinx.coroutines.launch
 
 /**
- * ブラウザなど（Vivaldi の PWA など）からの「ホーム画面に追加」の依頼を受ける。依頼は既定のホームアプリにだけ届く。
- * アイコンと名前、コマ割りの縮小図を表示し、選んだフォルダのコマの末尾に入れる。コマを選ばなければ、全アプリ一覧と検索にだけ並ぶ。
+ * ブラウザなど（Vivaldi の PWA など）からの「ホーム画面に追加」の依頼を受ける。依頼はデフォルトのホームアプリにだけ届く。
+ * アイコンと名前、コマ割りのプレビューを表示し、選んだフォルダのコマの末尾に入れる。コマを選ばなければ、全アプリ一覧と検索にだけ並ぶ。
  * 「キャンセル」と戻るボタンでは accept を呼ばないので、何も追加されない。
  */
 class PinShortcutActivity : ComponentActivity() {
@@ -75,7 +75,7 @@ class PinShortcutActivity : ComponentActivity() {
             launcherApps.getShortcutIconDrawable(info, resources.displayMetrics.densityDpi)?.let { d ->
                 IconRenderer.icon(d, iconPx, container.settingsStore.settings.value.appearance.iconStyle).asImageBitmap()
             }
-        // ホームは縦向きに固定して画面全体に描くので、縮小図も縦向きの大きさで作る。この画面は回転するので、横向きのときは幅と高さを入れ替える
+        // ホームは縦向きに固定して画面全体に描くので、プレビューも縦向きの大きさで作る。この画面は回転するので、横向きのときは幅と高さを入れ替える
         val bounds = windowManager.currentWindowMetrics.bounds
         val homeWidth = minOf(bounds.width(), bounds.height()).toFloat()
         val homeHeight = maxOf(bounds.width(), bounds.height()).toFloat()

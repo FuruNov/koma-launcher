@@ -31,18 +31,18 @@ import kotlinx.serialization.builtins.nullable
 import java.io.File
 
 /**
- * レイアウトはアプリの内部（files/layout.json と files/art/）に持つ。段階 2 の編集画面はここを書き換える。
+ * レイアウトはアプリの内部（files/layout.json と files/art/）に持つ。編集画面はここを書き換える。
  *
- * 外部ファイル領域（/sdcard/Android/data/<pkg>/files/）の layout.json は取り込み口にする。
- * adb push・設定画面の取り込み・バックアップの読み込みでここに置かれたら、確かめてから画像を内部へ写し、
- * 内部のレイアウトを置き換える。取り込んだファイルは layout.json.imported に名前を変える
+ * 外部ファイル領域（/sdcard/Android/data/<pkg>/files/）の layout.json はインポート用のフォルダにする。
+ * adb push・設定画面のインポート・バックアップの読み込みでここに置かれたら、確認してから画像を内部へコピーし、
+ * 内部のレイアウトを置き換える。インポートしたファイルは layout.json.imported に名前を変える
  * （残しておくと、次の起動で編集の結果を上書きするため）。
  */
 class FileLayoutStore(
     private val context: Context,
     private val scope: CoroutineScope,
 ) : LayoutStore {
-    /** 取り込み口。 */
+    /** インポート用のフォルダ。 */
     val importDirectory: File = requireNotNull(context.getExternalFilesDir(null)) { "外部ファイル領域を使えない" }
     private val importFile = File(importDirectory, FILE_NAME)
     private val art = ArtImporter(File(context.filesDir, "art"))
@@ -56,7 +56,7 @@ class FileLayoutStore(
         (LayoutParser.parse(text) as LayoutResult.Ok).layout
     }
 
-    /** 読めずに見本で始めたとき、退避したファイル。 */
+    /** 読めずにサンプルで始めたとき、退避したファイル。 */
     val brokenFile: File? get() = store.brokenFile
 
     override val state: StateFlow<LayoutState> =
@@ -78,7 +78,7 @@ class FileLayoutStore(
         }.also { it.startWatching() }
 
     init {
-        // アプリが止まっている間に置かれた layout.json も取り込む
+        // アプリが止まっている間に置かれた layout.json もインポートする
         if (importFile.exists()) importSoon()
     }
 
@@ -100,7 +100,7 @@ class FileLayoutStore(
         scope.launch(Dispatchers.IO) { importLock.withLock { art.prune(layout) } }
     }
 
-    /** いまのレイアウトの layout.json の文。バックアップに使う。見本を表示しているときは null。 */
+    /** いまのレイアウトの layout.json の文。バックアップに使う。サンプルを表示しているときは null。 */
     fun currentText(): String? = store.value.value?.let(LayoutParser::encode)
 
     fun flush() = store.flush()
@@ -139,7 +139,7 @@ class FileLayoutStore(
                 is LayoutResult.Ok -> r.layout
 
                 is LayoutResult.Error -> {
-                    // 内部のレイアウトはそのまま。直した layout.json を置き直せば取り込み直す
+                    // 内部のレイアウトはそのまま。直した layout.json を置き直せばインポートし直す
                     importError.value = "layout.json のインポートに失敗しました。以前のレイアウトを維持します: ${r.message}"
                     return
                 }
@@ -148,14 +148,14 @@ class FileLayoutStore(
         store.update { result.layout }
         store.flush()
         markImported()
-        // 写し終えた元の画像は消す。取り込みのために置いたもので、大きいため
+        // コピーし終えた元の画像は消す。インポートのために置いたもので、大きいため
         result.consumed.forEach { it.delete() }
         revision.value++
         importError.value = result.missing.takeIf { it.isNotEmpty() }?.let { "画像が見つかりません: ${it.joinToString()}（art/ に配置してください）" }
     }
 
     /**
-     * 取り込んだ外部の layout.json を .imported に名前を変える。残っていると、次の起動で同じファイルを取り込み直し、
+     * インポートした外部の layout.json を .imported に名前を変える。残っていると、次の起動で同じファイルをインポートし直し、
      * 編集の結果を上書きするため、名前を変えられなければ消す。
      */
     private fun markImported() {

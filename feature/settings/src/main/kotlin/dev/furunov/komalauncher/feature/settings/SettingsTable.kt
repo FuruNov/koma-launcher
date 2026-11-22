@@ -52,7 +52,7 @@ sealed interface SettingRow {
         val set: (Settings, Boolean) -> Settings,
     ) : SettingRow
 
-    /** 押すと何かをする行（ファイルの取り込みなど）。動作は画面側が [key] で決める。 */
+    /** 押すと何かをする行（ファイルのインポートなど）。動作は画面側が [key] で決める。 */
     class Action(
         override val title: String,
         val subtitle: String,
@@ -151,7 +151,7 @@ fun settingsSections(): List<SettingSection> = listOf(
                 s.copy(appearance = s.appearance.copy(iconShadow = v))
             },
             // すき間の色はコマ割りの編集画面の「全体」で変える。レイアウトの色が設定の色より優先され、
-            // 見本から書き出したレイアウトはいつも色を持つので、ここで変えても反映されなかった
+            // サンプルから作ったレイアウトはいつも色を持つので、ここで変えても反映されなかった
         ),
     ),
     SettingSection(

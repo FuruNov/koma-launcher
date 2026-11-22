@@ -43,7 +43,7 @@ data class EditorUiState(
     val canRedo: Boolean = false,
     /** 元に戻す・やり直すをした回数。入力欄が手元に持つ文字を、戻した内容で読み直す合図にする。 */
     val restored: Int = 0,
-    /** 画像を取り込んでいる間は true。 */
+    /** 画像をインポートしている間は true。 */
     val busy: Boolean = false,
     /** 画面の下に出す短い知らせ。 */
     val message: String? = null,
@@ -80,7 +80,7 @@ class EditorViewModel(
     private var committed = false
 
     init {
-        // まだ何も保存していない間は、保存側の変更（取り込みの完了など）に合わせる。1 度でも保存したら手元の状態を正とする
+        // まだ何も保存していない間は、保存側の変更（インポートの完了など）に合わせる。1 度でも保存したら手元の状態を正とする
         // （保存側の状態は遅れて届くので、保存の後に合わせると、届いた古い値で手元の変更を戻してしまう）
         viewModelScope.launch {
             store.state.collect { l -> if (!committed && l.layout != local.value.layout) local.update { it.copy(layout = l.layout) } }
@@ -166,13 +166,13 @@ class EditorViewModel(
 
     fun selectedArt(): PanelArt? = local.value.selected?.let { local.value.layout.panel(it) }?.art
 
-    /** 利用者が選んだ画像を取り込み、選んでいるコマに置く。 */
+    /** 利用者が選んだ画像をインポート、選んでいるコマに置く。 */
     fun setImage(uri: String) {
         val id = local.value.selected ?: return
         local.update { it.copy(busy = true) }
         viewModelScope.launch {
             val before = local.value.layout
-            // 保存側が画像を写してコマに置くところまでを済ませる。ここでは同じ変更を手元の状態に写し、元に戻せるようにする
+            // 保存側が画像をコピーしてコマに置くところまでを済ませる。ここでは同じ変更を手元の状態に反映し、元に戻せるようにする
             val art = store.addImage(uri, id)
             local.update { it.copy(busy = false, message = if (art == null) "画像を読み込めませんでした" else null) }
             if (art != null) {

@@ -180,7 +180,7 @@ object PartEdits {
         is Part.Widget -> WidgetPlacement.scale(layout, part.start, value)
     }
 
-    /** コンポーネントの位置と大きさを自動（既定）に戻す。時計と大見出しは位置を持ち続けるので、大きさだけを戻す。 */
+    /** コンポーネントの位置と大きさを自動（デフォルト）に戻す。時計と大見出しは位置を持ち続けるので、大きさだけを戻す。 */
     fun reset(
         layout: Layout,
         part: Part,
@@ -220,7 +220,7 @@ object PartEdits {
 
     /**
      * [part] の重ね順を [move] の向きへ変える。[present] はコマごとの、そこにあるものの集まり（無いものは飛ばす）。
-     * 既定の順と同じになったら null に戻し、layout.json に書かないようにする。
+     * デフォルトの順と同じになったら null に戻し、layout.json に書かないようにする。
      */
     fun reorder(
         layout: Layout,

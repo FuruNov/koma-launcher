@@ -77,7 +77,7 @@ class AppContainer(
     val restore: RestoreService = SafFolderRestorer(context, fileLayout.importDirectory, backupContent, fileLayout::currentText)
     val autoBackup: AutoBackup = SafAutoBackup(context, backupContent)
 
-    /** 読めずに既定値で始めた保存ファイルがあれば、その知らせ。ホームの上端に出す。 */
+    /** 読めずにデフォルト値で始めた保存ファイルがあれば、その知らせ。ホームの上端に出す。 */
     val storeNotice: String? =
         // レイアウトを読めなかったときは、FileLayoutStore が LayoutState の error で知らせる
         listOfNotNull(fileFolders.brokenFile, fileSettings.brokenFile, fileWidgets.brokenFile, fileLaunches.brokenFile)
@@ -85,7 +85,7 @@ class AppContainer(
             ?.let { files -> "保存ファイルを読み込めなかったため、初期状態で起動しました。元のファイルは ${files.joinToString { it.name }} に保存されています" }
 
     init {
-        // 利用者の layout.json を正しく読めたときだけ、消えたコマのウィジェットを外す（見本に戻ったときは何もしない）
+        // 利用者の layout.json を正しく読めたときだけ、消えたコマのウィジェットを外す（サンプルに戻ったときは何もしない）
         scope.launch {
             layoutSource.state.collect { if (it is LayoutState.Loaded) widgets.removeOrphans(it.layout) }
         }

@@ -234,7 +234,7 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         container.widgets.startListening()
         container.media.start()
-        // 既定のホームアプリに戻った直後は、追加したもの（PWA など）を取り直す
+        // デフォルトのホームアプリに戻った直後は、追加したもの（PWA など）を取り直す
         container.appCatalog.refresh()
     }
 

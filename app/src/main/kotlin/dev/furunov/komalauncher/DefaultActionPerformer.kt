@@ -31,7 +31,7 @@ class DefaultActionPerformer(
             true
         }
 
-        // 画面ロックには AccessibilityService が要る。次の段階で実装する
+        // 画面ロックには AccessibilityService が要る。今後実装する
         LauncherAction.LockScreen -> false
 
         LauncherAction.None, LauncherAction.OpenDrawer, LauncherAction.OpenHomeMenu, is LauncherAction.OpenFolder -> false

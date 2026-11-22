@@ -24,10 +24,10 @@ import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.layout.PanelId
 
 /**
- * コマ割りの縮小図から、フォルダのコマを 1 つ選ぶ。ホーム画面への追加の依頼を受けたときに、入れるコマを選ぶのに使う。
- * 描き方は編集画面の縮小図と同じ（PanelFace の絵か網点と枠）。文字・時計・アイコンは描かない。
+ * コマ割りのプレビューから、フォルダのコマを 1 つ選ぶ。ホーム画面への追加の依頼を受けたときに、入れるコマを選ぶのに使う。
+ * 描き方は編集画面のプレビューと同じ（PanelFace の絵かトーンと枠）。文字・時計・アイコンは描かない。
  * フォルダ以外のコマは押せないので、暗くして示す。選んだコマにはマゼンタの枠を引く。
- * [images] と [revision] は LayoutState.Loaded の画像の場所と版。[screenWidth]・[screenHeight] はホームの画面の大きさ。
+ * [images] と [revision] は LayoutState.Loaded の画像の場所とリビジョン。[screenWidth]・[screenHeight] はホームの画面の大きさ。
  */
 @Composable
 fun PanelPicker(
@@ -77,7 +77,7 @@ fun PanelPicker(
                     }
                     with(face) { drawBorder() }
                     if (p.panel.id == selected) {
-                        // 縮小図の上で 3dp の太さになるよう、縮小の分だけ太く引く。線の内側の半分だけを残す
+                        // プレビューの上で 3dp の太さになるよう、縮小の分だけ太く引く。線の内側の半分だけを残す
                         clipPath(face.path) { drawPath(face.path, SELECTED, style = Stroke(width = 3.dp.toPx() / s * 2f)) }
                     }
                 }

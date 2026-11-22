@@ -210,7 +210,7 @@ class MediaSessionWatcher(
             }
     }
 
-    /** 他のアプリのビットマップは後で再利用されることがあるので、縮めた写しを持つ。 */
+    /** 他のアプリのビットマップは後で再利用されることがあるので、縮小したコピーを持つ。 */
     private fun shrink(b: Bitmap): Bitmap? = try {
         val s = ART_SIDE.toFloat() / max(b.width, b.height)
         if (s < 1f) {

@@ -15,8 +15,8 @@ import androidx.compose.ui.graphics.Paint
 import dev.furunov.komalauncher.model.apps.AppKey
 
 /**
- * コマに置くアイコンの画像。[keys] はアプリ（null なら全アプリ一覧の記号）と一辺の画素の組。
- * キャッシュに無いものは読み込んで、読み込めたら差し替える。ホームと編集画面の縮小図で使う。
+ * コマに置くアイコンの画像。[keys] はアプリ（null なら全アプリ一覧のアイコン）と一辺の画素の組。
+ * キャッシュに無いものは読み込んで、読み込めたら差し替える。ホームと編集画面のプレビューで使う。
  */
 @Composable
 fun rememberIconBitmaps(keys: List<Pair<AppKey?, Int>>): State<List<ImageBitmap?>> {
@@ -49,7 +49,7 @@ fun rememberIconBitmaps(keys: List<Pair<AppKey?, Int>>): State<List<ImageBitmap?
 }
 
 /**
- * コマに置くアイコンの影の画像（[rememberIconBitmaps] と同じ順）。影の無い設定か、全アプリ一覧の記号なら null。
+ * コマに置くアイコンの影の画像（[rememberIconBitmaps] と同じ順）。影の無い設定か、全アプリ一覧のアイコンなら null。
  */
 @Composable
 fun rememberIconShadows(keys: List<Pair<AppKey?, Int>>): State<List<ImageBitmap?>> {
@@ -68,7 +68,7 @@ fun rememberIconShadows(keys: List<Pair<AppKey?, Int>>): State<List<ImageBitmap?
 }
 
 /**
- * 全アプリ一覧を表す記号（明るい丸の中に 3×3 の点）。多くのランチャーで使われている一般的な形を、このアプリで描く。
+ * 全アプリ一覧を表すアイコン（明るい丸の中に 3×3 の点）。多くのランチャーで使われている一般的な形を、このアプリで描く。
  * 色はアプリのアイコンと同じく、描くときにコマの色調を掛ける。
  */
 fun drawerGlyph(px: Int): ImageBitmap {

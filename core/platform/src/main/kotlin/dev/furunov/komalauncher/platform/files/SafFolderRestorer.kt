@@ -16,23 +16,23 @@ import java.io.File
 
 /**
  * 利用者が選んだフォルダ（pCloud などのクラウドのフォルダも選べる）から復元する。
- * フォルダにあるものをすべて取り込む。どれも無くてよい。
+ * フォルダにあるものをすべてインポートする。どれも無くてよい。
  * - koma-launcher-backup.json: フォルダの中身・設定・起動回数・コマ割りを戻す（自動バックアップが書いたもの）
- * - layout.json: コマ割り。バックアップのコマ割りより優先する。取り込んだ後 layout.json.imported に名前を変え、1 回だけ適用する
+ * - layout.json: コマ割り。バックアップのコマ割りより優先する。インポートした後 layout.json.imported に名前を変え、1 回だけ適用する
  * - <名前>.(webp|jpg|jpeg|png): 画像。art/ の下にあってもよい
  * - mask/<名前>.(png|webp): 白が人物の切り抜き（BiRefNet などの出力）
  * - inv/<名前>.(png|webp): 白が人物以外の切り抜き（モックアップの INV）
- * - <名前>.mask.* と <名前>.inv.*: 取り込み口と同じ名前の切り抜き
- * - depth3d/: 試作の深度の層と切り抜き（<名前>.keep.png・<名前>.pop.png など）。中のファイルを全て、端末の depth3d/ へそのまま写す
+ * - <名前>.mask.* と <名前>.inv.*: インポート用のフォルダと同じ名前の切り抜き
+ * - depth3d/: 試作の深度の層と切り抜き（<名前>.keep.png・<名前>.pop.png など）。中のファイルを全て、端末の depth3d/ へそのままコピーする
  *
- * 画像と切り抜きは、最終的なコマ割りが参照する分だけを取り込み口へ写し、最後にコマ割りを取り込み口の layout.json に書く。
- * 書いた後の取り込みは FileLayoutStore が行う。
+ * 画像と切り抜きは、最終的なコマ割りが参照する分だけをインポート用のフォルダへコピーし、最後にコマ割りをインポート用のフォルダの layout.json に書く。
+ * 書いた後のインポートは FileLayoutStore が行う。
  */
 class SafFolderRestorer(
     private val context: Context,
     private val importDirectory: File,
     private val backup: BackupContent,
-    /** いまのレイアウトの layout.json の文（見本なら null）。 */
+    /** いまのレイアウトの layout.json の文（サンプルなら null）。 */
     private val currentLayout: () -> String?,
 ) : RestoreService {
     private class Child(
@@ -42,7 +42,7 @@ class SafFolderRestorer(
     )
 
     private class Listing {
-        /** 取り込み口の art/ に置く名前 → 元のファイル。 */
+        /** インポート用のフォルダの art/ に置く名前 → 元のファイル。 */
         val files = HashMap<String, Uri>()
         var backup: Uri? = null
         var layout: Uri? = null
@@ -63,7 +63,7 @@ class SafFolderRestorer(
                 return@withContext "フォルダを読み込めません（${e.message ?: e::class.simpleName}）"
             }
 
-        // 読めるかを先にすべて確かめ、途中で失敗して一部だけ戻った状態にしない
+        // 読めるかを先にすべて確認し、途中で失敗して一部だけ戻った状態にしない
         val parsed =
             listing.backup?.let { u ->
                 val text = readText(resolver, u) ?: return@withContext "$BACKUP を読み込めません"
@@ -88,7 +88,7 @@ class SafFolderRestorer(
 
         parsed?.let(backup::apply)
 
-        // 深度の層と切り抜きは、コマ割りに関係なく全て写す（どの画像の分かはファイル名で決まる）
+        // 深度の層と切り抜きは、コマ割りに関係なく全てコピーする（どの画像の分かはファイル名で決まる）
         var depthFiles = 0
         if (listing.depth3d.isNotEmpty()) {
             val dir = context.getExternalFilesDir(null)?.let { File(it, DEPTH3D) }?.apply { mkdirs() }
@@ -131,7 +131,7 @@ class SafFolderRestorer(
                         }
                     }
                 }
-                // layout.json は最後に書く。書き終えたときに取り込みが始まり、そのとき画像が揃っているように
+                // layout.json は最後に書く。書き終えたときにインポートが始まり、そのとき画像が揃っているように
                 File(importDirectory, LAYOUT).writeText(text)
             } catch (e: Exception) {
                 Log.w(TAG, "$tree から写せない", e)
@@ -255,13 +255,13 @@ class SafFolderRestorer(
         val IMAGE_EXTENSIONS = listOf("webp", "jpg", "jpeg", "png")
         val MASK_EXTENSIONS = listOf("png", "webp")
 
-        /** 画像か、取り込み口と同じ名前の切り抜き。拡張子は小文字にそろえる（ArtImporter は小文字で探す）。 */
+        /** 画像か、インポート用のフォルダと同じ名前の切り抜き。拡張子は小文字にそろえる（ArtImporter は小文字で探す）。 */
         fun asIs(name: String): String? {
             val ext = name.substringAfterLast('.', "").lowercase()
             return if (ext in IMAGE_EXTENSIONS) name.substringBeforeLast('.') + "." + ext else null
         }
 
-        /** mask/ と inv/ の <名前>.* を、取り込み口の <名前>.mask.* と <名前>.inv.* にする。 */
+        /** mask/ と inv/ の <名前>.* を、インポート用のフォルダの <名前>.mask.* と <名前>.inv.* にする。 */
         fun maskName(
             name: String,
             kind: String,

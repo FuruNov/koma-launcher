@@ -13,7 +13,7 @@ import android.util.Log
 import dev.furunov.komalauncher.model.media.SpectrumRecording
 
 /**
- * 空間オーディオがオンのとき、再生中のアプリのセッションに直接付けた Visualizer で音を取れるかを確かめる実験（2026-11-20）。
+ * 空間オーディオがオンのとき、再生中のアプリのセッションに直接付けた Visualizer で音を取れるかを確認する実験（2026-11-20）。
  * 例: am broadcast -n dev.furunov.komalauncher/.DebugReceiver -a dev.furunov.komalauncher.DEBUG_VIS --ei session 18097
  * セッションを省くと、再生中の設定（AudioPlaybackConfiguration）から番号を取れるかだけを調べる。
  */

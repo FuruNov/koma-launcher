@@ -107,13 +107,13 @@ class DrawerActions(
     val onHideAppMenu: () -> Unit = {},
     /** フォルダのメニューの「名前を変更」。引数はフォルダの id。 */
     val onRenameFolder: (String) -> Unit = {},
-    /** フォルダのメニューの「記号を変更」で選んだとき。フォルダの id と記号の id。 */
+    /** フォルダのメニューの「アイコンを変更」で選んだとき。フォルダの id とアイコンの id。 */
     val onSetFolderSymbol: (String, String) -> Unit = { _, _ -> },
     /** フォルダの中でアイコンを動かして離したとき。フォルダの id と、そのフォルダの全てのアプリの新しい順。 */
     val onReorderApps: (String, List<AppKey>) -> Unit = { _, _ -> },
     /** 左端の列でフォルダを動かして離したとき。全てのフォルダの id の新しい順。 */
     val onReorderFolders: (List<String>) -> Unit = {},
-    /** フォルダの中のアイコンを左端の列のフォルダまで運んで離したとき。アプリと、移す先のフォルダの id。 */
+    /** フォルダの中のアイコンを左端の列のフォルダまでドラッグして離したとき。アプリと、移す先のフォルダの id。 */
     val onMoveToFolder: (AppKey, String) -> Unit = { _, _ -> },
     /** 検索欄の Play ストアのアイコンを押したとき。引数は検索欄の文字（空なら Play ストアを開く）。 */
     val onOpenStore: (String) -> Unit = {},
@@ -130,9 +130,9 @@ private const val PLAY_STORE = "com.android.vending"
  * キーボードは検索欄を押したときに出す（開いただけでは出さない）。Enter で先頭を起動する。
  * 一番上で下へ引くと閉じる。
  *
- * 左端の縦の列で「すべて」とフォルダを選ぶ。一覧を左右に払うと、列の順で前後のフォルダへ移る。検索の間は列を隠し、全てのアプリから探す。
+ * 左端の縦の列で「すべて」とフォルダを選ぶ。一覧を左右にスワイプすると、列の順で前後のフォルダへ移る。検索の間は列を隠し、全てのアプリから探す。
  * フォルダの中と L 字では、長押しするとすぐメニューを出し、そのまま動かすとメニューを消して並べ替える。
- * フォルダの中のアイコンを一覧の外まで運ぶと、ホームのコマへ運ぶ操作に切り替わる（「すべて」では長押しですぐ運ぶ）。
+ * フォルダの中のアイコンを一覧の外までドラッグすると、ホームのコマへドラッグする操作に切り替わる（「すべて」では長押しですぐドラッグする）。
  *
  * [launches] は起動回数（「よく使う」と検索の並べ替え）。[loadShortcuts] は検索のためのショートカットで、
  * 開いたときと、アプリ一覧の読み込みが済んだときに呼ぶ（読み込み前に開くと、インストール済みのアプリが分からず空になるため）。IO のスレッドで呼ぶのは呼び出し側。
@@ -164,7 +164,7 @@ fun DrawerScreen(
     // 選んでいるフォルダの id。null なら「すべて」。中身が無くなってフォルダが消えたら「すべて」に戻す
     var tab by remember { mutableStateOf<String?>(null) }
     val folder = folders.firstOrNull { it.id == tab }
-    // 長押しして開いたフォルダのメニューと、記号を選ぶ画面のフォルダの id
+    // 長押しして開いたフォルダのメニューと、アイコンを選ぶ画面のフォルダの id
     var folderMenu by remember { mutableStateOf<String?>(null) }
     var symbolPicker by remember { mutableStateOf<String?>(null) }
     // 動かしている間だけの順。指を離したら保存し、保存した順から作り直した一覧に戻す
@@ -196,9 +196,9 @@ fun DrawerScreen(
 
     /** 画面の座標 [p] の下にある L 字の位置の、「すべて」を除いた並びの中の番号。無ければ null。 */
     fun slotAt(p: Offset): Int? = stripSlots.entries.firstOrNull { it.key > 0 && it.value.contains(p) }?.key?.minus(1)
-    // L 字のフォルダへ運んでいるアプリと、指の位置（画面の座標）。運んでいる間はアイコンを指の位置に描く
+    // L 字のフォルダへドラッグしているアプリと、指の位置（画面の座標）。ドラッグしている間はアイコンを指の位置に描く
     var carrying by remember { mutableStateOf<Pair<AppKey, Offset>?>(null) }
-    // 運んでいるアプリを離すと入るフォルダ（指の下のフォルダ）
+    // ドラッグしているアプリを離すと入るフォルダ（指の下のフォルダ）
     var dropTarget by remember { mutableStateOf<String?>(null) }
     val iconHalfPx = with(LocalDensity.current) { 28.dp.toPx() }
 
@@ -235,7 +235,7 @@ fun DrawerScreen(
                     return Offset(0f, available.y)
                 }
 
-                // 指を離したとき。十分に引いたか、下へ速く払ったら閉じ、そうでなければ元に戻す
+                // 指を離したとき。十分に引いたか、下へ速くスワイプしたら閉じ、そうでなければ元に戻す
                 override suspend fun onPreFling(available: Velocity): Velocity {
                     if (pull <= 0f) return Velocity.Zero
                     if (pull > closePx || available.y > 2_000f) {
@@ -293,7 +293,7 @@ fun DrawerScreen(
             .then(if (open) Modifier else Modifier.clearAndSetSemantics {})
             .graphicsLayer {
                 translationY = slide.value * size.height * 0.3f + pull
-                // 運んでいる間は透明にしてホームのコマを見せる。取り除くと指の追跡が途切れるので合成したままにする
+                // ドラッグしている間は透明にしてホームのコマを見せる。取り除くと指の追跡が途切れるので合成したままにする
                 alpha = if (dnd.isDragging) 0f else 1f - slide.value
             }.background(Color(0xF2121216))
             .pointerInput(Unit) {
@@ -358,8 +358,8 @@ fun DrawerScreen(
                                         },
                                         onLongPress = { key -> folder.apps.firstOrNull { it.key.id() == key }?.let { actions.onShowAppMenu(it.key) } },
                                         onDragBegin = actions.onHideAppMenu,
-                                        // 一覧の外まで運んだら、並べ替えをやめる。
-                                        // 上へ出たら、ホームのコマへ運ぶ操作に切り替える。左か下（L 字のフォルダ）へ出たら、別のフォルダへ移す操作にする
+                                        // 一覧の外までドラッグしたら、並べ替えをやめる。
+                                        // 上へ出たら、ホームのコマへドラッグする操作に切り替える。左か下（L 字のフォルダ）へ出たら、別のフォルダへ移す操作にする
                                         onLeave = { key, at ->
                                             val app = folder.apps.firstOrNull { it.key.id() == key }
                                             draggingApps = null
@@ -397,7 +397,7 @@ fun DrawerScreen(
                                                 dropTarget = null
                                             }
                                         },
-                                        // 一覧の上下の端まで運んだら、続きが見えるようにスクロールする
+                                        // 一覧の上下の端までドラッグしたら、続きが見えるようにスクロールする
                                         onEdge = { dy -> grid.dispatchRawDelta(dy) },
                                     ),
                                 )
@@ -514,8 +514,8 @@ fun DrawerScreen(
 }
 
 /**
- * 一覧を左右に払うと、左端の列の順（「すべて」が先頭）で前後のフォルダへ移る。左へ払うと次、右へ払うと前。
- * 長押しの並べ替えは動きを消費するので、並べ替えの途中で払ったことにはならない。
+ * 一覧を左右にスワイプすると、左端の列の順（「すべて」が先頭）で前後のフォルダへ移る。左へスワイプすると次、右へスワイプすると前。
+ * 長押しの並べ替えは動きを消費するので、並べ替えの途中でスワイプしたことにはならない。
  */
 private fun Modifier.swipeFolders(
     folders: List<DrawerFolder>,
@@ -538,8 +538,8 @@ private fun Modifier.swipeFolders(
 }
 
 /**
- * 検索欄。右端に Play ストアの記号（Play ストアが入っていなければ出さない）と、設定を開く歯車の記号を置く。
- * Play ストアの記号は、何も打っていなければ Play ストアを開き、打っていればその文字で Play ストアを検索する（[onOpenStore]）。
+ * 検索欄。右端に Play ストアのアイコン（Play ストアが入っていなければ出さない）と、設定を開く歯車のアイコンを置く。
+ * Play ストアのアイコンは、何も打っていなければ Play ストアを開き、打っていればその文字で Play ストアを検索する（[onOpenStore]）。
  */
 @Composable
 private fun SearchField(
@@ -570,7 +570,7 @@ private fun SearchField(
             modifier = Modifier.fillMaxWidth().padding(end = if (store != null) 76.dp else 40.dp).focusRequester(focus),
         )
         Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-            // アプリのアイコンでなく、左の列と同じ線の記号にする（カラーのアイコンだけ浮いて見えたため）
+            // アプリのアイコンでなく、左の列と同じ線のアイコンにする（カラーのアイコンだけ浮いて見えたため）
             if (store != null) {
                 FolderSymbol(
                     STORE_SYMBOL,
@@ -616,7 +616,7 @@ private fun highlighted(
 }
 
 /**
- * 「すべて」と検索結果のアイコン。長押しするとすぐホームへ運ぶ（draggableApp）。
+ * 「すべて」と検索結果のアイコン。長押しするとすぐホームへドラッグする（draggableApp）。
  * [result] が null でなければ一致した文字を太字にし、[first] なら Enter で開くことを示す枠で囲む。
  */
 @Composable

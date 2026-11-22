@@ -16,19 +16,19 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.size as sizeModifier
 
-/** 「すべて」の記号の id。フォルダの記号（DrawerFolders.symbols）とは別に、一覧の先頭だけで使う。 */
+/** 「すべて」のアイコンの id。フォルダのアイコン（DrawerFolders.symbols）とは別に、一覧の先頭だけで使う。 */
 internal const val ALL_SYMBOL = "all"
 
-/** 設定の歯車の記号の id。検索欄の設定のボタンだけで使い、フォルダの記号には選べない。 */
+/** 設定の歯車のアイコンの id。検索欄の設定のボタンだけで使い、フォルダのアイコンには選べない。 */
 internal const val GEAR_SYMBOL = "gear"
 
-/** Play ストアの記号の id。検索欄の Play ストアのボタンで使う。手提げ袋に再生の三角。フォルダの記号としても選べる。 */
+/** Play ストアのアイコンの id。検索欄の Play ストアのボタンで使う。手提げ袋に再生の三角。フォルダのアイコンとしても選べる。 */
 internal const val STORE_SYMBOL = "store"
 
 /**
- * フォルダの記号。24×24 の格子に線で描き、[size] に合わせて拡大する。
+ * フォルダのアイコン。24×24 の格子に線で描き、[size] に合わせて拡大する。
  * Material のアイコンのライブラリは入れない方針（README の「依存を絞った理由」）なので、自前で描く。
- * 知らない id はフォルダの記号（DrawerFolders.FOLDER_SYMBOL）で描く。
+ * 知らない id はフォルダのアイコン（DrawerFolders.FOLDER_SYMBOL）で描く。
  */
 @Composable
 internal fun FolderSymbol(

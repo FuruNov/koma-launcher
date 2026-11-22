@@ -11,7 +11,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /**
- * 絵の無いコマの塗り方。すき間の色が明るければ白い紙に灰色のトーン、暗ければ墨のベタに明るい網点を貼る。
+ * 絵の無いコマの塗り方。すき間の色が明るければ白い紙に灰色のトーン、暗ければ黒ベタに明るいトーンを貼る。
  * 枠の色の「自動」と同じくすき間の色だけで決め、端末のテーマには依存しない（同じ layout.json なら同じ見た目にするため）。
  * 最初のコマだけ、トーンをアプリのアイコンと同じマゼンタにする。
  */
@@ -20,10 +20,10 @@ class BlankPage private constructor(
     private val tone: Color,
     private val toneMax: Float,
     private val accentMax: Float,
-    /** true なら白い紙。文字と時計を墨で描く。 */
+    /** true なら白い紙。文字と時計を黒で描く。 */
     val light: Boolean,
 ) {
-    /** コマの外接長方形の大きさ [w]×[h] に網点を描く。切り抜きは呼び出し側で済ませてある。[step] は網点の間隔（画素）。 */
+    /** コマの外接長方形の大きさ [w]×[h] にトーンを描く。切り抜きは呼び出し側で済ませてある。[step] はトーンの間隔（画素）。 */
     fun dots(
         index: Int,
         w: Float,
@@ -59,7 +59,7 @@ class BlankPage private constructor(
         return Dots(buckets.mapIndexedNotNull { level, points -> if (points.isEmpty()) null else (step * sqrt(max * level / LEVELS)) to points }, color)
     }
 
-    /** 半径ごとにまとめた網点。直径を線の太さにして、丸い端の点として描く。 */
+    /** 半径ごとにまとめたトーン。直径を線の太さにして、丸い端の点として描く。 */
     class Dots(
         private val groups: List<Pair<Float, List<Offset>>>,
         private val color: Color,

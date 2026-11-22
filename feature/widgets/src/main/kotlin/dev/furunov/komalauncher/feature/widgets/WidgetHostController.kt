@@ -101,11 +101,11 @@ class WidgetHostController(
     /** 選択画面の一覧。名前を読むのに時間がかかるので、メインスレッドの外で読む。 */
     suspend fun loadChoices(): List<WidgetChoice> = withContext(Dispatchers.IO) { choices() }
 
-    // 選択画面の見本とアイコン。スクロールで同じ項目が現れるたびに読み直さないよう覚えておく
+    // 選択画面のプレビューとアイコン。スクロールで同じ項目が現れるたびに読み直さないよう覚えておく
     private val previews = ConcurrentHashMap<String, Optional<Drawable>>()
     private val icons = ConcurrentHashMap<String, Optional<Drawable>>()
 
-    /** 見本のレイアウト（previewLayout）を展開するスレッド。他のアプリのレイアウトの展開は重いので、メインスレッドで行わない。 */
+    /** プレビューのレイアウト（previewLayout）を展開するスレッド。他のアプリのレイアウトの展開は重いので、メインスレッドで行わない。 */
     val previewExecutor: Executor = Executors.newFixedThreadPool(2)
 
     /** アプリのアイコン（選択画面の見出しに使う）。 */
@@ -113,7 +113,7 @@ class WidgetHostController(
         icons.getOrPut(packageName) { Optional.ofNullable(runCatching { context.packageManager.getApplicationIcon(packageName) }.getOrNull()) }.orElse(null)
     }
 
-    /** 見本の画像。無ければウィジェットのアイコン。 */
+    /** プレビューの画像。無ければウィジェットのアイコン。 */
     suspend fun previewImage(c: WidgetChoice): Drawable? = withContext(Dispatchers.IO) {
         previews.getOrPut(c.entry.key) {
             val dpi = context.resources.displayMetrics.densityDpi

@@ -27,7 +27,7 @@ internal data class BackupFile(
  * 中身はフォルダの中身・設定・layout.json・ウィジェットの提供元・起動回数。画像は容量が大きいので含めない。
  */
 class BackupContent(
-    /** いまのレイアウトの layout.json の文（見本なら null）。 */
+    /** いまのレイアウトの layout.json の文（サンプルなら null）。 */
     private val currentLayout: () -> String?,
     private val folders: FolderStore,
     private val settings: SettingsStore,
@@ -68,7 +68,7 @@ class BackupContent(
     /** 読めなければ例外を投げる。 */
     fun parse(text: String): Parsed = Parsed(json.decodeFromString(BackupFile.serializer(), text))
 
-    /** フォルダの中身・設定・起動回数を戻す。コマ割りは呼び出し側が取り込み口に書く（画像と一緒に取り込むため）。 */
+    /** フォルダの中身・設定・起動回数を戻す。コマ割りは呼び出し側がインポート用のフォルダに書く（画像と一緒にインポートするため）。 */
     fun apply(parsed: Parsed) {
         val data = parsed.data
         folders.update { data.folders }

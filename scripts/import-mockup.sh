@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # モックアップ（docs/mockups/editor.template.html）の保存状態から version 2 の layout.json を作り、
-# 画像と一緒に端末の取り込み口（/sdcard/Android/data/<pkg>/files/）へ送る。
-# アプリは layout.json が置かれたら画像を縮めて内部へ写し、ホームをその形にする。
+# 画像と一緒に端末のインポート用のフォルダ（/sdcard/Android/data/<pkg>/files/）へ送る。
+# アプリは layout.json が置かれたら画像を縮めて内部へコピーし、ホームをその形にする。
 #
 # 使い方: scripts/import-mockup.sh <state.json> <画像のディレクトリ> [layout.json の保存先]
 #   state.json: Artifact の db の editor/current（{ "state": {...} } でも、state の中身だけでもよい）
@@ -41,7 +41,7 @@ jq '
       border: {
         style: ($s.border.style // "single"),
         width: ($s.border.width // 10),
-        # モックアップの枠はいつも黒（#111111）なので、黒は自動（すき間が暗ければ白）として取り込む
+        # モックアップの枠はいつも黒（#111111）なので、黒は自動（すき間が暗ければ白）としてインポートする
         color: (if ($s.border.color // "#111111") == "#111111" then null else $s.border.color end)
       }
     },
@@ -99,6 +99,6 @@ for card in $(jq -r '.. | objects | select(has("art")) | .art.image' "$OUT" | so
     done
   done
 done
-# layout.json は最後に送る。届いた時点でアプリが取り込みを始めるので、画像を先に揃えておく
+# layout.json は最後に送る。届いた時点でアプリがインポートを始めるので、画像を先に揃えておく
 adb push "$OUT" "$DEST/layout.json" >/dev/null
 echo "送りました: layout.json（アプリが取り込むと layout.json.imported に名前が変わります）"

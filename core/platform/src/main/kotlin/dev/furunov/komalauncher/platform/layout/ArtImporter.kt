@@ -13,11 +13,11 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * コマの画像を内部の files/art/ へ写す。
+ * コマの画像を内部の files/art/ へコピーする。
  *
  * - version 2 の画像は、長辺 [MAX_SIDE] 以下に縮めて <id>.webp に書く。コマは画面の一部なので、
- *   4096 の元画像を持っても表示には使わず、取り込みと読み込みの時間とメモリが増えるだけのため
- * - version 1 の絵は縮めずに、ファイル名のまま写す（画面全体に広げるので、縮めると粗くなる）
+ *   4096 の元画像を持っても表示には使わず、インポートと読み込みの時間とメモリが増えるだけのため
+ * - version 1 の絵は縮めずに、ファイル名のままコピーする（画面全体に広げるので、縮めると粗くなる）
  */
 class ArtImporter(
     val directory: File,
@@ -25,9 +25,9 @@ class ArtImporter(
     class Result(
         /** 画像の縦横比を書き込んだレイアウト。 */
         val layout: Layout,
-        /** 取り込み口にも内部にも見つからなかった画像の id。 */
+        /** インポート用のフォルダにも内部にも見つからなかった画像の id。 */
         val missing: List<String>,
-        /** 取り込み口から写し終えた画像のファイル。取り込みが済んだら消す。 */
+        /** インポート用のフォルダからコピーし終えた画像のファイル。インポートが済んだら消す。 */
         val consumed: List<File>,
     )
 
@@ -46,7 +46,7 @@ class ArtImporter(
     /** 画像の id → 切り抜きのファイルの絶対パス。ファイルがある画像だけを返す。 */
     fun existingMasks(layout: Layout): Map<String, String> = if (layout.shape is LayoutShape.Fixed) emptyMap() else layout.images.mapNotNull { id -> maskFileOf(id).takeIf { it.isFile }?.let { id to it.absolutePath } }.toMap()
 
-    /** [layout] が参照する画像を、取り込み口の [source]（とその下の art/）から内部へ写す。IO のスレッドで呼ぶ。 */
+    /** [layout] が参照する画像を、インポート用のフォルダの [source]（とその下の art/）から内部へコピーする。IO のスレッドで呼ぶ。 */
     fun import(
         layout: Layout,
         source: File,
@@ -89,14 +89,14 @@ class ArtImporter(
         id: String,
         source: File,
     ): List<File> = if (layout.shape is LayoutShape.Fixed) {
-        // 一晩目の形式では、絵を layout.json と同じ場所に置いていた
+        // version 1 の形式では、絵を layout.json と同じ場所に置いていた
         listOf(File(source, id), File(source, "art/$id"))
     } else {
         EXTENSIONS.map { File(source, "art/$id.$it") }
     }
 
     /**
-     * 利用者が選んだ画像を、新しい id で内部へ写す。編集画面の画像の選択に使う。IO のスレッドで呼ぶ。
+     * 利用者が選んだ画像を、新しい id で内部へコピーする。編集画面の画像の選択に使う。IO のスレッドで呼ぶ。
      */
     fun add(
         source: ImageDecoder.Source,
@@ -126,12 +126,12 @@ class ArtImporter(
             ImageDecoder.decodeBitmap(from) { decoder, info, _ ->
                 val w = info.size.width
                 val h = info.size.height
-                // 幅か高さが 0 の壊れた画像は、縦横比を求められないので取り込まない
+                // 幅か高さが 0 の壊れた画像は、縦横比を求められないのでインポートしない
                 require(w > 0 && h > 0) { "大きさが ${w}x$h の画像" }
                 aspect = w.toFloat() / h
                 val scale = MAX_SIDE.toFloat() / max(w, h)
                 if (scale < 1f) decoder.setTargetSize((w * scale).roundToInt(), (h * scale).roundToInt())
-                // 縮めて書き出すので、GPU 側ではなく CPU 側に読む
+                // 縮小して保存するので、GPU 側ではなく CPU 側に読む
                 decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
             }
         val tmp = File(to.path + ".tmp")
@@ -163,7 +163,7 @@ class ArtImporter(
     }
 
     /**
-     * 取り込み口の切り抜きを内部へ写す。写した元のファイルを返す（無ければ null）。
+     * インポート用のフォルダの切り抜きを内部へコピーする。コピーした元のファイルを返す（無ければ null）。
      * - art/<id>.inv.*: 白が人物以外（モックアップの INV と同じ。そのまま使う）
      * - art/<id>.mask.*: 白が人物（BiRefNet などの出力。濃さ 0.35〜0.65 を 0〜1 に詰め、反転する）
      */

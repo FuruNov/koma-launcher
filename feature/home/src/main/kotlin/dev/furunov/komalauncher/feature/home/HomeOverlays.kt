@@ -47,7 +47,7 @@ import dev.furunov.komalauncher.ui.controls.ToggleSwitch
 import dev.furunov.komalauncher.ui.icons.AppIcon
 import kotlinx.coroutines.delay
 
-/** フォルダから運んでいる間だけ、画面上端に出す「外す」の場所。 */
+/** フォルダからドラッグしている間だけ、画面上端に出す「外す」の場所。 */
 @Composable
 internal fun RemoveZone(
     active: Boolean,
@@ -279,7 +279,7 @@ internal fun DrawerFolderMenuSheet(
     BackHandler { onEvent(HomeEvent.Dismiss) }
     Sheet(onDismiss = { onEvent(HomeEvent.Dismiss) }) {
         BasicText("フォルダを変更", style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(16.dp))
-        // 既定の 10 個が全て見える高さにする（420dp では末尾の「その他」と今のフォルダの印が隠れた）
+        // デフォルトの 10 個が全て見える高さにする（420dp では末尾の「その他」と今のフォルダの印が隠れた）
         LazyColumn(Modifier.heightIn(max = 600.dp)) {
             items(menu.choices) { (id, name) ->
                 val current = id == menu.current

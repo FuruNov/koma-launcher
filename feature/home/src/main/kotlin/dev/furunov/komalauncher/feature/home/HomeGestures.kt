@@ -25,7 +25,7 @@ interface HomeGestureHandler {
     /** 自由に置くウィジェットの長押し。 */
     fun onWidgetLongPress(widget: WidgetGeometry) = Unit
 
-    /** コマの上の左右のスワイプ。[toLeft] が true なら左へ払った。 */
+    /** コマの上の左右のスワイプ。[toLeft] が true なら左へスワイプした。 */
     fun onPanelSwipe(panel: PanelGeometry, toLeft: Boolean)
 
     fun onGesture(kind: GestureKind, position: Offset)

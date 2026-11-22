@@ -73,7 +73,7 @@ internal fun FolderPopup(
     DisposableEffect(panel.panel.id) { onDispose { dropInfo.clear() } }
     val appearance = state.settings.appearance
     val apps = state.shownAppsOf(panel.panel.id.value)
-    // このフォルダの中で運んでいる間は、指の下の位置へ動かした並びを表示する（全アプリ一覧と同じく、その場で入れ替わって見える）。
+    // このフォルダの中でドラッグしている間は、指の下の位置へ動かした並びを表示する（全アプリ一覧と同じく、その場で入れ替わって見える）。
     // 離したときの位置は HomeScreen が dropInfo.indexAt で同じように決めるので、表示と結果が食い違わない
     val dragged = dnd.item?.takeIf { dnd.isDragging && (it.source as? DragSource.Folder)?.panelId == panel.panel.id.value }?.app
     val target = dragged?.let { if (dropInfo.popupRect?.contains(dnd.position) == true) dropInfo.indexAt(dnd.position) else null }

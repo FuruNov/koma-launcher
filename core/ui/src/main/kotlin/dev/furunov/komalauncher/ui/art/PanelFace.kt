@@ -33,7 +33,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-/** コマの見た目の指定（段階 3）。レイアウトと画面の幅から作る。 */
+/** コマの見た目の指定。レイアウトと画面の幅から作る。 */
 class PanelStyle(
     val look: Look,
     val border: Border,
@@ -66,15 +66,15 @@ class PanelStyle(
  * 座標はコマの外接長方形の左上を原点にして持つ。切り抜きは呼び出し側が行う（ホームは graphicsLayer の shape、
  * 編集画面は clipPath）。
  *
- * 描く順はモックアップと同じ: 絵 →（段階 4 の文字）→ 内側の影 → 光の反射 → 枠線。
+ * 描く順はモックアップと同じ: 絵 →（文字）→ 内側の影 → 光の反射 → 枠線。
  * 色の行列・影の Paint・反射のグラデーションは、ここで 1 回だけ作る。コマの形か見た目が変わったときだけ作り直す。
  */
 class PanelFace(
     /** 画面座標のコマの形。 */
     polygon: Polygon,
-    /** 画面座標の、画像を描く長方形。null なら絵の無いコマとして、紙かベタに網点を描く。 */
+    /** 画面座標の、画像を描く長方形。null なら絵の無いコマとして、紙かベタにトーンを描く。 */
     art: Rect?,
-    /** コマの番号。網点の濃淡の向きと、マゼンタにする最初のコマを決める。 */
+    /** コマの番号。トーンの濃淡の向きと、マゼンタにする最初のコマを決める。 */
     index: Int,
     style: PanelStyle = PanelStyle.NONE,
     /** 絵の上に重ねる黒の不透明度（PanelArt.dim）。文字より前に塗るので、名前・時計は暗くならない。 */
@@ -141,14 +141,14 @@ class PanelFace(
     /** 絵の無いコマの塗り方。 */
     val blank: BlankPage = style.blank
 
-    /** 絵の無い白い紙のコマなら true。名前・時計を墨で描く。 */
+    /** 絵の無い白い紙のコマなら true。名前・時計を黒で描く。 */
     val inkText: Boolean = art == null && blank.light
 
-    /** 網点。このオブジェクトはコマの形か見た目が変わると作り直されるので、ここで 1 回だけ作る。 */
+    /** トーン。このオブジェクトはコマの形か見た目が変わると作り直されるので、ここで 1 回だけ作る。 */
     private val dots: BlankPage.Dots? = if (art == null) blank.dots(index, bounds.width, bounds.height, DOT_STEP * style.scale) else null
 
     /**
-     * 画像（無ければ紙かベタと網点）を描く。絵の長方形はコマの外へはみ出すので、呼び出し側で切り抜いておく。
+     * 画像（無ければ紙かベタとトーン）を描く。絵の長方形はコマの外へはみ出すので、呼び出し側で切り抜いておく。
      * [shift] は視差で絵を動かす量。絵は動かす量の分だけ大きく置いてある（LayoutResolver の parallax）。
      */
     fun DrawScope.drawArt(
@@ -174,7 +174,7 @@ class PanelFace(
         }
     }
 
-    /** 絵の上に重ねるもの（内側の影・光の反射・枠線）。[sheenShift] は光の反射をずらす量（段階 5 の視差）。 */
+    /** 絵の上に重ねるもの（内側の影・光の反射・枠線）。[sheenShift] は光の反射をずらす量（視差）。 */
     fun DrawScope.drawOverlay(sheenShift: Offset = Offset.Zero) {
         drawInnerShadow()
         translate(sheenShift.x, sheenShift.y) { drawSheen() }
@@ -211,7 +211,7 @@ class PanelFace(
     }
 
     companion object {
-        /** 網点の間隔（基準の幅 1220 のときの画素）。 */
+        /** トーンの間隔（基準の幅 1220 のときの画素）。 */
         private const val DOT_STEP = 16f
     }
 }

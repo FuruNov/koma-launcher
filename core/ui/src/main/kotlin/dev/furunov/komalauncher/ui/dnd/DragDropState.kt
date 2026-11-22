@@ -27,7 +27,7 @@ import dev.furunov.komalauncher.model.apps.AppKey
 import dev.furunov.komalauncher.ui.icons.AppIcon
 import kotlin.math.roundToInt
 
-/** どこから運んできたか。落とした先での扱い（追加か移動か）が変わる。 */
+/** どこからドラッグしてきたか。落とした先での扱い（追加か移動か）が変わる。 */
 sealed interface DragSource {
     data object Drawer : DragSource
 
@@ -41,7 +41,7 @@ data class DragItem(
     val source: DragSource,
 )
 
-/** 落とした先の判断は画面ごとに違うので、ここでは座標と運んだものを渡すだけにする。 */
+/** 落とした先の判断は画面ごとに違うので、ここでは座標とドラッグしたものを渡すだけにする。 */
 fun interface DropHandler {
     fun onDrop(
         item: DragItem,
@@ -50,8 +50,8 @@ fun interface DropHandler {
 }
 
 /**
- * 全アプリ一覧・フォルダ・ホームの間でアイコンを運ぶときの状態。画面全体で 1 つだけ持つ。
- * 運んでいる間も元の画面（一覧やフォルダ）は合成されたまま透明にしておく。
+ * 全アプリ一覧・フォルダ・ホームの間でアイコンをドラッグするときの状態。画面全体で 1 つだけ持つ。
+ * ドラッグしている間も元の画面（一覧やフォルダ）は合成されたまま透明にしておく。
  * 取り除くと指の追跡（pointerInput）が途切れ、ドラッグが取り消されるため。
  */
 @Stable
@@ -77,7 +77,7 @@ class DragDropState(
 
     val isDragging: Boolean get() = item != null && travelled > MENU_SLOP_PX
 
-    /** [showMenu] が false なら、長押しのメニューを出さない（全アプリ一覧のフォルダの中から、運ぶ途中で引き継ぐとき）。 */
+    /** [showMenu] が false なら、長押しのメニューを出さない（全アプリ一覧のフォルダの中から、ドラッグの途中で引き継ぐとき）。 */
     fun start(
         item: DragItem,
         at: Offset,
@@ -108,7 +108,7 @@ class DragDropState(
     }
 
     companion object {
-        /** 長押しの後にこれより動いたら、運ぶ操作とみなしてメニューを消す。これより動かずに離したら、メニューを残す。 */
+        /** 長押しの後にこれより動いたら、ドラッグの操作とみなしてメニューを消す。これより動かずに離したら、メニューを残す。 */
         const val MENU_SLOP_PX = 24f
     }
 }
@@ -155,7 +155,7 @@ fun Modifier.draggableApp(
                     Early.Cancel -> Unit
 
                     null -> {
-                        // 長押しが成立した。ここから運ぶ
+                        // 長押しが成立した。ここからドラッグを始める
                         state.start(item, origin + down.position)
                         val finished =
                             drag(down.id) {
@@ -171,7 +171,7 @@ fun Modifier.draggableApp(
 
 private enum class Early { Tap, Cancel }
 
-/** 運んでいるアイコン。画面のいちばん上に重ねる。 */
+/** ドラッグしているアイコン。画面のいちばん上に重ねる。 */
 @Composable
 fun DragShadow(state: DragDropState) {
     val item = state.item ?: return

@@ -17,7 +17,7 @@ import androidx.compose.ui.zIndex
  * - 長押しして動かすと、指の下の項目の位置へ移す（[onMove]）。指を離したら [onEnd] に true を渡す
  * - 長押しが成立したらすぐ [onLongPress] を呼ぶ（メニューを出す）。指が動き始めたら [onDragBegin] を呼ぶ（メニューを消す）
  * - 動かさずに離すと [onEnd] に false を渡す（メニューは出したまま）
- * - 指が領域の外へ出て [onLeave] が true を返したら、その後の動きは [onHandoffMove]、離したときは [onHandoffEnd] へ渡す（ホームへ運ぶ）
+ * - 指が領域の外へ出て [onLeave] が true を返したら、その後の動きは [onHandoffMove]、離したときは [onHandoffEnd] へ渡す（ホームへドラッグする）
  */
 internal class ReorderHandler(
     /** 指の位置にある項目のキーと、並びの中の番号。項目が無ければ null。 */
