@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,6 +49,7 @@ private fun MenuItem(
     BasicText(
         text,
         style = TextStyle(color = Color.White, fontSize = 16.sp),
-        modifier = Modifier.clickable(onClick = onClick).padding(16.dp),
+        // 文字の部分だけでなく、行の幅いっぱいを押せるようにする
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp),
     )
 }
