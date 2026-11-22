@@ -56,6 +56,7 @@ import dev.furunov.komalauncher.feature.home.anim.MotionContext
 import dev.furunov.komalauncher.feature.home.anim.PanelAnimations
 import dev.furunov.komalauncher.feature.home.anim.PanelMotion
 import dev.furunov.komalauncher.model.apps.AppKey
+import dev.furunov.komalauncher.model.apps.DrawerFolders
 import dev.furunov.komalauncher.model.geometry.Rect
 import dev.furunov.komalauncher.model.layout.EditHistory
 import dev.furunov.komalauncher.model.layout.LayerKind
@@ -413,6 +414,7 @@ fun HomeScreen(
                             showingPlayer = state.player?.panelId == g.panel.id,
                             slots.panelMenuItems(g),
                             onEvent,
+                            linkedName = state.folders.byPanel[g.panel.id.value]?.drawerFolder?.let { DrawerFolders.nameOf(it, state.settings.drawer) },
                         )
                     }
 
@@ -423,6 +425,8 @@ fun HomeScreen(
                     is Overlay.Rename -> RenameSheet(state.folders.byPanel[o.panelId.value]?.name ?: state.layout.panel(o.panelId)?.label, { onEvent(HomeEvent.Rename(o.panelId, it)) }, onEvent)
 
                     is Overlay.DrawerFolderMenu -> DrawerFolderMenuSheet(o, onEvent)
+
+                    is Overlay.LinkPanel -> LinkPanelSheet(o, onEvent)
 
                     is Overlay.DrawerFolderName -> RenameSheet(o.current, { onEvent(HomeEvent.NameDrawerFolder(o.app, o.folderId, it)) }, onEvent)
 

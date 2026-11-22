@@ -15,6 +15,11 @@ data class Folder(
     val directLaunch: Boolean = false,
     /** true なら、音楽の再生中と一時停止中に、このコマをプレイヤーの表示にする。オンにできるのは 1 つのコマだけ。 */
     val musicPlayer: Boolean = false,
+    /**
+     * 紐付けた全アプリ一覧のフォルダの id。null でなければ、このコマの中身はそのフォルダの中身（順番も含む）になり、[apps] は使わない。
+     * コマで入れる・外す・並べ替えると、全アプリ一覧のフォルダにも反映する（PanelLinks）。
+     */
+    val drawerFolder: String? = null,
 )
 
 /** フォルダの中身の全体。保存の単位でもある。キーは PanelId の文字列（JSON のキーにするため）。 */

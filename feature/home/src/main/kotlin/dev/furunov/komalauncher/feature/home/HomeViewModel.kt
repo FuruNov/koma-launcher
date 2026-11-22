@@ -11,6 +11,7 @@ import dev.furunov.komalauncher.model.apps.DrawerFolders
 import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.folders.FolderStore
 import dev.furunov.komalauncher.model.folders.Folders
+import dev.furunov.komalauncher.model.folders.PanelLinks
 import dev.furunov.komalauncher.model.layout.Layout
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.PanelContent
@@ -98,6 +99,13 @@ sealed interface Overlay {
 
     /** 音楽プレイヤーに必要な「通知へのアクセス」の説明。 */
     data object MusicAccess : Overlay
+
+    /** コマの「ドロワーと同期」。[choices] は全アプリ一覧のフォルダの id と名前、[current] は今紐付けているフォルダの id（無ければ null）。 */
+    data class LinkPanel(
+        val panelId: PanelId,
+        val choices: List<Pair<String, String>>,
+        val current: String?,
+    ) : Overlay
 
     /** 全アプリ一覧の「フォルダを変更」。[choices] はフォルダの id と名前、[current] は今入っているフォルダの id。 */
     data class DrawerFolderMenu(
@@ -234,6 +242,17 @@ sealed interface HomeEvent {
     /** 長押しの後に運び始めたとき。長押しで出したメニューを消し、下に残していた画面に戻る。 */
     data object HideAppMenu : HomeEvent
 
+    /** コマのメニューの「ドロワーと同期」。紐付ける全アプリ一覧のフォルダを選ぶ画面を出す。 */
+    data class ShowLinkPanel(
+        val panelId: PanelId,
+    ) : HomeEvent
+
+    /** コマを全アプリ一覧のフォルダ [drawerFolder] に紐付ける。null なら紐付けを外す。 */
+    data class LinkPanel(
+        val panelId: PanelId,
+        val drawerFolder: String?,
+    ) : HomeEvent
+
     /** 長押しのメニューの「フォルダを変更」。移す先を選ぶ画面を出す。 */
     data class ShowDrawerFolders(
         val app: AppKey,
@@ -365,7 +384,7 @@ class HomeViewModel(
                 settings = s,
                 undo = u,
             )
-        }.combine(apps.apps) { s, list -> s.copy(labels = list.associate { it.key to it.label }) }
+        }.combine(apps.apps) { s, list -> s.copy(labels = list.associate { it.key to it.label }, folders = PanelLinks.effective(s.folders, s.settings.drawer, list)) }
             .combine(player) { s, p -> s.copy(player = p) }
             .combine(adjusting) { s, a -> s.copy(adjusting = a) }
             .stateIn(
@@ -457,14 +476,26 @@ class HomeViewModel(
             }
 
             is HomeEvent.EditFolders -> {
-                if (event.recordUndo) undo.value = folderStore.folders.value
-                folderStore.update(event.edit)
+                val before = shown()
+                if (event.recordUndo) undo.value = before
+                commit(before, event.edit(before))
             }
 
             HomeEvent.Undo -> {
                 val before = undo.value ?: return
-                folderStore.update { before }
+                commit(shown(), before)
                 undo.value = null
+            }
+
+            is HomeEvent.ShowLinkPanel -> {
+                val drawer = settingsStore.settings.value.drawer
+                overlay.value = Overlay.LinkPanel(event.panelId, DrawerFolders.choices(drawer), folderStore.folders.value.byPanel[event.panelId.value]?.drawerFolder)
+            }
+
+            is HomeEvent.LinkPanel -> {
+                val current = shown()
+                folderStore.update { PanelLinks.link(it, current, event.panelId.value, event.drawerFolder) }
+                overlay.value = Overlay.None
             }
 
             HomeEvent.ClearUndo -> undo.value = null
@@ -588,7 +619,7 @@ class HomeViewModel(
     }
 
     private fun drop(e: HomeEvent.Drop) {
-        val before = folderStore.folders.value
+        val before = shown()
         // フォルダの画面の位置は、一覧に無いショートカットを隠した並びの位置なので、データの中の位置に直す
         val target =
             (e.target as? DropTarget.Panel)?.takeIf { it.index != null }?.let { t ->
@@ -606,7 +637,7 @@ class HomeViewModel(
             // 外したときと別のコマへ移したときは、すぐ戻せるようにする。並べ替えは戻す必要が薄いので記録しない
             val reorderOnly = target is DropTarget.Panel && target.panelId == e.fromPanel
             if (!reorderOnly) undo.value = before
-            folderStore.update { after }
+            commit(before, after)
         }
         // 同じフォルダの中での並べ替えなら開いたままにし、それ以外は閉じてホームを見せる
         val stayOpen = target is DropTarget.Panel && target.panelId == e.fromPanel
@@ -616,12 +647,25 @@ class HomeViewModel(
     /** 分類を知るための一覧の項目。一覧に無ければ（アンインストールの直後など）分類の無い項目として扱う。 */
     private fun entryOf(app: AppKey): AppEntry = apps.apps.value.firstOrNull { it.key == app } ?: AppEntry(app, "")
 
+    /** 表示に使うフォルダの中身。全アプリ一覧のフォルダに紐付けたコマは、そのフォルダの中身になる（PanelLinks）。 */
+    private fun shown(): Folders = PanelLinks.effective(folderStore.folders.value, settingsStore.settings.value.drawer, apps.apps.value)
+
+    /** 編集の前後（どちらも [shown] の中身）から、コマの中身と、紐付けた全アプリ一覧のフォルダの両方を書く。 */
+    private fun commit(
+        before: Folders,
+        after: Folders,
+    ) {
+        if (after == before) return
+        folderStore.update { PanelLinks.storable(it, after) }
+        settingsStore.update { it.copy(drawer = PanelLinks.sync(before, after, it.drawer, ::entryOf)) }
+    }
+
     /**
      * 「直接起動」のフォルダなら、起動するアプリ（入っているアプリのうち先頭）。
      * 切り替えがオフか、起動できるアプリが 1 つも無ければ null（フォルダを開く）。
      */
     private fun directLaunchTarget(panelId: PanelId): AppKey? {
-        val folder = folderStore.folders.value.byPanel[panelId.value] ?: return null
+        val folder = shown().byPanel[panelId.value] ?: return null
         if (!folder.directLaunch) return null
         val installed = apps.apps.value.mapTo(HashSet()) { it.key }
         return folder.apps.firstOrNull { it in installed }

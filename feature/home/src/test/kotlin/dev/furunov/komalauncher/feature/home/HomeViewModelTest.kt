@@ -554,6 +554,17 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun linkedPanelShowsDrawerFolderAndRemovingMovesToOther() {
+        folders.flow.value = Folders(byPanel = mapOf("p1" to Folder(emptyList())), seeded = setOf("p1"))
+        vm.onEvent(HomeEvent.LinkPanel(PanelId("p1"), "other"))
+        // chrome は分類が無いので、全アプリ一覧では「その他」に入る
+        assertEquals(listOf(chrome), vm.state.value.folders.appsOf("p1"))
+        assertEquals(emptyList(), folders.flow.value.appsOf("p1"))
+        vm.onEvent(HomeEvent.ShowLinkPanel(PanelId("p1")))
+        assertEquals("other", (vm.state.value.overlay as Overlay.LinkPanel).current)
+    }
+
+    @Test
     fun dismissFolderMenuReturnsHome() {
         vm.onEvent(HomeEvent.ShowAppMenu(chrome, fromPanel = "p1"))
         vm.onEvent(HomeEvent.Dismiss)

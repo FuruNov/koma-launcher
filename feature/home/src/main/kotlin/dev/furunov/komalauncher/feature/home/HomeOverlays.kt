@@ -173,6 +173,8 @@ internal fun PanelMenuSheet(
     showingPlayer: Boolean,
     extra: List<PanelMenuItem>,
     onEvent: (HomeEvent) -> Unit,
+    /** 紐付けた全アプリ一覧のフォルダの名前。紐付けていなければ null。 */
+    linkedName: String? = null,
 ) {
     BackHandler { onEvent(HomeEvent.Dismiss) }
     Sheet(onDismiss = { onEvent(HomeEvent.Dismiss) }) {
@@ -195,6 +197,7 @@ internal fun PanelMenuSheet(
                 onEvent(HomeEvent.SetMusicPlayer(id, !musicPlayer))
             }
             MenuRow("名前を変更") { onEvent(HomeEvent.OpenOverlay(Overlay.Rename(id))) }
+            MenuRow(if (linkedName == null) "ドロワーと同期" else "ドロワーと同期（$linkedName）") { onEvent(HomeEvent.ShowLinkPanel(id)) }
         }
         extra.forEach { item ->
             MenuRow(item.label) {
@@ -336,5 +339,30 @@ private fun Sheet(
                 .padding(vertical = 8.dp),
             content = content,
         )
+    }
+}
+
+/** コマの「ドロワーと同期」。紐付ける全アプリ一覧のフォルダを選ぶ。今のフォルダに印を付け、末尾の「同期しない」で外す。 */
+@Composable
+internal fun LinkPanelSheet(
+    o: Overlay.LinkPanel,
+    onEvent: (HomeEvent) -> Unit,
+) {
+    BackHandler { onEvent(HomeEvent.Dismiss) }
+    Sheet(onDismiss = { onEvent(HomeEvent.Dismiss) }) {
+        BasicText("ドロワーと同期", style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp))
+        BasicText(
+            "選んだフォルダと同じ中身を表示します。このコマで入れる・外す・並べ替えると、ドロワーのフォルダにも反映します",
+            style = TextStyle(color = Color(0xFF9A9EAB), fontSize = 12.sp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+        LazyColumn(Modifier.heightIn(max = 480.dp)) {
+            items(o.choices) { (id, name) ->
+                val current = id == o.current
+                MenuRow(if (current) "✓ $name" else name, color = if (current) Color(0xFFFFD54F) else Color.White) { onEvent(HomeEvent.LinkPanel(o.panelId, id)) }
+            }
+        }
+        Divider()
+        MenuRow(if (o.current == null) "✓ 同期しない" else "同期しない", color = if (o.current == null) Color(0xFFFFD54F) else Color.White) { onEvent(HomeEvent.LinkPanel(o.panelId, null)) }
     }
 }
