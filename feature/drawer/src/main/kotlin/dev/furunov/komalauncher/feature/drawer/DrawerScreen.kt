@@ -62,6 +62,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -113,10 +115,15 @@ class DrawerActions(
     val onReorderFolders: (List<String>) -> Unit = {},
     /** フォルダの中のアイコンを左端の列のフォルダまで運んで離したとき。アプリと、移す先のフォルダの id。 */
     val onMoveToFolder: (AppKey, String) -> Unit = { _, _ -> },
+    /** 検索欄の Play ストアのアイコンを押したとき。引数は検索欄の文字（空なら Play ストアを開く）。 */
+    val onOpenStore: (String) -> Unit = {},
 )
 
 /** 検索で表示するショートカットの最大の件数。 */
 private const val MAX_SHORTCUTS = 8
+
+/** Google Play ストアのパッケージ名。 */
+private const val PLAY_STORE = "com.android.vending"
 
 /**
  * 全アプリ一覧。LazyVerticalGrid なので、アイコンは画面に見えている分だけ読む。
@@ -179,6 +186,8 @@ fun DrawerScreen(
     // ショートカットの行に表示するアプリの名前とアイコン
     // 追加したショートカット（PWA など）はブラウザと同じパッケージを持つので、アプリだけから引く
     val appOf = remember(visible) { visible.filterNot { it.key.isShortcut }.associateBy { it.key.packageName } }
+    // 検索欄に置く Play ストアのアイコン。非表示にしていても出す（検索欄の道具なので）
+    val store = remember(apps) { apps.firstOrNull { it.key.packageName == PLAY_STORE && !it.key.isShortcut }?.key }
     val grid = rememberLazyGridState()
     var gridOrigin by remember { mutableStateOf(Offset.Zero) }
     var stripOrigin by remember { mutableStateOf(Offset.Zero) }
@@ -311,6 +320,8 @@ fun DrawerScreen(
                         ?: rankedShortcuts.firstOrNull()?.let { actions.onLaunchShortcut(it.shortcut) }
                 },
                 onOpenSettings = { scope.launch { actions.onOpenSettings() } },
+                store = store,
+                onOpenStore = { actions.onOpenStore(q) },
             )
             val appGrid: @Composable (Modifier) -> Unit = { m ->
                 LazyVerticalGrid(
@@ -526,6 +537,10 @@ private fun Modifier.swipeFolders(
     }
 }
 
+/**
+ * 検索欄。右端に Play ストアの記号（Play ストアが入っていなければ出さない）と、設定を開く歯車の記号を置く。
+ * Play ストアの記号は、何も打っていなければ Play ストアを開き、打っていればその文字で Play ストアを検索する（[onOpenStore]）。
+ */
 @Composable
 private fun SearchField(
     query: String,
@@ -533,6 +548,8 @@ private fun SearchField(
     focus: FocusRequester,
     onGo: () -> Unit,
     onOpenSettings: () -> Unit,
+    store: AppKey?,
+    onOpenStore: () -> Unit,
 ) {
     Box(
         Modifier
@@ -550,13 +567,25 @@ private fun SearchField(
             cursorBrush = SolidColor(Color.White),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
             keyboardActions = KeyboardActions(onGo = { onGo() }),
-            modifier = Modifier.fillMaxWidth().padding(end = 40.dp).focusRequester(focus),
+            modifier = Modifier.fillMaxWidth().padding(end = if (store != null) 76.dp else 40.dp).focusRequester(focus),
         )
-        BasicText(
-            "設定",
-            style = TextStyle(color = Color(0xFFBBBBBB), fontSize = 13.sp),
-            modifier = Modifier.align(Alignment.CenterEnd).clickable(onClick = onOpenSettings),
-        )
+        Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+            // アプリのアイコンでなく、左の列と同じ線の記号にする（カラーのアイコンだけ浮いて見えたため）
+            if (store != null) {
+                FolderSymbol(
+                    STORE_SYMBOL,
+                    Color(0xFFBBBBBB),
+                    22.dp,
+                    Modifier.clickable(onClick = onOpenStore).semantics { contentDescription = "Play ストア" },
+                )
+            }
+            FolderSymbol(
+                GEAR_SYMBOL,
+                Color(0xFFBBBBBB),
+                22.dp,
+                Modifier.padding(start = 14.dp).clickable(onClick = onOpenSettings).semantics { contentDescription = "設定" },
+            )
+        }
     }
 }
 

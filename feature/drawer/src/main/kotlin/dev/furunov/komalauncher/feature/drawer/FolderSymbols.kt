@@ -19,6 +19,12 @@ import androidx.compose.foundation.layout.size as sizeModifier
 /** 「すべて」の記号の id。フォルダの記号（DrawerFolders.symbols）とは別に、一覧の先頭だけで使う。 */
 internal const val ALL_SYMBOL = "all"
 
+/** 設定の歯車の記号の id。検索欄の設定のボタンだけで使い、フォルダの記号には選べない。 */
+internal const val GEAR_SYMBOL = "gear"
+
+/** Play ストアの記号の id。検索欄の Play ストアのボタンだけで使う。手提げ袋に再生の三角。 */
+internal const val STORE_SYMBOL = "store"
+
 /**
  * フォルダの記号。24×24 の格子に線で描き、[size] に合わせて拡大する。
  * Material のアイコンのライブラリは入れない方針（README の「依存を絞った理由」）なので、自前で描く。
@@ -222,6 +228,24 @@ private class SymbolPen(
                 scope.drawPath(path, color, style = stroke)
                 line(18.5f, 2.5f, 18.5f, 7.5f)
                 line(16f, 5f, 21f, 5f)
+            }
+
+            STORE_SYMBOL -> {
+                poly(4f, 8f, 20f, 8f, 19f, 21f, 5f, 21f, close = true)
+                arc(8.5f, 3f, 7f, 9f, 180f, 180f)
+                poly(10.5f, 11.5f, 15f, 14.5f, 10.5f, 17.5f, close = true, fill = true)
+            }
+
+            GEAR_SYMBOL -> {
+                // 歯車: 外周に 8 本の歯と、中の輪
+                for (i in 0 until 8) {
+                    val a = Math.toRadians(i * 45.0)
+                    val c = kotlin.math.cos(a).toFloat()
+                    val s = kotlin.math.sin(a).toFloat()
+                    line(12f + 7f * c, 12f + 7f * s, 12f + 9.5f * c, 12f + 9.5f * s)
+                }
+                circle(12f, 12f, 6.5f)
+                circle(12f, 12f, 2.6f)
             }
 
             "lock" -> {

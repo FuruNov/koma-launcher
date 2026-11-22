@@ -1,8 +1,10 @@
 package dev.furunov.komalauncher
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -76,6 +78,10 @@ class MainActivity : ComponentActivity() {
                                     onOpenSettings = {
                                         home.onEvent(HomeEvent.Dismiss)
                                         container.actions.perform(LauncherAction.OpenSettings)
+                                    },
+                                    onOpenStore = { query ->
+                                        home.onEvent(HomeEvent.Dismiss)
+                                        openPlayStore(query)
                                     },
                                 ),
                                 open = open,
@@ -195,5 +201,27 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         // ホームボタン。開いているフォルダや一覧を閉じる
         if (intent.hasCategory(Intent.CATEGORY_HOME)) home.onEvent(HomeEvent.Home)
+    }
+}
+
+/**
+ * Google Play ストアを開く。[query] が空でなければ、その文字でアプリを検索する。
+ * Play ストアの画面が開けなければ（無効にしているなど）、ブラウザで Play ストアの検索を開く。
+ */
+private fun ComponentActivity.openPlayStore(query: String) {
+    val q = query.trim()
+    val store = Intent(Intent.ACTION_VIEW, Uri.parse(if (q.isEmpty()) "market://search?c=apps" else "market://search?q=${Uri.encode(q)}&c=apps")).setPackage("com.android.vending")
+    val web = Intent(Intent.ACTION_VIEW, Uri.parse(if (q.isEmpty()) "https://play.google.com/store/apps" else "https://play.google.com/store/search?q=${Uri.encode(q)}&c=apps"))
+    if (q.isEmpty()) {
+        // 空のときは検索の画面でなく、Play ストアの最初の画面を開く
+        packageManager.getLaunchIntentForPackage("com.android.vending")?.let {
+            startActivity(it)
+            return
+        }
+    }
+    try {
+        startActivity(store)
+    } catch (_: ActivityNotFoundException) {
+        runCatching { startActivity(web) }
     }
 }
