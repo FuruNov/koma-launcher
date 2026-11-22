@@ -5,25 +5,25 @@ description: claude.ai の Artifact で作ったコマ割りのモックアッ�
 
 # モックアップを実機に送る
 
-モックアップの保存状態（Artifact の db）と、ページに埋め込まれた画像から、version 2 の `layout.json` と画像を作り、端末の取り込み口 `/sdcard/Android/data/dev.furunov.komalauncher/files/` に `adb push` する。アプリは `layout.json` が置かれたことを検知して取り込む。取り込みの仕組みは `docs/layout-json.md` の「取り込み口」にある。
+モックアップの保存状態（Artifact の db）と、ページに埋め込まれた画像から、version 2 の `layout.json` と画像を作り、端末のインポート用のフォルダ `/sdcard/Android/data/dev.furunov.komalauncher/files/` に `adb push` する。アプリは `layout.json` が置かれたことを検知してインポートする。インポートの仕組みは `docs/layout-json.md` の「インポート用のフォルダ」にある。
 
 使うスクリプトは 2 つ。
 
-- `scripts/extract-mockup-images.sh <ページの HTML> [出力先]`: ページの `const IMG = {...};`・`const INV = {...};`・`const MASK = {...};` の data URI を、`<出力先>/<名前>.webp`・`inv/<名前>.webp`・`mask/<名前>.webp` に書き出す。出力先の既定は `art/mockup/`（`.gitignore` にある）。
+- `scripts/extract-mockup-images.sh <ページの HTML> [出力先]`: ページの `const IMG = {...};`・`const INV = {...};`・`const MASK = {...};` の data URI を、`<出力先>/<名前>.webp`・`inv/<名前>.webp`・`mask/<名前>.webp` に出力する。出力先のデフォルトは `art/mockup/`（`.gitignore` にある）。
 - `scripts/import-mockup.sh <state.json> <画像のディレクトリ> [layout.json の保存先]`: state を jq で `layout.json` に変換し、画像・切り抜き・`layout.json` の順に送る。
 
 ## 手順
 
-1. モックアップの URL を確かめる。利用者に聞くか、`Artifact` の `action: "list"` で探す。まだ無ければ、`docs/mockups/editor.template.html` の `{{IMAGES_JSON}}`・`{{MASKS_JSON}}`・`{{INVMASKS_JSON}}` を、利用者の画像の data URI の JSON（`{"<名前>": "data:image/webp;base64,..."}`、切り抜きが無ければ `{}`）に置き換え、Artifact として公開する。保存に db を使うので、公開のときに db の capability を付ける。テンプレートの見本のコマ（`TEMPLATES` の `pic-a-5` など）は、利用者の画像の名前に書き換える。
+1. モックアップの URL を確認する。利用者に聞くか、`Artifact` の `action: "list"` で探す。まだ無ければ、`docs/mockups/editor.template.html` の `{{IMAGES_JSON}}`・`{{MASKS_JSON}}`・`{{INVMASKS_JSON}}` を、利用者の画像の data URI の JSON（`{"<名前>": "data:image/webp;base64,..."}`、切り抜きが無ければ `{}`）に置き換え、Artifact として公開する。保存に db を使うので、公開のときに db の capability を付ける。テンプレートのサンプルのコマ（`TEMPLATES` の `pic-a-5` など）は、利用者の画像の名前に書き換える。
 2. 保存状態を取り出す。`ArtifactData` で `action: "get"`、`collection: "editor"`、`doc_id: "current"`、`out_dir: <スクラッチパッド>/db` とすると、`<out_dir>/editor/current.json` に `{ "state": {...}, "at": ... }` が書かれる。
 3. ページの HTML を取り出す。`Artifact` の `action: "read"` に URL を渡すと、結果の先頭に「full HTML saved to <パス>」と保存先が書かれる。画像を含むので数 MB あり、`Read` で全体を読まない。
-4. 画像を書き出す。
+4. 画像を出力する。
 
    ```sh
    scripts/extract-mockup-images.sh <手順 3 のパス> art/mockup
    ```
 
-5. 端末がつながっているか確かめる。`adb devices` に 1 台だけ出ていればよい。複数あるときは `ANDROID_SERIAL` で選ぶ。アプリが入っていなければ、先に `docs/development.md` の「ビルドと確認」で入れる。
+5. 端末がつながっているか確認する。`adb devices` に 1 台だけ出ていればよい。複数あるときは `ANDROID_SERIAL` で選ぶ。アプリをインストールしていなければ、先に `docs/development.md` の「ビルドと確認」でインストールする。
 6. 送る。
 
    ```sh
@@ -31,16 +31,16 @@ description: claude.ai の Artifact で作ったコマ割りのモックアッ�
    ```
 
    変換した `layout.json` は `build/mockup-layout.json` にも残る。送る前に中身だけ見たいときは、この手順の前にスクリプトの jq の部分を実行する。
-7. 取り込めたか確かめる。`adb shell ls /sdcard/Android/data/dev.furunov.komalauncher/files/` で `layout.json.imported` に名前が変わっていれば、アプリが取り込んだ。`layout.json` のまま残っているか、ホームの上端に誤りが表示されたら、取り込みに失敗している。画面は `adb exec-out screencap -p > <スクラッチパッド>/home.png` で撮って見る。
+7. インポートできたか確認する。`adb shell ls /sdcard/Android/data/dev.furunov.komalauncher/files/` で `layout.json.imported` に名前が変わっていれば、アプリがインポートした。`layout.json` のまま残っているか、ホームの上端にエラーが表示されたら、インポートに失敗している。画面は `adb exec-out screencap -p > <スクラッチパッド>/home.png` で撮って見る。
 
-画像には版権があるので、`art/` の外のリポジトリの中に書き出さない。コミットもしない。
+画像には版権があるので、`art/` の外のリポジトリの中に出力しない。コミットもしない。
 
 ## 新しいモックアップを作るとき
 
 `import-mockup.sh` は、`docs/mockups/editor.template.html` と同じ保存の形を前提にしている。新しいモックアップをこのテンプレートから作れば、上の手順がそのまま使える。一から作るときは、次の 3 点を合わせる。
 
 - 保存先: `window.claude.use("db")` の `db.doc("editor/current").set({ state, at })`。
-- `state` の形（省いた項目は jq が既定値で埋める）。
+- `state` の形（省いた項目は jq がデフォルト値で埋める）。
 
   ```js
   {

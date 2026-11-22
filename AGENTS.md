@@ -8,21 +8,21 @@
 
 | スキル | 使う場面 |
 |---|---|
-| `fork-setup` | フォークした直後に、パッケージ名・アプリ名・署名の鍵・目標の端末を自分用に変える |
-| `build-and-install` | ビルドして実機か Waydroid に入れる。Release を作る |
+| `fork-setup` | フォークした直後に、パッケージ名・アプリ名・署名鍵・動作を確認する端末を自分用に変える |
+| `build-and-install` | ビルドして実機か Waydroid にインストールする。Release を作る |
 | `change-feature` | 機能を追加・修正する。どのモジュールに書くか、テスト、確認、コミットの書き方 |
-| `make-layout` | 自分の画像でコマ割り（`layout.json`）と人物の切り抜きを作り、端末に入れる |
+| `make-layout` | 自分の画像でコマ割り（`layout.json`）と人物の切り抜きを作り、端末に転送する |
 | `export-mockup` | claude.ai の Artifact で作ったコマ割りのモックアップを端末に送る |
-| `edge-to-edge` ほか 3 つ | Android の公式スキルの写し（出所は `.claude/skills/README.md`） |
+| `edge-to-edge` ほか 3 つ | Android の公式スキルのコピー（出所は `.claude/skills/README.md`） |
 
 ## 守ること
 
 - モジュールの依存は `docs/development.md` の「構成」の表の向きだけにする。`:core:model` は Android に依存しない純粋な Kotlin で、計算はなるべくここに書いてテストする。機能のモジュールどうしは互いを参照しない。
-- Hilt・Room・DataStore・Coil・Navigation・Material3 を入れない。理由は `docs/development.md` の「依存を絞った理由」にある。入れたいときは利用者に確かめる。
-- 版権のある画像をコミットしない。画像は `art/` か `*.private.webp` / `*.private.png` の名前で置く（`.gitignore` にある）。テストと見本の画像の名前も、実在の作品やキャラクターの名前にしない。
-- 署名の鍵とパスワードはリポジトリの外に置き、`local.properties` で場所だけを渡す。
+- Hilt・Room・DataStore・Coil・Navigation・Material3 を導入しない。理由は `docs/development.md` の「依存を絞った理由」にある。導入したいときは利用者に確認する。
+- 版権のある画像をコミットしない。画像は `art/` か `*.private.webp` / `*.private.png` の名前で置く（`.gitignore` にある）。テストとサンプルの画像の名前も、実在の作品やキャラクターの名前にしない。
+- 署名鍵とパスワードはリポジトリの外に置き、`local.properties` で場所だけを渡す。
 - コードのコメント・README・コミットメッセージは日本語で書く。UI の文言は Android の日本語 UI の慣習（分割、結合、削除、非表示、キャンセルのような漢語とカタカナ語の体言止め）に合わせる。
-- 見た目の調整は、数値の基準を先に決め、記録と計算で候補を絞ってから実機で見てもらう（ビジュアライザーなら `tools/vis-replay`）。候補を 1 つずつ実機に入れて目で選ぶ往復を繰り返さない。
+- 見た目の調整は、数値の基準を先に決め、記録と計算で候補を絞ってから実機で見てもらう（ビジュアライザーなら `tools/vis-replay`）。候補を 1 つずつ実機にインストールして目で選ぶ往復を繰り返さない。
 
 ## よく使うコマンド
 
