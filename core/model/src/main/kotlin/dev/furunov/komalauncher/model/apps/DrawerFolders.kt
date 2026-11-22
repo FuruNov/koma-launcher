@@ -8,6 +8,8 @@ data class DrawerFolder(
     val id: String,
     val name: String,
     val apps: List<AppEntry>,
+    /** 一覧の左端に描く記号の id（[DrawerFolders.symbols] のどれか）。 */
+    val symbol: String = DrawerFolders.FOLDER_SYMBOL,
 )
 
 /**
@@ -37,6 +39,30 @@ object DrawerFolders {
         )
     private val builtInNames = builtIn.toMap()
 
+    const val FOLDER_SYMBOL = "folder"
+
+    /** 選べる記号の id。絵は :feature:drawer が描く。並びは選ぶ画面の順。 */
+    val symbols: List<String> =
+        listOf(
+            "game", "music", "mic", "video", "photo", "chat", "globe", "map", "plane", "food",
+            "bag", "money", "home", "book", "work", "tool", "news", "access", "star", "heart", FOLDER_SYMBOL, "dots",
+        )
+
+    private val builtInSymbols: Map<String, String> =
+        mapOf(
+            AppCategory.GAME.id to "game",
+            AppCategory.AUDIO.id to "music",
+            AppCategory.VIDEO.id to "video",
+            AppCategory.IMAGE.id to "photo",
+            AppCategory.SOCIAL.id to "chat",
+            AppCategory.BROWSER.id to "globe",
+            AppCategory.NEWS.id to "news",
+            AppCategory.MAPS.id to "map",
+            AppCategory.PRODUCTIVITY.id to "work",
+            AppCategory.ACCESSIBILITY.id to "access",
+            OTHER to "dots",
+        )
+
     fun folderOf(
         app: AppEntry,
         s: DrawerSettings,
@@ -48,6 +74,19 @@ object DrawerFolders {
         id: String,
         s: DrawerSettings,
     ): String = s.folderNames[id] ?: builtInNames[id] ?: id
+
+    /** 記号の id。利用者が選んだもの、既定のフォルダの記号、どれでもなければフォルダの記号の順に決める。 */
+    fun symbolOf(
+        id: String,
+        s: DrawerSettings,
+    ): String = s.folderSymbols[id]?.takeIf { it in symbols } ?: builtInSymbols[id] ?: FOLDER_SYMBOL
+
+    /** 記号を変える。 */
+    fun setSymbol(
+        s: DrawerSettings,
+        id: String,
+        symbol: String,
+    ): DrawerSettings = s.copy(folderSymbols = s.folderSymbols + (id to symbol))
 
     /** 全てのフォルダの id の並び（空のものも含む）。並べ替えたタブの順（[DrawerSettings.tabOrder]）を先にする。 */
     private fun order(s: DrawerSettings): List<String> {
@@ -67,7 +106,7 @@ object DrawerFolders {
         val byFolder = apps.groupBy { folderOf(it, s) }
         // 消えたフォルダ（名前の無い u の id）へ移したアプリは、id のままの名前で末尾に並べ、失わないようにする
         val ids = order(s).let { known -> known + byFolder.keys.filterNot { it in known } }
-        return ids.mapNotNull { id -> byFolder[id]?.let { DrawerFolder(id, nameOf(id, s), sorted(it, s.appOrder[id].orEmpty())) } }
+        return ids.mapNotNull { id -> byFolder[id]?.let { DrawerFolder(id, nameOf(id, s), sorted(it, s.appOrder[id].orEmpty()), symbolOf(id, s)) } }
     }
 
     private fun sorted(

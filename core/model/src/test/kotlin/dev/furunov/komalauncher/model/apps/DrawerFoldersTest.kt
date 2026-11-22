@@ -85,5 +85,21 @@ class DrawerFoldersTest {
     }
 
     @Test
+    fun builtInFolderHasSymbolAndCustomFolderUsesFolderSymbol() {
+        val (s, id) = DrawerFolders.create(DrawerSettings(), "ウェブ")
+        assertEquals("game", DrawerFolders.symbolOf("game", s))
+        assertEquals(DrawerFolders.FOLDER_SYMBOL, DrawerFolders.symbolOf(id, s))
+    }
+
+    @Test
+    fun chosenSymbolWinsAndUnknownSymbolIsIgnored() {
+        assertEquals("star", DrawerFolders.symbolOf("game", DrawerFolders.setSymbol(DrawerSettings(), "game", "star")))
+        assertEquals("game", DrawerFolders.symbolOf("game", DrawerFolders.setSymbol(DrawerSettings(), "game", "no-such")))
+    }
+
+    @Test
+    fun everyBuiltInSymbolIsSelectable() = DrawerFolders.builtIn.forEach { (id, _) -> assert(DrawerFolders.symbolOf(id, DrawerSettings()) in DrawerFolders.symbols) }
+
+    @Test
     fun folderOfUsesMoveFirst() = assertEquals("other", DrawerFolders.folderOf(game, DrawerFolders.move(DrawerSettings(), game, "other")))
 }

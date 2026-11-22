@@ -68,7 +68,9 @@ class MainActivity : ComponentActivity() {
                                     onLaunchShortcut = { home.onEvent(HomeEvent.LaunchShortcut(it)) },
                                     onRenameFolder = { home.onEvent(HomeEvent.EditDrawerFolderName(it)) },
                                     onReorderApps = { id, order -> container.settingsStore.update { it.copy(drawer = DrawerFolders.reorderApps(it.drawer, id, order)) } },
-                                    onReorderTabs = { ids -> container.settingsStore.update { it.copy(drawer = DrawerFolders.reorderTabs(it.drawer, ids)) } },
+                                    onReorderFolders = { ids -> container.settingsStore.update { it.copy(drawer = DrawerFolders.reorderTabs(it.drawer, ids)) } },
+                                    onSetFolderSymbol = { id, symbol -> container.settingsStore.update { it.copy(drawer = DrawerFolders.setSymbol(it.drawer, id, symbol)) } },
+                                    onShowAppMenu = { home.onEvent(HomeEvent.ShowAppMenu(it, fromPanel = null, fromDrawer = true)) },
                                     onOpenSettings = {
                                         home.onEvent(HomeEvent.Dismiss)
                                         container.actions.perform(LauncherAction.OpenSettings)

@@ -171,6 +171,8 @@ data class DrawerSettings(
     val appOrder: Map<String, List<AppKey>> = emptyMap(),
     /** 並べ替えたタブ（フォルダの id）の順。ここに無いフォルダは、その後ろに既定の順で並べる。 */
     val tabOrder: List<String> = emptyList(),
+    /** フォルダの id → 左端に描く記号の id。既定のフォルダは選ばなくても記号を持つ（DrawerFolders.symbolOf）。 */
+    val folderSymbols: Map<String, String> = emptyMap(),
 )
 
 /** AppKey は JSON のキーにできないので、Map でなく組の並びで持つ。 */
