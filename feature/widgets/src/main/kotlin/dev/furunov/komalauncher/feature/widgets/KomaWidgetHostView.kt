@@ -6,6 +6,8 @@ import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.view.MotionEvent
 import android.view.ViewConfiguration
+import android.widget.RemoteViews
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.math.hypot
 
 /**
@@ -20,6 +22,14 @@ import kotlin.math.hypot
 class KomaWidgetHostView(
     context: Context,
 ) : AppWidgetHostView(context) {
+    /** アプリから新しい中身（RemoteViews）が届いた回数。大きさを伝えた後、描き直しが届いたかを知るのに使う。 */
+    val updates = MutableStateFlow(0L)
+
+    override fun updateAppWidget(remoteViews: RemoteViews?) {
+        super.updateAppWidget(remoteViews)
+        updates.value++
+    }
+
     private val slop = ViewConfiguration.get(context).scaledTouchSlop
     private var downX = 0f
     private var downY = 0f

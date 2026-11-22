@@ -16,6 +16,7 @@ import dev.furunov.komalauncher.model.widgets.WidgetEdits
 import dev.furunov.komalauncher.model.widgets.WidgetEntry
 import dev.furunov.komalauncher.model.widgets.WidgetRef
 import dev.furunov.komalauncher.model.widgets.WidgetStore
+import kotlinx.coroutines.flow.StateFlow
 
 /** 選択画面に並べるウィジェット 1 つ。 */
 class WidgetChoice(
@@ -104,6 +105,9 @@ class WidgetHostController(
         val info = manager.getAppWidgetInfo(appWidgetId) ?: return null
         return host.createView(context.applicationContext, appWidgetId, info).also { views[appWidgetId] = it }
     }
+
+    /** アプリから新しい中身が届いた回数（ビューを作る前なら null）。 */
+    fun updates(appWidgetId: Int): StateFlow<Long>? = (views[appWidgetId] as? KomaWidgetHostView)?.updates
 
     /** コマの大きさ（dp）をウィジェットに伝える。伝えないと、ウィジェットは最小の大きさで描かれる。 */
     fun updateSize(

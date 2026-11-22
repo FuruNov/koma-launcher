@@ -422,7 +422,6 @@ fun HomeScreen(
                     val personShift = depth3d.first[g.image]?.let { l -> g.face.artSize?.let { s -> depthPersonShift(l, depth3d.second, s.width.toFloat()) } }
                     PersonOverWidgets(g, motions.getValue(g.panel.id), art, person, widgetRects, { shownTilt.value }, personShift ?: parallax.art)
                 }
-                frontWidgets.forEach { widgetBox(it) }
                 // 枠の外へはみ出す人物は、どのコマよりも上に描く（隣のコマにかかる分も見せる）。タップの判定はコマの形のまま
                 for (g in geometry.panels) {
                     if (!g.panel.pop || state.player?.panelId == g.panel.id) continue
@@ -433,6 +432,8 @@ fun HomeScreen(
                     val personShift = depth3d.first[g.image]?.let { l -> g.face.artSize?.let { s -> depthPersonShift(l, depth3d.second, s.width.toFloat()) } }
                     PopLayer(g, motions.getValue(g.panel.id), art, person, if (popMask != null) popDepthMaps[g.image] else depthMaps[g.image], depth, { shownTilt.value }, parallax, personShift)
                 }
+                // 人物の前のウィジェットは、はみ出した人物より上に描く
+                frontWidgets.forEach { widgetBox(it) }
             }
 
             listOfNotNull(state.layoutError, notice).joinToString("\n").takeIf { it.isNotEmpty() }?.let {
