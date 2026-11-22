@@ -5,7 +5,7 @@ description: claude.ai の Artifact で作ったコマ割りのモックアッ�
 
 # モックアップを実機に送る
 
-モックアップの保存状態（Artifact の db）と、ページに埋め込まれた画像から、version 2 の `layout.json` と画像を作り、端末の取り込み口 `/sdcard/Android/data/dev.furunov.komalauncher/files/` に `adb push` する。アプリは `layout.json` が置かれたことを検知して取り込む。取り込みの仕組みは README の「コマの絵を入れる」にある。
+モックアップの保存状態（Artifact の db）と、ページに埋め込まれた画像から、version 2 の `layout.json` と画像を作り、端末の取り込み口 `/sdcard/Android/data/dev.furunov.komalauncher/files/` に `adb push` する。アプリは `layout.json` が置かれたことを検知して取り込む。取り込みの仕組みは `docs/layout-json.md` の「取り込み口」にある。
 
 使うスクリプトは 2 つ。
 
@@ -23,7 +23,7 @@ description: claude.ai の Artifact で作ったコマ割りのモックアッ�
    scripts/extract-mockup-images.sh <手順 3 のパス> art/mockup
    ```
 
-5. 端末がつながっているか確かめる。`adb devices` に 1 台だけ出ていればよい。複数あるときは `ANDROID_SERIAL` で選ぶ。アプリが入っていなければ、先に README の「ビルドと確認」で入れる。
+5. 端末がつながっているか確かめる。`adb devices` に 1 台だけ出ていればよい。複数あるときは `ANDROID_SERIAL` で選ぶ。アプリが入っていなければ、先に `docs/development.md` の「ビルドと確認」で入れる。
 6. 送る。
 
    ```sh
@@ -56,7 +56,7 @@ description: claude.ai の Artifact で作ったコマ割りのモックアッ�
   }
   ```
 
-  `tree` の葉は `{ panel: { id, kind: "folder" | "widget" | "drawer", label, art: { card, zoom, dx, dy } } }`、枝は `{ cut: { ta, tb }, a, b }`。`ta`・`tb` の意味は README の version 2 の説明と同じ。`card` は画像の名前で、`IMG` のキーと一致させる。テンプレートの型（`hcut`・`vcut`）は画面上の座標 `pts` で線を書くが、保存する前に `cut.ta`・`cut.tb` に変換しておく（テンプレートでは `layout()` が最初の描画で変換する）。
+  `tree` の葉は `{ panel: { id, kind: "folder" | "widget" | "drawer", label, art: { card, zoom, dx, dy } } }`、枝は `{ cut: { ta, tb }, a, b }`。`ta`・`tb` の意味は `docs/layout-json.md` の version 2 の説明と同じ。`card` は画像の名前で、`IMG` のキーと一致させる。テンプレートの型（`hcut`・`vcut`）は画面上の座標 `pts` で線を書くが、保存する前に `cut.ta`・`cut.tb` に変換しておく（テンプレートでは `layout()` が最初の描画で変換する）。
 - 画像の埋め込み: `const IMG = {"名前": "data:image/webp;base64,..."};` を 1 行に書く。人物の切り抜きは同じ形で `const INV`（白が人物以外）か `const MASK`（白が人物）に書く。`extract-mockup-images.sh` は、この 3 つの変数を行の先頭から探す。
 
-モックアップに新しい設定を追加したときは、3 か所をそろえて変更する。`import-mockup.sh` の jq、README の version 2 の説明、アプリの `LayoutParser`（`core/model/.../layout/LayoutParser.kt`）。アプリが知らない項目を `layout.json` に書いても、ホームには反映されない。
+モックアップに新しい設定を追加したときは、3 か所をそろえて変更する。`import-mockup.sh` の jq、`docs/layout-json.md` の version 2 の説明、アプリの `LayoutParser`（`core/model/.../layout/LayoutParser.kt`）。アプリが知らない項目を `layout.json` に書いても、ホームには反映されない。

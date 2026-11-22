@@ -5,7 +5,7 @@ description: 利用者が用意した画像で koma-launcher のコマ割り（l
 
 # 自分の画像でコマ割りを作る
 
-形式の全体は README の「コマの絵を入れる」と「version 2」にある。ここでは作業の順番と、間違えやすい所を書く。
+形式の全体は `docs/layout-json.md` の「取り込み口」と「version 2」にある。ここでは作業の順番と、間違えやすい所を書く。
 
 画像は利用者のもの。リポジトリの `art/`（`.gitignore` にある）か、リポジトリの外に置き、コミットしない。
 
@@ -45,7 +45,7 @@ description: 利用者が用意した画像で koma-launcher のコマ割り（l
 
 ## 4. 人物の切り抜きを作る（任意）
 
-切り抜きがあると、コマの名前・大見出し・時計を人物の後ろに描き、立体感の効果（README の `depth`）を使える。端末の中では作らない（イラストの輪郭が粗かったため、ML Kit は外した）。PC で BiRefNet を使う。
+切り抜きがあると、コマの名前・大見出し・時計を人物の後ろに描き、立体感の効果（`docs/layout-json.md` の `depth`）を使える。端末の中では作らない（イラストの輪郭が粗かったため、ML Kit は外した）。PC で BiRefNet を使う。
 
 - 出力は、元の画像と同じ縦横比のグレースケールの PNG で、白が人物、黒が背景。アプリは濃さ 0.35〜0.65 を 0〜1 に詰めて使うので、中間の灰色は少なくてよい。
 - BiRefNet は Hugging Face の `ZhengPeng7/BiRefNet` を `transformers` の `AutoModelForImageSegmentation.from_pretrained(..., trust_remote_code=True)` で読める。使い方はモデルのページの例に従う。Python の環境は利用者に確かめてから作る。

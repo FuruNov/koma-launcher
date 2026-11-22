@@ -1,6 +1,6 @@
 # AI のエージェント向けの案内
 
-このファイルは、Claude Code・Codex などのエージェントがこのリポジトリを変更するときに最初に読む。`CLAUDE.md` はこのファイルを読み込むだけにしてある。機能の説明と `layout.json` の書き方は README にあり、ここには変更の進め方だけを書く。
+このファイルは、Claude Code・Codex などのエージェントがこのリポジトリを変更するときに最初に読む。`CLAUDE.md` はこのファイルを読み込むだけにしてある。機能の説明は README と `docs/usage.md`、`layout.json` の書き方は `docs/layout-json.md` にあり、ここには変更の進め方だけを書く。
 
 ## 手順のスキル
 
@@ -17,8 +17,8 @@
 
 ## 守ること
 
-- モジュールの依存は README の「構成」の表の向きだけにする。`:core:model` は Android に依存しない純粋な Kotlin で、計算はなるべくここに書いてテストする。機能のモジュールどうしは互いを参照しない。
-- Hilt・Room・DataStore・Coil・Navigation・Material3 を入れない。理由は README の「依存を絞った理由」にある。入れたいときは利用者に確かめる。
+- モジュールの依存は `docs/development.md` の「構成」の表の向きだけにする。`:core:model` は Android に依存しない純粋な Kotlin で、計算はなるべくここに書いてテストする。機能のモジュールどうしは互いを参照しない。
+- Hilt・Room・DataStore・Coil・Navigation・Material3 を入れない。理由は `docs/development.md` の「依存を絞った理由」にある。入れたいときは利用者に確かめる。
 - 版権のある画像をコミットしない。画像は `art/` か `*.private.webp` / `*.private.png` の名前で置く（`.gitignore` にある）。テストと見本の画像の名前も、実在の作品やキャラクターの名前にしない。
 - 署名の鍵とパスワードはリポジトリの外に置き、`local.properties` で場所だけを渡す。
 - コードのコメント・README・コミットメッセージは日本語で書く。UI の文言は Android の日本語 UI の慣習（分割、結合、削除、非表示、キャンセルのような漢語とカタカナ語の体言止め）に合わせる。

@@ -16,12 +16,12 @@ Kotlin のパッケージ（`dev.furunov.komalauncher`）と各モジュール�
 3. ID を文字列で持っている所を同じ ID に替える。
 
    ```sh
-   git grep -n 'dev\.furunov\.komalauncher' -- scripts README.md .claude/skills app/src/debug
+   git grep -n 'dev\.furunov\.komalauncher' -- scripts README.md docs .claude/skills app/src/debug
    ```
 
    - `scripts/*.sh` の `PKG=`
-   - README とスキルに書いた取り込み口 `/sdcard/Android/data/<ID>/files/`
-   - README の `adb shell am broadcast -p <ID>`（`-p` は applicationId を取る）
+   - README・docs とスキルに書いた取り込み口 `/sdcard/Android/data/<ID>/files/`
+   - docs の `adb shell am broadcast -p <ID>`（`-p` は applicationId を取る）
    - `app/src/debug/AndroidManifest.xml` と `DebugReceiver.kt` の action 名（`dev.furunov.komalauncher.DEBUG_TILT` など）は、ただの文字列なので変えなくても動く。変えるなら両方をそろえる。
    - `app/src/main/AndroidManifest.xml` の `taskAffinity` も文字列なので、変えなくても動く。
 
@@ -60,7 +60,7 @@ koma.keystorePasswordFile=/home/<ユーザー>/.config/koma-launcher/password.tx
 - `app/src/main/assets/sample/layout.json`: 初回に表示する見本。
 - `scripts/e2e-waydroid.sh`: 1080×1920 の座標を前提にしている。Waydroid の解像度が違うなら座標を測り直す。
 - `minSdk = 33`（Waydroid が API 33 のため）。実機だけで確かめるなら上げてもよい。
-- README の冒頭と「まだ実機で確かめていないこと」。自分の端末の名前と結果に書き換える。
+- README の冒頭と、`docs/development.md` の「まだ実機で確かめていないこと」。自分の端末の名前と結果に書き換える。
 
 ## 5. 確かめる
 
