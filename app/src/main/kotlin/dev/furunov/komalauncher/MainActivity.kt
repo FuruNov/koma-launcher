@@ -54,27 +54,28 @@ class MainActivity : ComponentActivity() {
             val slots =
                 remember {
                     HomeSlots(
+                        drawer = { open ->
+                            DrawerScreen(
+                                apps = apps,
+                                columns = state.settings.drawer.columns,
+                                hidden = state.settings.drawer.hidden,
+                                launches = remember(launches) { launches.asMap() },
+                                loadShortcuts = { withContext(Dispatchers.IO) { container.appCatalog.allShortcuts() } },
+                                actions =
+                                DrawerActions(
+                                    onLaunch = { home.onEvent(HomeEvent.Launch(it)) },
+                                    onDismiss = { home.onEvent(HomeEvent.Dismiss) },
+                                    onLaunchShortcut = { home.onEvent(HomeEvent.LaunchShortcut(it)) },
+                                    onOpenSettings = {
+                                        home.onEvent(HomeEvent.Dismiss)
+                                        container.actions.perform(LauncherAction.OpenSettings)
+                                    },
+                                ),
+                                open = open,
+                            )
+                        },
                         overlay = { overlay ->
                             when (overlay) {
-                                Overlay.Drawer ->
-                                    DrawerScreen(
-                                        apps = apps,
-                                        columns = state.settings.drawer.columns,
-                                        hidden = state.settings.drawer.hidden,
-                                        launches = remember(launches) { launches.asMap() },
-                                        loadShortcuts = { withContext(Dispatchers.IO) { container.appCatalog.allShortcuts() } },
-                                        actions =
-                                        DrawerActions(
-                                            onLaunch = { home.onEvent(HomeEvent.Launch(it)) },
-                                            onDismiss = { home.onEvent(HomeEvent.Dismiss) },
-                                            onLaunchShortcut = { home.onEvent(HomeEvent.LaunchShortcut(it)) },
-                                            onOpenSettings = {
-                                                home.onEvent(HomeEvent.Dismiss)
-                                                container.actions.perform(LauncherAction.OpenSettings)
-                                            },
-                                        ),
-                                    )
-
                                 Overlay.HomeMenu ->
                                     HomeMenu(
                                         onAdjust = { home.onEvent(HomeEvent.Adjust(true)) },
