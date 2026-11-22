@@ -650,7 +650,7 @@ internal fun ChipRow(
     }
 }
 
-/** オンとオフを切り替える行。行のどこを押しても切り替わる。 */
+/** オンとオフを切り替える行。行のどこを押しても切り替わる。スイッチは、ほかの行の操作と同じく項目名の幅のすぐ右に置く。 */
 @Composable
 internal fun ToggleRow(
     title: String,
@@ -658,7 +658,7 @@ internal fun ToggleRow(
     onChange: (Boolean) -> Unit,
 ) {
     Row(Modifier.fillMaxWidth().clickable { onChange(!on) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        BasicText(title, style = TextStyle(color = Color(0xFF9E9EA8), fontSize = 13.sp), modifier = Modifier.weight(1f))
+        BasicText(title, style = TextStyle(color = Color(0xFF9E9EA8), fontSize = 13.sp), modifier = Modifier.width(LABEL_WIDTH))
         ToggleSwitch(on)
     }
 }
