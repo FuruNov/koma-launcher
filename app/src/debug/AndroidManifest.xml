@@ -17,6 +17,7 @@
                 <action android:name="dev.furunov.komalauncher.DEBUG_MEDIA" />
                 <action android:name="dev.furunov.komalauncher.DEBUG_VIS" />
                 <action android:name="dev.furunov.komalauncher.DEBUG_PIN" />
+                <action android:name="dev.furunov.komalauncher.DEBUG_FX" />
             </intent-filter>
         </receiver>
     </application>

@@ -1,6 +1,7 @@
 package dev.furunov.komalauncher.feature.home
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -54,6 +55,15 @@ internal fun TiltLayer(
                 if (cache) compositingStrategy = CompositingStrategy.Offscreen
             }.drawBehind { translate(p.toFloat(), p.toFloat()) { draw() } },
     )
+}
+
+/**
+ * 傾きで動かない層。動かすための描画の層（graphicsLayer）を作らず、親（コマ）の描画の命令に直接描く。
+ * 層の数が減り、傾きが変わっても親の命令は作り直さない（動くのは子の層の位置だけ）。
+ */
+@Composable
+internal fun StaticLayer(draw: DrawScope.() -> Unit) {
+    Box(Modifier.fillMaxSize().drawBehind(draw))
 }
 
 /**
@@ -112,17 +122,19 @@ internal fun PersonLayers(
     shadowAlpha: Float = 1f,
 ) {
     val spec = depth.spec
-    if (spec.shadow.enabled) {
+    val off = HomeDebug.off
+    if (spec.shadow.enabled && "shadow" !in off) {
         val d = depth.shadowDistance * shadowScale
-        TiltLayer({ artShift() - light() * d }) { drawPersonShadow(face, maps, spec.shadow.alpha * shadowAlpha) }
+        // 影は平行移動するだけなので、描いた結果を保存して動かす（毎フレーム描き直さない）
+        TiltLayer({ artShift() - light() * d }, pad = parallax + extra + d + 2f, cache = true) { drawPersonShadow(face, maps, spec.shadow.alpha * shadowAlpha) }
     }
-    if (spec.redrawsPerson) {
+    if (spec.redrawsPerson && "outline" !in off) {
         TiltLayer(artShift, pad = parallax + extra + 2f, cache = true) {
             if (spec.outline.enabled) drawPersonOutline(face, maps, spec.outline.alpha)
             drawPersonImage(face, art, person)
         }
     }
-    if (spec.rim.enabled) {
+    if (spec.rim.enabled && "rim" !in off) {
         LayerGroup(blendMode = BlendMode.Screen, alpha = spec.rim.alpha, pad = extra) {
             TiltLayer(artShift, pad = parallax + extra + 2f, cache = true) { drawRimShape(face, person, RIM_FILTER) }
             TiltLayer({ artShift() - light() * depth.rimWidth }, pad = parallax + extra + depth.rimWidth + 2f, cache = true, blendMode = BlendMode.DstOut) {
