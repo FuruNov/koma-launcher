@@ -109,8 +109,10 @@ import kotlin.math.roundToInt
 class HomeSlots(
     /** ウィジェットのコマの中身。[PanelGeometry.inscribed] の位置に置く。 */
     val widget: @Composable (PanelGeometry) -> Unit = {},
-    /** フォルダ以外の重ねる画面（全アプリ一覧、ホームのメニュー）。 */
+    /** フォルダ以外の重ねる画面（ホームのメニューなど）。 */
     val overlay: @Composable (Overlay) -> Unit = {},
+    /** 全アプリ一覧。開く瞬間に一から作らないよう、閉じている間も作っておく。引数は開いているか。 */
+    val drawer: @Composable (Boolean) -> Unit = {},
     /** コマの長押しのメニューに、外から加える項目（ウィジェットの選択など）。 */
     val panelMenuItems: (PanelGeometry) -> List<PanelMenuItem> = { emptyList() },
 )
@@ -386,6 +388,7 @@ fun HomeScreen(
                 )
             }
 
+            slots.drawer(state.overlay == Overlay.Drawer)
             when (val o = state.overlay) {
                 is Overlay.Folder -> geometry.panels.firstOrNull { it.panel.id == o.panelId }?.let { g ->
                     FolderPopup(

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -42,7 +43,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -51,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.furunov.komalauncher.model.apps.AppEntry
@@ -86,6 +90,10 @@ private const val MAX_SHORTCUTS = 8
  *
  * [launches] は起動回数（「よく使う」と検索の並べ替え）。[loadShortcuts] は検索のためのショートカットで、
  * 開いたときと、アプリ一覧の読み込みが済んだときに呼ぶ（読み込み前に開くと、インストール済みのアプリが分からず空になるため）。IO のスレッドで呼ぶのは呼び出し側。
+ *
+ * ホームを表示している間も作っておき（[open] が false の間は画面の外へずらして透明にする）、開くときは表示を切り替えるだけにする。
+ * 開くたびに一覧を一から作ると、UI スレッドで 30〜90ms かかり、開く瞬間に引っかかるため。
+ * キーボードは、下から出てくる動きが終わってから出す（2 つの動きが重なると、配置の計算し直しでさらに引っかかるため）。
  */
 @Composable
 fun DrawerScreen(
@@ -96,14 +104,16 @@ fun DrawerScreen(
     loadShortcuts: suspend () -> List<AppShortcut>,
     actions: DrawerActions,
     modifier: Modifier = Modifier,
+    /** false の間は閉じている（画面の外で透明にしておく）。 */
+    open: Boolean = true,
 ) {
-    BackHandler(onBack = actions.onDismiss)
+    BackHandler(enabled = open, onBack = actions.onDismiss)
     var query by remember { mutableStateOf("") }
     val q = query.trim()
     val visible = remember(apps, hidden) { apps.filter { it.key !in hidden } }
     val frequent = remember(visible, launches, columns) { DrawerList.frequent(visible, hidden, launches, columns) }
     val ranked = remember(visible, launches, q) { if (q.isEmpty()) emptyList() else AppSearch.rank(q, visible, launches) }
-    val shortcuts by produceState(emptyList<AppShortcut>(), apps.isEmpty()) { value = loadShortcuts() }
+    val shortcuts by produceState(emptyList<AppShortcut>(), apps.isEmpty(), open) { if (open) value = loadShortcuts() }
     val visiblePackages = remember(visible) { visible.mapTo(HashSet()) { it.key.packageName } }
     val rankedShortcuts =
         remember(shortcuts, visiblePackages, q) {
@@ -118,10 +128,21 @@ fun DrawerScreen(
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
-    LaunchedEffect(Unit) {
-        focus.requestFocus()
-        keyboard?.show()
-        slide.animateTo(0f, tween(220))
+    val focusManager = LocalFocusManager.current
+    LaunchedEffect(open) {
+        if (open) {
+            // 開くたびに、空の検索と一覧の先頭から始める。キーボードは出てくる動きが終わってから出す
+            query = ""
+            grid.scrollToItem(0)
+            slide.snapTo(1f)
+            slide.animateTo(0f, tween(220))
+            focus.requestFocus()
+            keyboard?.show()
+        } else {
+            keyboard?.hide()
+            focusManager.clearFocus()
+            slide.snapTo(1f)
+        }
     }
     // アイコンを運び始めたらキーボードを閉じる。一覧が透明になって見えるホームの下側のコマを、キーボードが隠すため
     LaunchedEffect(dnd.isDragging) { if (dnd.isDragging) keyboard?.hide() }
@@ -131,6 +152,10 @@ fun DrawerScreen(
     Box(
         modifier
             .fillMaxSize()
+            // 閉じている間は画面の外へずらし、指の操作を受けないようにする（透明なので描画も省かれる）
+            .offset { if (open) IntOffset.Zero else IntOffset(0, 1_000_000) }
+            // 閉じている間は、読み上げと画面の自動操作の対象から外す
+            .then(if (open) Modifier else Modifier.clearAndSetSemantics {})
             .graphicsLayer {
                 translationY = slide.value * size.height * 0.3f
                 // 運んでいる間は透明にしてホームのコマを見せる。取り除くと指の追跡が途切れるので合成したままにする
