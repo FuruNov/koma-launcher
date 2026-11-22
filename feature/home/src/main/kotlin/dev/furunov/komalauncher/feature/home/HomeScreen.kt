@@ -38,8 +38,12 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextMeasurer
@@ -73,17 +77,22 @@ import dev.furunov.komalauncher.model.ports.TiltSource
 import dev.furunov.komalauncher.model.settings.GestureKind
 import dev.furunov.komalauncher.model.settings.LauncherAction
 import dev.furunov.komalauncher.ui.art.BlankPage
+import dev.furunov.komalauncher.ui.art.DepthArtPainter
+import dev.furunov.komalauncher.ui.art.DepthLayerConfig
+import dev.furunov.komalauncher.ui.art.DepthLayers
 import dev.furunov.komalauncher.ui.art.DepthMaps
 import dev.furunov.komalauncher.ui.art.DepthStyle
 import dev.furunov.komalauncher.ui.art.PanelTextSpec
 import dev.furunov.komalauncher.ui.art.PersonMask
 import dev.furunov.komalauncher.ui.art.buildPanelTexts
+import dev.furunov.komalauncher.ui.art.depthPersonShift
 import dev.furunov.komalauncher.ui.art.depthRequests
 import dev.furunov.komalauncher.ui.art.drawHaze
 import dev.furunov.komalauncher.ui.art.drawPanelTexts
 import dev.furunov.komalauncher.ui.art.localPlacement
 import dev.furunov.komalauncher.ui.art.rememberArts
 import dev.furunov.komalauncher.ui.art.rememberBlurredArts
+import dev.furunov.komalauncher.ui.art.rememberDepthLayers
 import dev.furunov.komalauncher.ui.art.rememberDepthMaps
 import dev.furunov.komalauncher.ui.art.rememberMasks
 import dev.furunov.komalauncher.ui.dnd.DragDropState
@@ -147,13 +156,31 @@ fun HomeScreen(
         val motions = remember(state.layout) { state.layout.panels.associate { it.id to PanelMotion() } }
         val scope = rememberCoroutineScope()
         val arts by rememberArts(state.images, geometry.artSizes, state.imagesRevision)
-        val masks by rememberMasks(state.masks, state.imagesRevision)
+        // 試作: 深度マップで絵を画素ごとにずらす層。外部ファイルのディレクトリの depth3d/ に層がある画像だけに使う
+        val context = LocalContext.current
+        val depth3dDir = remember(context) { context.getExternalFilesDir(null)?.let { java.io.File(it, "depth3d") } }
+        // 試作の層の切り抜き（<id>.keep.png、人物以外が不透明）があれば、人物の効果と文字の抜き方もそれに揃える
+        val maskPaths =
+            remember(state.masks, depth3dDir, state.imagesRevision) {
+                state.masks.mapValues { (id, path) -> depth3dDir?.let { java.io.File(it, "$id.keep.png") }?.takeIf { it.isFile }?.path ?: path }
+            }
+        val masks by rememberMasks(maskPaths, state.imagesRevision)
         // 前景の人物の立体感。影と縁取りの形、ぼかした絵は、その効果を入れているときだけ作る
         val depth = remember(state.layout, wPx) { DepthStyle.of(state.layout, wPx) }
         val depthRequests = remember(depth, geometry, masks) { depthRequests(depth, geometry.panels.mapNotNull { g -> g.image?.let { id -> g.art?.let { id to it.width } } }, masks) }
         val depthMaps by rememberDepthMaps(masks, depthRequests)
+        // 試作: はみ出し用の切り抜き（<id>.pop.png）があれば、枠の外へ出すのはその形だけにする（机や料理は人物と一緒に動かすが、はみ出させない）
+        val popPaths =
+            remember(state.masks, depth3dDir, state.imagesRevision) {
+                state.masks.keys.mapNotNull { id -> depth3dDir?.let { java.io.File(it, "$id.pop.png") }?.takeIf { it.isFile }?.let { id to it.path } }.toMap()
+            }
+        val popMasks by rememberMasks(popPaths, state.imagesRevision)
+        val popRequests = remember(depth, geometry, popMasks) { depthRequests(depth, geometry.panels.mapNotNull { g -> g.image?.let { id -> g.art?.let { id to it.width } } }, popMasks) }
+        val popDepthMaps by rememberDepthMaps(popMasks, popRequests)
         val blurIds = remember(depth, geometry, masks) { if (depth.spec.blur.enabled) geometry.panels.mapNotNull { it.image }.filter { it in masks }.toSet() else emptySet() }
         val blurred by rememberBlurredArts(state.images, blurIds, state.imagesRevision)
+        val imageIds = remember(geometry) { geometry.panels.mapNotNull { it.image }.toSet() }
+        val depth3d by rememberDepthLayers(depth3dDir, imageIds, state.imagesRevision)
         val folderNames = remember(state.folders) { state.folders.byPanel.mapNotNull { (id, f) -> f.name?.let { id to it } }.toMap() }
         // アイコンを置くコマと、置けるアイコンの数（フォルダはアプリの数、全アプリ一覧は記号 1 つ）
         val iconPanels =
@@ -176,7 +203,9 @@ fun HomeScreen(
         val now by rememberMinuteClock()
         val parallax = remember(state.layout, wPx) { parallaxOf(state.layout, wPx) }
         // 一覧やフォルダなどを開いている間は、後ろのホームの視差を止める（手の揺れで描き直し続け、開く動きが重くなるため）
-        val shownTilt = rememberShownTilt(tilt, parallax.art > 0f, paused = state.overlay != Overlay.None || state.adjusting, maxShiftPx = maxOf(parallax.art, parallax.clock, parallax.masthead, parallax.icon))
+        // 試作の深度の層が動く最大量（画素）。刻みをこれにも合わせ、1 回の描き直しで 1 画素を超えて跳ばないようにする
+        val depth3dShift = geometry.panels.maxOfOrNull { g -> if (g.image in depth3d.first) depth3d.second.strength * (g.face.artSize?.width ?: 0) else 0f } ?: 0f
+        val shownTilt = rememberShownTilt(tilt, parallax.art > 0f, paused = state.overlay != Overlay.None || state.adjusting, maxShiftPx = maxOf(parallax.art, parallax.clock, parallax.masthead, parallax.icon, depth3dShift))
         val anim = state.settings.animation
         val pressAnim = PanelAnimations.press(anim.press)
         val currentState = rememberUpdatedState(state)
@@ -327,6 +356,8 @@ fun HomeScreen(
                         depth = depth,
                         depthMaps = g.image?.let(depthMaps::get),
                         blurred = g.image?.let(blurred::get),
+                        depthLayers = g.image?.let(depth3d.first::get),
+                        depthConfig = depth3d.second,
                         texts = texts[g.panel.id],
                         icons = panelIcons(g, texts[g.panel.id], state),
                         measurer = measurer,
@@ -357,8 +388,11 @@ fun HomeScreen(
                 for (g in geometry.panels) {
                     if (!g.panel.pop || state.player?.panelId == g.panel.id) continue
                     val art = g.image?.let(arts::get) ?: continue
-                    val person = g.image.let(masks::get) ?: continue
-                    PopLayer(g, motions.getValue(g.panel.id), art, person, depthMaps[g.image], depth, { shownTilt.value }, parallax)
+                    val popMask = popMasks[g.image]
+                    val person = popMask ?: g.image.let(masks::get) ?: continue
+                    // 試作の層で描くコマは、人物を板として動かす量に合わせる
+                    val personShift = depth3d.first[g.image]?.let { l -> g.face.artSize?.let { s -> depthPersonShift(l, depth3d.second, s.width.toFloat()) } }
+                    PopLayer(g, motions.getValue(g.panel.id), art, person, if (popMask != null) popDepthMaps[g.image] else depthMaps[g.image], depth, { shownTilt.value }, parallax, personShift)
                 }
             }
 
@@ -525,6 +559,9 @@ private fun PanelLayer(
     depthMaps: DepthMaps?,
     /** ぼかした絵（立体感の C）。 */
     blurred: ImageBitmap?,
+    /** 試作: 深度マップで絵を画素ごとにずらす層。null なら絵を一様にずらす。 */
+    depthLayers: DepthLayers?,
+    depthConfig: DepthLayerConfig,
     texts: PanelTextSpec?,
     /** 先頭のアプリと、そのアイコンを置く場所（コマの左上が原点の画素）。 */
     icons: List<PanelIcon>,
@@ -556,7 +593,7 @@ private fun PanelLayer(
                 scaleX = motion.scale.value
                 scaleY = motion.scale.value
                 alpha = motion.alpha.value
-                shadowElevation = 4.dp.toPx() + motion.press.value * 10.dp.toPx()
+                shadowElevation = if ("elevation" in HomeDebug.off) 0f else 4.dp.toPx() + motion.press.value * 10.dp.toPx()
                 shape = g.shape
                 clip = true
             },
@@ -564,53 +601,94 @@ private fun PanelLayer(
         // 傾きは層の位置（graphicsLayer）でだけ読む。中身は傾きを読まないので、傾きが変わっても描画の命令を作り直さない
         val artShift = { tilt().let { t -> Offset(t.x * parallax.art, t.y * parallax.art) } }
         fun shift(k: Float): () -> Offset = { tilt().let { t -> Offset(-t.x * k, -t.y * k) } }
-        val zero = { Offset.Zero }
         val margin = parallax.art + 2f
+        // 試作: 層があれば、絵を画素ごとにずらして描く。再生中はジャケットで絵が隠れるので使わない
+        val face = g.face
+        val off = HomeDebug.off
+        val painter =
+            remember(art, depthLayers, face, depthConfig, "depth3d" in off) {
+                val o = face.artOffset
+                val s = face.artSize
+                if (art != null && depthLayers != null && o != null && s != null && "depth3d" !in off) DepthArtPainter(art.asAndroidBitmap(), depthLayers, Offset(o.x.toFloat(), o.y.toFloat()), s.width.toFloat(), s.height.toFloat(), depthConfig) else null
+            }.takeIf { player == null }
+        // 試作の層で描くときは、人物を板として動かす量（傾き 1 のときの画素）。人物の形を使う効果もこの量だけ動かす
+        val personK = painter?.let { depthPersonShift(depthLayers!!, depthConfig, face.artSize!!.width.toFloat()) }
+        val personShift = personK?.let { k -> { tilt().let { t -> Offset(t.x * k, t.y * k) } } } ?: artShift
+        val personPad = maxOf(parallax.art, kotlin.math.abs(personK ?: 0f))
         // 立体感の効果は、切り抜きのある絵にだけ掛ける。再生中はジャケットで絵が隠れるので掛けない
         val withDepth = art != null && person != null && player == null && depth.spec.any
         val blurAlpha = if (withDepth && depth.spec.blur.enabled) depth.spec.blur.amount else 0f
         // 1. 絵（絵の長方形はコマの外へはみ出す。はみ出た分は外側の graphicsLayer の shape で切り抜く）
-        if (art != null) {
-            TiltLayer(artShift, pad = margin, cache = true) { with(g.face) { drawArt(art, blurred = blurred, blurAlpha = blurAlpha, withDim = false) } }
+        if (painter != null) {
+            // 傾きは描画の段階で読む。専用の描画の層に入れ、傾きが変わったら、この層の四角形 1 つだけを描き直す（コマ全体の命令を作り直さない）
+            if (TiltMotion.moving) {
+                // 傾きで動いている間は、シェーダーを縦横半分の層に描き、2 倍に拡大して重ねる（計算する画素を 4 分の 1 にする）。
+                // 止まって 0.2 秒たったら元の解像度で描き直す。動いている間の粗さは見た目にほとんど分からなかった
+                Box(
+                    Modifier
+                        .layout { m, c ->
+                            val pl = m.measure(androidx.compose.ui.unit.Constraints.fixed((c.maxWidth + 1) / 2, (c.maxHeight + 1) / 2))
+                            layout(c.maxWidth, c.maxHeight) { pl.place(0, 0) }
+                        }.graphicsLayer {
+                            scaleX = 2f
+                            scaleY = 2f
+                            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                            compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                        }.drawBehind {
+                            val full = androidx.compose.ui.geometry.Size(size.width * 2f, size.height * 2f)
+                            scale(0.5f, pivot = Offset.Zero) { with(painter) { draw(tilt().let { t -> Offset(t.x, t.y) }, face, full) } }
+                        },
+                )
+            } else {
+                Box(Modifier.fillMaxSize().graphicsLayer().drawBehind { with(painter) { draw(tilt().let { t -> Offset(t.x, t.y) }, face) } })
+            }
+        } else if (art != null) {
+            // 絵を 1 枚描くだけなので、描いた結果は保存しない（保存すると速くならずに GPU のテクスチャが 1 枚増える）
+            TiltLayer(artShift) { with(g.face) { drawArt(art, blurred = blurred, blurAlpha = blurAlpha, withDim = false) } }
         } else {
-            TiltLayer(zero) { with(g.face) { drawArt(null) } }
+            StaticLayer { with(g.face) { drawArt(null) } }
         }
         // 2. 暗さとかすみは絵と一緒に動かさない（動かすと端に塗っていない帯が見える）
         if (art != null && (g.face.dim > 0f || withDepth)) {
-            TiltLayer(zero) {
+            StaticLayer {
                 with(g.face) { drawDim() }
                 if (withDepth) drawHaze(g.face, depth)
             }
         }
         // 3. ジャケットはコマの絵の上、文字の下に描く（時計と大見出しを残すため）
-        player?.let { (fade, playing) -> TiltLayer(zero) { drawPlayerArt(fade, playing) } }
+        player?.let { (fade, playing) -> StaticLayer { drawPlayerArt(fade, playing) } }
         // 4. 文字・アイコンと人物を、コマの重ね順どおりに重ねる。部分ごとに動かす量が違うので層を分ける。
         // 人物より後ろのものはまとめて人物の形で抜き（人物の後ろに見える）、人物より前のものはそのまま上に重ねる
         val order = LayerOrder.of(g.panel.order)
         val personAt = order.indexOf(LayerKind.PERSON)
         val shownIcons = if (player == null) iconBitmaps.value else emptyList()
-        val part: @Composable (LayerKind) -> Unit = { kind -> if (texts != null) TextPart(kind, texts, g, measurer, now, shownIcons, iconShadows.value, ::shift, parallax, { DepthStyle.lightDirection(tilt()) }) }
+        val part: @Composable (LayerKind) -> Unit = { kind -> if (texts != null && "texts" !in off) TextPart(kind, texts, g, measurer, now, shownIcons, iconShadows.value, ::shift, parallax, { DepthStyle.lightDirection(tilt()) }) }
         val behind = order.take(personAt)
         val (mo, ms) = g.art?.let { localPlacement(g.bounds, it) } ?: (null to null)
-        if (texts != null && person != null && mo != null && ms != null) {
+        // 人物を描き直す効果（影・背景のぼかし・縁取り）があれば、描き直した人物が文字の上に重なるので、文字を人物の形で抜かない
+        // （画面の外でまとめ直す処理と、そのための GPU のテクスチャが要らなくなる）
+        val personCovers = withDepth && depth.spec.redrawsPerson && "outline" !in off
+        if (texts != null && person != null && mo != null && ms != null && "textmask" !in off && !personCovers) {
             LayerGroup {
                 behind.forEach { part(it) }
-                TiltLayer(artShift, pad = margin, cache = true, blendMode = BlendMode.DstIn) { drawImage(person.bitmap, dstOffset = mo, dstSize = ms) }
+                TiltLayer(personShift, pad = personPad + 2f, cache = true, blendMode = BlendMode.DstIn) { drawImage(person.bitmap, dstOffset = mo, dstSize = ms) }
             }
         } else {
             behind.forEach { part(it) }
         }
         // 5. 人物の前の効果
-        if (withDepth) PersonLayers(g.face, art!!, person!!, depthMaps, depth, artShift, { DepthStyle.lightDirection(tilt()) }, parallax.art)
+        if (withDepth) PersonLayers(g.face, art!!, person!!, depthMaps, depth, personShift, { DepthStyle.lightDirection(tilt()) }, personPad)
         order.drop(personAt + 1).forEach { part(it) }
         // 6. 内側の影・光の反射・枠線。光の反射は傾きと逆へ流す（手に持った紙に光が当たっているように見せる）
-        TiltLayer(zero) { with(g.face) { drawInnerShadow() } }
-        if (parallax.art > 0f) {
+        StaticLayer { with(g.face) { drawInnerShadow() } }
+        if ("sheen" in off) {
+            Unit
+        } else if (parallax.art > 0f) {
             TiltLayer({ tilt().let { t -> Offset(-t.x * g.bounds.width * 0.35f, -t.y * g.bounds.height * 0.2f) } }) { with(g.face) { drawSheen() } }
         } else {
-            TiltLayer(zero) { with(g.face) { drawSheen() } }
+            StaticLayer { with(g.face) { drawSheen() } }
         }
-        TiltLayer(zero) {
+        StaticLayer {
             with(g.face) { drawBorder() }
             // 押している間は少し暗くする
             if (motion.press.value > 0f) drawRect(Color.Black.copy(alpha = 0.18f * motion.press.value))
@@ -673,6 +751,8 @@ private fun PopLayer(
     depth: DepthStyle,
     tilt: () -> Tilt,
     parallax: ParallaxAmounts,
+    /** 試作の層で描くコマなら、人物を板として動かす量（傾き 1 のときの画素）。null なら絵と同じ量。 */
+    personShift: Float? = null,
 ) {
     val density = LocalDensity.current
     val b = g.bounds
@@ -701,9 +781,10 @@ private fun PopLayer(
     ) {
         // 中の層の原点をコマの左上に戻す
         Box(Modifier.offset { IntOffset(pad.roundToInt(), pad.roundToInt()) }.size(with(density) { b.width.toDp() }, with(density) { b.height.toDp() })) {
-            val artShift = { tilt().let { t -> Offset(t.x * parallax.art, t.y * parallax.art) } }
+            val k = personShift ?: parallax.art
+            val artShift = { tilt().let { t -> Offset(t.x * k, t.y * k) } }
             // 枠とすき間に落ちる影は、コマの中より近い（人物と枠の間が狭い）ので、短く薄くする
-            PersonLayers(g.face, art, person, maps, depth, artShift, { DepthStyle.lightDirection(tilt()) }, parallax.art, extra = pad, shadowScale = 0.6f, shadowAlpha = 0.8f)
+            PersonLayers(g.face, art, person, maps, depth, artShift, { DepthStyle.lightDirection(tilt()) }, maxOf(parallax.art, kotlin.math.abs(k)), extra = pad, shadowScale = 0.6f, shadowAlpha = 0.8f)
         }
     }
 }
@@ -762,10 +843,14 @@ private fun rememberShownTilt(
                 var current = shown.value
                 source.target.collectLatest { target ->
                     while (current != target) {
+                        TiltMotion.moving = true
                         withFrameNanos { }
                         current = Tilt.follow(current, target)
                         shown.value = Tilt.quantize(current, step)
                     }
+                    // 止まって 0.2 秒たったら「動いていない」にする（すぐ次の傾きが来たら、この待ちは打ち切られる）
+                    kotlinx.coroutines.delay(200)
+                    TiltMotion.moving = false
                 }
             } finally {
                 source.stop()

@@ -42,6 +42,10 @@ class DebugReceiver : BroadcastReceiver() {
             val manager = context.getSystemService(ShortcutManager::class.java)
             if (update) manager.updateShortcuts(listOf(shortcut)) else manager.requestPinShortcut(shortcut, null)
         }
+        // 傾けている間の描画の重さを効果ごとに測る。例: am broadcast -p dev.furunov.komalauncher -a dev.furunov.komalauncher.DEBUG_FX --es off shadow,rim
+        if (intent.action == "dev.furunov.komalauncher.DEBUG_FX") {
+            dev.furunov.komalauncher.feature.home.HomeDebug.off = intent.getStringExtra("off").orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        }
         if (intent.action == "dev.furunov.komalauncher.DEBUG_VIS") {
             DebugVisualizer.handle(
                 context,
