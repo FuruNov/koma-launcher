@@ -158,6 +158,27 @@ class LayoutV2ParserTest {
         assertTrue("alpha" in err("""{ "shadow": { "on": true, "alpha": 1.5 } }"""))
         assertTrue("width" in err("""{ "pop": { "width": 9999 } }"""))
     }
+
+    @Test
+    fun widgetsDefaultToEmptyAndRoundTrip() {
+        val layout = assertIs<LayoutResult.Ok>(LayoutParser.parse(valid)).layout
+        val shape = assertIs<LayoutShape.Tree>(layout.shape)
+        assertEquals(emptyList(), shape.widgets)
+        // 置いていなければ widgets を書かない（既存の layout.json を変えない）
+        assertTrue("widgets" !in LayoutParser.encode(layout))
+        val changed = Layout(shape.copy(widgets = listOf(WidgetSpec("w1", "com.example.weather/com.example.weather.Widget\$Large", 0.05f, 0.1f, 0.9f, 0.2f))))
+        assertEquals(changed, assertIs<LayoutResult.Ok>(LayoutParser.parse(LayoutParser.encode(changed))).layout)
+    }
+
+    @Test
+    fun widgetsOutOfRangeIsAnError() {
+        fun err(widgets: String) = assertIs<LayoutResult.Error>(LayoutParser.parse(valid.replaceFirst("\"tree\"", "\"widgets\": $widgets, \"tree\""))).message
+        val ok = """{ "id": "w1", "provider": "a.b/a.b.C", "x": 0.1, "y": 0.1, "w": 0.5, "h": 0.2 }"""
+        assertTrue("重複" in err("[$ok, $ok]"))
+        assertTrue("provider" in err("""[{ "id": "w1", "provider": "a.b", "x": 0.1, "y": 0.1, "w": 0.5, "h": 0.2 }]"""))
+        assertTrue("x・y" in err("""[{ "id": "w1", "provider": "a.b/C", "x": 1.5, "y": 0.1, "w": 0.5, "h": 0.2 }]"""))
+        assertTrue("w・h" in err("""[{ "id": "w1", "provider": "a.b/C", "x": 0.1, "y": 0.1, "w": 0, "h": 0.2 }]"""))
+    }
 }
 
 class SampleLayoutTest {

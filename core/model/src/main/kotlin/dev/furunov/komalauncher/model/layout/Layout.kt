@@ -256,6 +256,24 @@ data class ClockSpec(
     val size: Float = 0.78f,
 )
 
+/**
+ * コマから独立して置くウィジェット。時計と同じく人物の後ろに描く。
+ * 位置と大きさは、コマ割りを描く範囲（画面）に対する 0〜1 の割合で持つ。
+ * 端末ごとに変わる appWidgetId は layout.json に書かず、設定の側で [id] から引く。
+ */
+data class WidgetSpec(
+    /** コマ割りの中で一意な id。appWidgetId との対応に使う。 */
+    val id: String,
+    /** AppWidgetProviderInfo の provider（"パッケージ名/クラス名"）。 */
+    val provider: String,
+    /** 左上の位置。 */
+    val x: Float,
+    val y: Float,
+    /** 幅と高さ。 */
+    val w: Float,
+    val h: Float,
+)
+
 /** 視差（段階 5）。端末を傾けると、絵・文字・時計を別の量で動かす。 */
 data class FxSpec(
     val parallax: Boolean = false,
@@ -339,6 +357,8 @@ sealed interface LayoutShape {
         val clock: ClockSpec = ClockSpec(),
         val fx: FxSpec = FxSpec(),
         val depth: DepthSpec = DepthSpec(),
+        /** 自由に置くウィジェット。後の要素を上に描く。 */
+        val widgets: List<WidgetSpec> = emptyList(),
     ) : LayoutShape
 
     /** version 1。1 枚の絵と、絵に対する 0〜1 の相対座標の多角形。 */

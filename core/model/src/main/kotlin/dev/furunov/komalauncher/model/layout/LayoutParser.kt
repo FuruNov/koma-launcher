@@ -160,6 +160,15 @@ object LayoutParser {
             if (listOf(c.x, c.y).any { !it.isFinite() || it !in 0f..1f }) return "clock.x・y は 0〜1 にしてください"
             if (!c.size.isFinite() || c.size !in 0.2f..3f) return "clock.size は 0.2〜3 にしてください"
         }
+        dto.widgets?.let { ws ->
+            ws.groupBy { it.id }.filterValues { it.size > 1 }.keys.firstOrNull()?.let { return "ウィジェットの id が重複しています: $it" }
+            ws.forEach { w ->
+                if (!IMAGE_ID.matches(w.id)) return "widgets.id は英数字・_・- の 64 文字以内にしてください"
+                if (!PROVIDER.matches(w.provider)) return "widgets.provider は「パッケージ名/クラス名」にしてください"
+                if (listOf(w.x, w.y).any { !it.isFinite() || it !in 0f..1f }) return "widgets.x・y は 0〜1 にしてください"
+                if (listOf(w.w, w.h).any { !it.isFinite() || it !in 0.02f..1f }) return "widgets.w・h は 0.02〜1 にしてください"
+            }
+        }
         return null
     }
 
@@ -174,6 +183,7 @@ object LayoutParser {
     /** 木の深さの上限。画面を 2^32 に割ることは無いので、これを超える木は壊れていると見なす。 */
     private const val MAX_DEPTH = 32
     private val IMAGE_ID = Regex("[A-Za-z0-9_-]{1,64}")
+    private val PROVIDER = Regex("[A-Za-z0-9_.]{1,256}/[A-Za-z0-9_.$]{1,256}")
     private val FILE_NAME = Regex("[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}")
 
     private fun parseColor(s: String): Long? {
@@ -198,9 +208,10 @@ object LayoutParser {
         val clock: ClockDto? = null,
         val fx: FxDto? = null,
         val depth: DepthDto? = null,
+        val widgets: List<WidgetDto>? = null,
     ) {
         fun toModel(): Layout = if (version >= 2) {
-            Layout(LayoutShape.Tree(requireNotNull(tree).toModel(), (frame ?: FrameDto()).toModel(), (look ?: LookDto()).toModel(), (text ?: TextDto()).toModel(), (clock ?: ClockDto()).toModel(), (fx ?: FxDto()).toModel(), (depth ?: DepthDto()).toModel()))
+            Layout(LayoutShape.Tree(requireNotNull(tree).toModel(), (frame ?: FrameDto()).toModel(), (look ?: LookDto()).toModel(), (text ?: TextDto()).toModel(), (clock ?: ClockDto()).toModel(), (fx ?: FxDto()).toModel(), (depth ?: DepthDto()).toModel(), widgets.orEmpty().map { it.toModel() }))
         } else {
             Layout(
                 LayoutShape.Fixed(
@@ -213,7 +224,7 @@ object LayoutParser {
 
         companion object {
             fun of(layout: Layout): LayoutDto = when (val s = layout.shape) {
-                is LayoutShape.Tree -> LayoutDto(version = 2, frame = FrameDto.of(s.frame), tree = NodeDto.of(s.root), look = LookDto.of(s.look), text = TextDto.of(s.text), clock = ClockDto.of(s.clock), fx = FxDto(s.fx.parallax, s.fx.strength), depth = DepthDto.of(s.depth).takeIf { it != DepthDto() })
+                is LayoutShape.Tree -> LayoutDto(version = 2, frame = FrameDto.of(s.frame), tree = NodeDto.of(s.root), look = LookDto.of(s.look), text = TextDto.of(s.text), clock = ClockDto.of(s.clock), fx = FxDto(s.fx.parallax, s.fx.strength), depth = DepthDto.of(s.depth).takeIf { it != DepthDto() }, widgets = s.widgets.map(WidgetDto::of).ifEmpty { null })
 
                 is LayoutShape.Fixed ->
                     LayoutDto(
@@ -375,6 +386,22 @@ object LayoutParser {
     private data class PopDto(
         val width: Float = 40f,
     )
+
+    @Serializable
+    private data class WidgetDto(
+        val id: String,
+        val provider: String,
+        val x: Float,
+        val y: Float,
+        val w: Float,
+        val h: Float,
+    ) {
+        fun toModel() = WidgetSpec(id, provider, x, y, w, h)
+
+        companion object {
+            fun of(w: WidgetSpec) = WidgetDto(w.id, w.provider, w.x, w.y, w.w, w.h)
+        }
+    }
 
     @Serializable
     private data class ClockDto(
