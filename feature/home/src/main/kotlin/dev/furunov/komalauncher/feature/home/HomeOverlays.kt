@@ -126,6 +126,7 @@ internal fun AppMenuSheet(
             if (menu.shortcuts.isNotEmpty()) Divider()
             // 追加したショートカット（PWA など）には、アプリ情報とアンインストールが無い。代わりに固定を解除する「削除」を出す
             if (!menu.app.isShortcut) MenuRow("アプリ情報") { onEvent(HomeEvent.AppInfo(menu.app)) }
+            if (menu.fromDrawer) MenuRow("非表示") { onEvent(HomeEvent.Hide(menu.app)) }
             menu.fromPanel?.let { panel ->
                 MenuRow("フォルダから削除") { onEvent(HomeEvent.Drop(menu.app, panel, DropTarget.Remove)) }
             }

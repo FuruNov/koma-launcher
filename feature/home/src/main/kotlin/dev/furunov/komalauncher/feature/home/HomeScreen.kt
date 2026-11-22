@@ -206,7 +206,7 @@ fun HomeScreen(
             remember(geometry) {
                 DragDropState(
                     onDrop = { item, p -> onEvent(HomeEvent.Drop(item.app, (item.source as? DragSource.Folder)?.panelId, dropTargetAt(item, p))) },
-                    onLongPressRelease = { onEvent(HomeEvent.ShowAppMenu(it.app, (it.source as? DragSource.Folder)?.panelId)) },
+                    onLongPressRelease = { onEvent(HomeEvent.ShowAppMenu(it.app, (it.source as? DragSource.Folder)?.panelId, fromDrawer = it.source == DragSource.Drawer)) },
                 )
             }
         // 指の下のフォルダのコマ。運んでいる間だけ光らせる

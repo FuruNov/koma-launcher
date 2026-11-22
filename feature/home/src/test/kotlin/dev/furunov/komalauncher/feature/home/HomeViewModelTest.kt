@@ -154,6 +154,7 @@ class HomeViewModelTest {
     private lateinit var actions: FakeActions
     private lateinit var vm: HomeViewModel
     private lateinit var media: FakeMedia
+    private lateinit var settings: FakeSettings
     private var now = 0L
 
     @BeforeTest
@@ -164,8 +165,9 @@ class HomeViewModelTest {
         appsFake = FakeApps()
         actions = FakeActions()
         media = FakeMedia()
+        settings = FakeSettings()
         now = 0L
-        vm = HomeViewModel(layoutSource, folders, FakeSettings(), appsFake, actions, media) { now }
+        vm = HomeViewModel(layoutSource, folders, settings, appsFake, actions, media) { now }
     }
 
     @AfterTest
@@ -467,6 +469,28 @@ class HomeViewModelTest {
         assertEquals(listOf(sc), appsFake.unpinned)
         assertEquals(listOf(chrome), folders.flow.value.appsOf("p1"))
         assertEquals(emptyList(), folders.flow.value.appsOf("p2"))
+        assertEquals(Overlay.None, vm.state.value.overlay)
+    }
+
+    @Test
+    fun hideFromDrawerMenuHidesAndReturnsToDrawer() {
+        vm.onEvent(HomeEvent.ShowAppMenu(chrome, fromPanel = null, fromDrawer = true))
+        vm.onEvent(HomeEvent.Hide(chrome))
+        assertEquals(setOf(chrome), settings.flow.value.drawer.hidden)
+        assertEquals(Overlay.Drawer, vm.state.value.overlay)
+    }
+
+    @Test
+    fun dismissDrawerMenuReturnsToDrawer() {
+        vm.onEvent(HomeEvent.ShowAppMenu(chrome, fromPanel = null, fromDrawer = true))
+        vm.onEvent(HomeEvent.Dismiss)
+        assertEquals(Overlay.Drawer, vm.state.value.overlay)
+    }
+
+    @Test
+    fun dismissFolderMenuReturnsHome() {
+        vm.onEvent(HomeEvent.ShowAppMenu(chrome, fromPanel = "p1"))
+        vm.onEvent(HomeEvent.Dismiss)
         assertEquals(Overlay.None, vm.state.value.overlay)
     }
 

@@ -65,7 +65,7 @@ data class Option(
     val label: String,
 )
 
-enum class ActionKey { EditLayout, MusicAccess, RestoreFolder, AutoBackup, HomeApp }
+enum class ActionKey { EditLayout, MusicAccess, RestoreFolder, AutoBackup, HomeApp, HiddenApps }
 
 data class SettingSection(
     val title: String,
@@ -196,6 +196,8 @@ fun settingsSections(): List<SettingSection> = listOf(
         "全アプリ一覧",
         listOf(
             SettingRow.Stepper("列数", 3..6, get = { it.drawer.columns }) { s, v -> s.copy(drawer = s.drawer.copy(columns = v)) },
+            // サブタイトルは画面側が非表示のアプリの数で書き換える。全アプリ一覧でアプリを長押しして「非表示」を選ぶと増える
+            SettingRow.Action("非表示のアプリ", "", ActionKey.HiddenApps),
         ),
     ),
     SettingSection(

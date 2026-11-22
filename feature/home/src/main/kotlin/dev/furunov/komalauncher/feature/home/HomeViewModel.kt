@@ -64,6 +64,8 @@ sealed interface Overlay {
         val app: AppKey,
         val fromPanel: String?,
         val shortcuts: List<AppShortcut>,
+        /** true なら全アプリ一覧で長押しした。「非表示」を表示し、閉じたら一覧に戻る。 */
+        val fromDrawer: Boolean = false,
     ) : Overlay
 
     /** 追加したショートカット（PWA など）の削除の確認。固定の解除はランチャーから戻せないので、押す前に尋ねる。 */
@@ -187,6 +189,12 @@ sealed interface HomeEvent {
     data class ShowAppMenu(
         val app: AppKey,
         val fromPanel: String?,
+        val fromDrawer: Boolean = false,
+    ) : HomeEvent
+
+    /** 長押しのメニューの「非表示」。全アプリ一覧から外す。戻すのは設定画面の「非表示のアプリ」。 */
+    data class Hide(
+        val app: AppKey,
     ) : HomeEvent
 
     data class LaunchShortcut(
@@ -236,7 +244,7 @@ sealed interface HomeEvent {
 class HomeViewModel(
     layoutSource: LayoutSource,
     private val folderStore: FolderStore,
-    settingsStore: SettingsStore,
+    private val settingsStore: SettingsStore,
     private val apps: AppCatalog,
     private val actions: ActionPerformer,
     private val media: MediaSessions,
@@ -362,8 +370,14 @@ class HomeViewModel(
                 overlay.value = Overlay.None
             }
 
-            HomeEvent.Home, HomeEvent.Dismiss -> {
+            HomeEvent.Home -> {
                 overlay.value = Overlay.None
+                adjusting.value = false
+            }
+
+            HomeEvent.Dismiss -> {
+                // 全アプリ一覧で開いたメニューを閉じたら、一覧に戻る
+                overlay.value = if ((overlay.value as? Overlay.AppMenu)?.fromDrawer == true) Overlay.Drawer else Overlay.None
                 adjusting.value = false
             }
 
@@ -399,7 +413,12 @@ class HomeViewModel(
                 overlay.value = Overlay.None
             }
 
-            is HomeEvent.ShowAppMenu -> overlay.value = Overlay.AppMenu(event.app, event.fromPanel, apps.shortcuts(event.app))
+            is HomeEvent.ShowAppMenu -> overlay.value = Overlay.AppMenu(event.app, event.fromPanel, apps.shortcuts(event.app), event.fromDrawer)
+
+            is HomeEvent.Hide -> {
+                settingsStore.update { it.copy(drawer = it.drawer.copy(hidden = it.drawer.hidden + event.app)) }
+                overlay.value = Overlay.Drawer
+            }
 
             is HomeEvent.LaunchShortcut -> {
                 apps.launchShortcut(event.shortcut)

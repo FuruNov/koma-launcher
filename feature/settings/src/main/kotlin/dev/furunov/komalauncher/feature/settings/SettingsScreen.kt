@@ -84,6 +84,7 @@ fun SettingsScreen(deps: SettingsDeps) {
     val autoBackup by deps.autoBackup.state.collectAsStateWithLifecycle()
     val audioStatus by deps.audioStatus.collectAsStateWithLifecycle()
     var autoBackupMenu by remember { mutableStateOf(false) }
+    var hiddenMenu by remember { mutableStateOf(false) }
     // 既存のバックアップがあった保存先のフォルダ（tree の URI）。復元か上書きかを尋ねる
     var existingBackup by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -145,6 +146,7 @@ fun SettingsScreen(deps: SettingsDeps) {
             ActionKey.RestoreFolder -> pickRestoreFolder.launch(null)
             ActionKey.AutoBackup -> if (autoBackup.folder == null) pickBackupFolder.launch(null) else autoBackupMenu = true
             ActionKey.HomeApp -> deps.openHomeSettings()
+            ActionKey.HiddenApps -> if (settings.drawer.hidden.isEmpty()) message = "全アプリ一覧でアプリを長押しし、「非表示」を選ぶと、ここに表示されます" else hiddenMenu = true
         }
     }
 
@@ -199,6 +201,8 @@ fun SettingsScreen(deps: SettingsDeps) {
                                             if (musicAccess) "許可済み" else "未許可"
                                         } else if (row.key == ActionKey.AutoBackup) {
                                             autoBackupSummary(autoBackup)
+                                        } else if (row.key == ActionKey.HiddenApps) {
+                                            if (settings.drawer.hidden.isEmpty()) "なし" else "${settings.drawer.hidden.size} 個・選ぶと再表示"
                                         } else {
                                             row.subtitle
                                         }
@@ -254,6 +258,18 @@ fun SettingsScreen(deps: SettingsDeps) {
             ) { autoBackupMenu = false }
         }
 
+        if (hiddenMenu) {
+            // 選んだアプリを全アプリ一覧に戻す。アンインストール済みのアプリもパッケージ名で並べ、戻せるようにする
+            val labels = apps.associate { it.key to it.label }
+            ChoiceDialog(
+                "非表示のアプリ",
+                settings.drawer.hidden
+                    .map { key -> (labels[key] ?: key.packageName) to key }
+                    .sortedBy { it.first }
+                    .map { (label, key) -> label to { deps.store.update { it.copy(drawer = it.drawer.copy(hidden = it.drawer.hidden - key)) } } },
+            ) { hiddenMenu = false }
+        }
+
         existingBackup?.let { tree ->
             ChoiceDialog(
                 "このフォルダには既存のバックアップがあります",
@@ -285,7 +301,7 @@ fun SettingsScreen(deps: SettingsDeps) {
             }
         }
     }
-    BackHandler(enabled = choosing == null && !autoBackupMenu && existingBackup == null) { deps.onClose() }
+    BackHandler(enabled = choosing == null && !autoBackupMenu && !hiddenMenu && existingBackup == null) { deps.onClose() }
 }
 
 @Composable
