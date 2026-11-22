@@ -2,6 +2,7 @@ package dev.furunov.komalauncher.feature.drawer
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,6 +37,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -50,6 +52,9 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -66,6 +71,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.furunov.komalauncher.model.apps.AppEntry
@@ -191,6 +197,48 @@ fun DrawerScreen(
     fun folderAt(p: Offset): String? = slotAt(p)?.let { (draggingFolders ?: folders).getOrNull(it)?.id }
     val dnd = LocalDragDrop.current
     val slide = remember { Animatable(1f) }
+    // 一覧の一番上からさらに下へ引いた量（px）。引いている間は一覧を指に合わせて下へずらし、離したときに閉じるかを決める
+    var pull by remember { mutableFloatStateOf(0f) }
+    val closePx = with(LocalDensity.current) { 120.dp.toPx() }
+    val pullToClose =
+        remember(actions) {
+            object : NestedScrollConnection {
+                // 引いた後に上へ戻したら、一覧をスクロールする前に、引いた分から減らす
+                override fun onPreScroll(
+                    available: Offset,
+                    source: NestedScrollSource,
+                ): Offset {
+                    if (pull <= 0f || available.y >= 0f || source != NestedScrollSource.UserInput) return Offset.Zero
+                    val used = maxOf(available.y, -pull)
+                    pull += used
+                    return Offset(0f, used)
+                }
+
+                // 一覧が一番上でスクロールしきれなかった下向きの分を、引いた量にする。
+                // 受け取らないと一覧の伸びる効果（オーバースクロール）が受け取り、閉じる操作にならなかった（2026-11-22 に実機で確認）
+                override fun onPostScroll(
+                    consumed: Offset,
+                    available: Offset,
+                    source: NestedScrollSource,
+                ): Offset {
+                    if (available.y <= 0f || source != NestedScrollSource.UserInput) return Offset.Zero
+                    pull += available.y
+                    return Offset(0f, available.y)
+                }
+
+                // 指を離したとき。十分に引いたか、下へ速く払ったら閉じ、そうでなければ元に戻す
+                override suspend fun onPreFling(available: Velocity): Velocity {
+                    if (pull <= 0f) return Velocity.Zero
+                    if (pull > closePx || available.y > 2_000f) {
+                        actions.onDismiss()
+                        pull = 0f
+                    } else {
+                        animate(pull, 0f) { v, _ -> pull = v }
+                    }
+                    return available
+                }
+            }
+        }
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -212,6 +260,7 @@ fun DrawerScreen(
             focusManager.clearFocus()
             slide.snapTo(1f)
             folderMenu = null
+            pull = 0f
             symbolPicker = null
         }
     }
@@ -236,7 +285,7 @@ fun DrawerScreen(
             // 閉じている間は、読み上げと画面の自動操作の対象から外す
             .then(if (open) Modifier else Modifier.clearAndSetSemantics {})
             .graphicsLayer {
-                translationY = slide.value * size.height * 0.3f
+                translationY = slide.value * size.height * 0.3f + pull
                 // 運んでいる間は透明にしてホームのコマを見せる。取り除くと指の追跡が途切れるので合成したままにする
                 alpha = if (dnd.isDragging) 0f else 1f - slide.value
             }.background(Color(0xF2121216))
@@ -253,7 +302,7 @@ fun DrawerScreen(
     ) {
         // キーボードの分は除いて配置する。キーボードが出ても L 字の並びを測り直さないため（出てくる間の毎フレームで UI スレッドが 16〜30ms かかった）。
         // アプリの一覧だけが imePadding でキーボードを避ける
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.exclude(WindowInsets.ime))) {
+        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.exclude(WindowInsets.ime)).nestedScroll(pullToClose)) {
             SearchField(
                 query = query,
                 onQuery = { query = it },
