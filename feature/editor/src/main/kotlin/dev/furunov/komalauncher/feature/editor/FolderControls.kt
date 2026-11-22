@@ -64,15 +64,10 @@ internal fun FolderControls(
     ChipRow("アプリ") {
         Chip("アプリを追加（${folder?.apps?.size ?: 0} 個）", onClick = onAddApps)
     }
-    ChipRow("押したとき") {
-        val direct = folder?.directLaunch == true
-        Chip("フォルダを開く", selected = !direct) { deps.store.update { FolderEdits.setDirectLaunch(it, id, false) } }
-        Chip("先頭のアプリを起動", selected = direct) { deps.store.update { FolderEdits.setDirectLaunch(it, id, true) } }
-    }
+    // オンなら、押したときにフォルダを開かず先頭のアプリを起動する
+    ToggleRow("直接起動", folder?.directLaunch == true) { v -> deps.store.update { FolderEdits.setDirectLaunch(it, id, v) } }
     val music = folder?.musicPlayer == true
-    ChipRow("音楽") {
-        Chip("プレイヤーにする", selected = music) { deps.store.update { FolderEdits.setMusicPlayer(it, id, !music) } }
-    }
+    ToggleRow("音楽プレイヤー", music) { v -> deps.store.update { FolderEdits.setMusicPlayer(it, id, v) } }
     if (music && !musicAccess) {
         Hint("再生中の曲を表示するには、通知へのアクセスを許可してください")
         ChipRow("") { Chip("通知へのアクセスを開く", onClick = deps.openMusicAccess) }

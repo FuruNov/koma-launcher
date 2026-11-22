@@ -48,6 +48,7 @@ import dev.furunov.komalauncher.model.ports.AutoBackup
 import dev.furunov.komalauncher.model.ports.AutoBackupState
 import dev.furunov.komalauncher.model.ports.RestoreService
 import dev.furunov.komalauncher.model.settings.SettingsStore
+import dev.furunov.komalauncher.ui.controls.ToggleSwitch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -224,9 +225,9 @@ fun SettingsScreen(deps: SettingsDeps) {
                             if (sub != null) BasicText(sub, style = TextStyle(color = Sub, fontSize = 13.sp))
                         }
                         when (row) {
-                            is SettingRow.Toggle -> Switch(row.get(settings))
+                            is SettingRow.Toggle -> ToggleSwitch(row.get(settings))
 
-                            is SettingRow.PermissionToggle -> Switch(row.get(settings))
+                            is SettingRow.PermissionToggle -> ToggleSwitch(row.get(settings))
 
                             is SettingRow.Stepper ->
                                 Stepper(row.get(settings), row.unit) { delta ->
@@ -355,17 +356,6 @@ private fun ChoiceDialog(
             }
         }
     }
-}
-
-@Composable
-private fun Switch(on: Boolean) {
-    Box(
-        Modifier
-            .width(44.dp)
-            .background(if (on) Accent else Color(0xFF44444C), RoundedCornerShape(12.dp))
-            .padding(3.dp),
-        contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
-    ) { Box(Modifier.size(18.dp).background(Color.White, CircleShape)) }
 }
 
 @Composable

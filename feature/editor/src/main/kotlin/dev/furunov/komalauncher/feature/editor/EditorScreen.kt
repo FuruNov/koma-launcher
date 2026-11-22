@@ -106,6 +106,7 @@ import dev.furunov.komalauncher.ui.art.rememberArts
 import dev.furunov.komalauncher.ui.art.rememberBlurredArts
 import dev.furunov.komalauncher.ui.art.rememberDepthMaps
 import dev.furunov.komalauncher.ui.art.rememberMasks
+import dev.furunov.komalauncher.ui.controls.ToggleSwitch
 import dev.furunov.komalauncher.ui.icons.rememberIconBitmaps
 import dev.furunov.komalauncher.ui.icons.rememberIconShadows
 import java.time.LocalDateTime
@@ -377,23 +378,23 @@ private fun DepthControls(
         transform: (DepthSpec) -> DepthSpec,
     ) = vm.setTree(record) { it.copy(depth = transform(it.depth)) }
     Hint("立体感: 人物の切り抜きがある絵にだけ掛かります")
-    ChipRow("人物の影") { Chip("オン", selected = d.shadow.enabled) { set { it.copy(shadow = it.shadow.copy(enabled = !it.shadow.enabled)) } } }
+    ToggleRow("人物の影", d.shadow.enabled) { v -> set { it.copy(shadow = it.shadow.copy(enabled = v)) } }
     if (d.shadow.enabled) {
         SliderRow("濃さ", d.shadow.alpha * 100f, 0f..100f, step = 5f, mark = 55f) { v -> set(false) { it.copy(shadow = it.shadow.copy(alpha = v / 100f)) } }
         SliderRow("ずらし", d.shadow.distance, 0f..60f, step = 1f, mark = 22f) { v -> set(false) { it.copy(shadow = it.shadow.copy(distance = v)) } }
         SliderRow("ぼかし", d.shadow.blur, 2f..30f, step = 1f, tick = 4f, mark = 10f) { v -> set(false) { it.copy(shadow = it.shadow.copy(blur = v)) } }
     }
-    ChipRow("輪郭の光") { Chip("オン", selected = d.rim.enabled) { set { it.copy(rim = it.rim.copy(enabled = !it.rim.enabled)) } } }
+    ToggleRow("輪郭の光", d.rim.enabled) { v -> set { it.copy(rim = it.rim.copy(enabled = v)) } }
     if (d.rim.enabled) {
         SliderRow("強さ", d.rim.alpha * 100f, 0f..100f, step = 5f, mark = 70f) { v -> set(false) { it.copy(rim = it.rim.copy(alpha = v / 100f)) } }
         SliderRow("幅", d.rim.width, 1f..14f, step = 0.5f, tick = 1f, mark = 4f) { v -> set(false) { it.copy(rim = it.rim.copy(width = v)) } }
     }
-    ChipRow("背景のぼかし") { Chip("オン", selected = d.blur.enabled) { set { it.copy(blur = it.blur.copy(enabled = !it.blur.enabled)) } } }
+    ToggleRow("背景のぼかし", d.blur.enabled) { v -> set { it.copy(blur = it.blur.copy(enabled = v)) } }
     if (d.blur.enabled) {
         SliderRow("ぼかし", d.blur.amount * 100f, 0f..100f, step = 5f, mark = 60f) { v -> set(false) { it.copy(blur = it.blur.copy(amount = v / 100f)) } }
         SliderRow("かすみ", d.blur.haze * 100f, 0f..40f, step = 2f, tick = 4f, mark = 12f) { v -> set(false) { it.copy(blur = it.blur.copy(haze = v / 100f)) } }
     }
-    ChipRow("縁取り") { Chip("オン", selected = d.outline.enabled) { set { it.copy(outline = it.outline.copy(enabled = !it.outline.enabled)) } } }
+    ToggleRow("縁取り", d.outline.enabled) { v -> set { it.copy(outline = it.outline.copy(enabled = v)) } }
     if (d.outline.enabled) {
         SliderRow("太さ", d.outline.width, 1f..12f, step = 0.5f, tick = 1f, mark = 4f) { v -> set(false) { it.copy(outline = it.outline.copy(width = v)) } }
         SliderRow("不透明度", d.outline.alpha * 100f, 0f..100f, step = 5f, mark = 90f) { v -> set(false) { it.copy(outline = it.outline.copy(alpha = v / 100f)) } }
@@ -649,6 +650,19 @@ internal fun ChipRow(
     }
 }
 
+/** オンとオフを切り替える行。行のどこを押しても切り替わる。 */
+@Composable
+internal fun ToggleRow(
+    title: String,
+    on: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(Modifier.fillMaxWidth().clickable { onChange(!on) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        BasicText(title, style = TextStyle(color = Color(0xFF9E9EA8), fontSize = 13.sp), modifier = Modifier.weight(1f))
+        ToggleSwitch(on)
+    }
+}
+
 @Composable
 internal fun Hint(text: String) {
     BasicText(text, style = TextStyle(color = Color(0xFF9E9EA8), fontSize = 12.sp), modifier = Modifier.padding(vertical = 4.dp))
@@ -795,10 +809,7 @@ private fun TextAndClockControls(
         Chip("日本語", selected = !text.english) { vm.setTree { it.copy(text = it.text.copy(english = false)) } }
     }
     // フォルダのコマに先頭のアプリのアイコンを置くか（どのコマに何のアプリがあるか分かるように）
-    ChipRow("アイコン") {
-        Chip("表示", selected = text.icon) { vm.setTree { it.copy(text = it.text.copy(icon = true)) } }
-        Chip("非表示", selected = !text.icon) { vm.setTree { it.copy(text = it.text.copy(icon = false)) } }
-    }
+    ToggleRow("アイコン", text.icon) { v -> vm.setTree { it.copy(text = it.text.copy(icon = v)) } }
     // 入力中の文字はこの画面で持つ（NameFields と同じ理由）。履歴は書き始めたときに 1 回だけ積む
     var masthead by remember(restored) { mutableStateOf(TextFieldValue(text.masthead)) }
     var recorded by remember(restored) { mutableStateOf(false) }
@@ -808,17 +819,12 @@ private fun TextAndClockControls(
         masthead = v
         vm.setTree(record = false) { it.copy(text = it.text.copy(masthead = v.text)) }
     }
-    ChipRow("時計") {
-        Chip("非表示", selected = !clock.enabled) { vm.setTree { it.copy(clock = it.clock.copy(enabled = false)) } }
-        Chip("表示", selected = clock.enabled) { vm.setTree { it.copy(clock = it.clock.copy(enabled = true)) } }
-    }
+    ToggleRow("時計", clock.enabled) { v -> vm.setTree { it.copy(clock = it.clock.copy(enabled = v)) } }
     if (clock.enabled) {
         SliderRow("サイズ", clock.size * 100f, 50f..160f, step = 5f, mark = 100f) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(size = v / 100f)) } }
     }
     Hint("時計・大見出し・名前・アイコンの位置と大きさは、ホームの「配置を調整」で変えられます（余白か、そのコンポーネントを長押し）")
-    ChipRow("視差") {
-        Chip("オン", selected = tree.fx.parallax) { vm.setTree { it.copy(fx = it.fx.copy(parallax = !it.fx.parallax)) } }
-    }
+    ToggleRow("視差", tree.fx.parallax) { v -> vm.setTree { it.copy(fx = it.fx.copy(parallax = v)) } }
     if (tree.fx.parallax) {
         SliderRow("強さ", tree.fx.strength * 100f, 10f..200f, step = 10f, mark = 40f) { v -> vm.setTree(record = false) { it.copy(fx = it.fx.copy(strength = v / 100f)) } }
     }

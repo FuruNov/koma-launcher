@@ -43,6 +43,7 @@ import dev.furunov.komalauncher.model.apps.AppKey
 import dev.furunov.komalauncher.model.folders.FolderEdits
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.settings.LauncherAction
+import dev.furunov.komalauncher.ui.controls.ToggleSwitch
 import dev.furunov.komalauncher.ui.icons.AppIcon
 import kotlinx.coroutines.delay
 
@@ -142,6 +143,19 @@ internal fun AppMenuSheet(
     }
 }
 
+/** オンとオフを切り替えるメニューの行。右端にスイッチを置く。 */
+@Composable
+private fun ToggleMenuRow(
+    text: String,
+    on: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        BasicText(text, style = TextStyle(color = Color.White, fontSize = 15.sp), modifier = Modifier.weight(1f))
+        ToggleSwitch(on)
+    }
+}
+
 @Composable
 private fun MenuRow(
     text: String,
@@ -189,13 +203,9 @@ internal fun PanelMenuSheet(
             if (directLaunch || showingPlayer) MenuRow("フォルダを開く") { onEvent(HomeEvent.OpenOverlay(Overlay.Folder(id))) }
             if (showingPlayer) MenuRow("再生中のアプリを開く") { onEvent(HomeEvent.OpenPlayerApp) }
             MenuRow("アプリを追加") { onEvent(HomeEvent.OpenOverlay(Overlay.AddApps(id))) }
-            MenuRow(if (directLaunch) "直接起動: オン" else "直接起動: オフ") {
-                onEvent(HomeEvent.EditFolders { FolderEdits.setDirectLaunch(it, id.value, !directLaunch) })
-                onEvent(HomeEvent.Dismiss)
-            }
-            MenuRow(if (musicPlayer) "音楽プレイヤー: オン" else "音楽プレイヤー: オフ") {
-                onEvent(HomeEvent.SetMusicPlayer(id, !musicPlayer))
-            }
+            // 切り替えてもメニューを閉じない（スイッチで切り替わったことが見えるように）
+            ToggleMenuRow("直接起動", directLaunch) { onEvent(HomeEvent.EditFolders { FolderEdits.setDirectLaunch(it, id.value, !directLaunch) }) }
+            ToggleMenuRow("音楽プレイヤー", musicPlayer) { onEvent(HomeEvent.SetMusicPlayer(id, !musicPlayer)) }
             MenuRow("名前を変更") { onEvent(HomeEvent.OpenOverlay(Overlay.Rename(id))) }
             MenuRow(if (linkedName == null) "ドロワーと同期" else "ドロワーと同期（$linkedName）") { onEvent(HomeEvent.ShowLinkPanel(id)) }
         }
