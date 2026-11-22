@@ -185,7 +185,7 @@ fun EditorScreen(
                             }, onAddApps = { addingApps = true })
                         }
 
-                    EditorTab.Whole -> WholeControls(vm, tree, defaultGutterColor, state.restored)
+                    EditorTab.Whole -> WholeControls(vm, tree, defaultGutterColor)
                 }
             }
         }
@@ -319,7 +319,6 @@ private fun WholeControls(
     vm: EditorViewModel,
     tree: LayoutShape.Tree?,
     defaultGutterColor: Long,
-    restored: Int,
 ) {
     ChipRow("テンプレート") {
         LayoutEdits.Template.entries.forEach { t -> Chip(t.label) { vm.applyTemplate(t) } }
@@ -347,7 +346,7 @@ private fun WholeControls(
             Chip(label, selected = frame.border.color == c) { vm.setFrame { it.copy(border = it.border.copy(color = c)) } }
         }
     }
-    TextAndClockControls(vm, tree, restored)
+    TextControls(vm, tree)
     val look = tree.look
     ChipRow("色調") {
         Chip("なし", selected = look.tone == Tone.NONE) { vm.setLook { it.copy(tone = Tone.NONE) } }
@@ -451,7 +450,7 @@ private fun Preview(
     val blurred by rememberBlurredArts(state.images, blurIds, state.imagesRevision)
     val light = DepthStyle.lightDirection(Tilt.ZERO)
     val texts =
-        remember(resolved, state.layout, masks, names, iconApps) { buildPanelTexts(state.layout, resolved.panels, screenWidth, names, masks, iconApps.mapValues { it.value.size }) }
+        remember(resolved, state.layout, masks, names, iconApps) { buildPanelTexts(state.layout, resolved.panels, screenWidth, screenHeight, names, masks, iconApps.mapValues { it.value.size }) }
     // アイコンの画像。全部のコマの分を 1 つの並びで読み込み、描くときにコマごとに切り分ける
     val iconKeys = resolved.panels.flatMap { p -> texts[p.panel.id]?.icons.orEmpty().zip(iconApps[p.panel.id.value].orEmpty()) { r, app -> app to r.width.roundToInt() } }
     val iconBitmaps by rememberIconBitmaps(iconKeys)
@@ -788,15 +787,13 @@ private fun SliderRow(
     }
 }
 
-/** 文字（名前・大見出し）と時計の操作。 */
+/** 名前・アイコン・視差の操作。時計と大見出しは内蔵のウィジェットにしたので、ここには置かない。 */
 @Composable
-private fun TextAndClockControls(
+private fun TextControls(
     vm: EditorViewModel,
     tree: LayoutShape.Tree,
-    restored: Int,
 ) {
     val text = tree.text
-    val clock = tree.clock
     ChipRow("名前") {
         listOf(LabelMode.VERTICAL to "縦書き", LabelMode.HORIZONTAL to "横書き", LabelMode.NONE to "非表示").forEach { (m, label) ->
             Chip(label, selected = text.label == m) { vm.setTree { it.copy(text = it.text.copy(label = m)) } }
@@ -806,20 +803,7 @@ private fun TextAndClockControls(
     }
     // フォルダのコマに先頭のアプリのアイコンを置くか（どのコマに何のアプリがあるか分かるように）
     ToggleRow("アイコン", text.icon) { v -> vm.setTree { it.copy(text = it.text.copy(icon = v)) } }
-    // 入力中の文字はこの画面で持つ（NameFields と同じ理由）。履歴は書き始めたときに 1 回だけ積む
-    var masthead by remember(restored) { mutableStateOf(TextFieldValue(text.masthead)) }
-    var recorded by remember(restored) { mutableStateOf(false) }
-    TextRow("大見出し", masthead, "（空欄で非表示）") { v ->
-        if (!recorded) vm.beginGesture()
-        recorded = true
-        masthead = v
-        vm.setTree(record = false) { it.copy(text = it.text.copy(masthead = v.text)) }
-    }
-    ToggleRow("時計", clock.enabled) { v -> vm.setTree { it.copy(clock = it.clock.copy(enabled = v)) } }
-    if (clock.enabled) {
-        SliderRow("サイズ", clock.size * 100f, 50f..160f, step = 5f, mark = 100f) { v -> vm.setTree(record = false) { it.copy(clock = it.clock.copy(size = v / 100f)) } }
-    }
-    Hint("時計・大見出し・名前・アイコンの位置と大きさは、ホームの「配置を調整」で変えられます（余白か、そのコンポーネントを長押し）")
+    Hint("時計と大見出しは、ホームの余白の長押しの「ウィジェットを追加」で「コマランチャー」から置きます。名前とアイコンの位置と大きさは、ホームの「配置を調整」で変えられます")
     ToggleRow("視差", tree.fx.parallax) { v -> vm.setTree { it.copy(fx = it.fx.copy(parallax = v)) } }
     if (tree.fx.parallax) {
         SliderRow("強さ", tree.fx.strength * 100f, 10f..200f, step = 10f, mark = 40f) { v -> vm.setTree(record = false) { it.copy(fx = it.fx.copy(strength = v / 100f)) } }

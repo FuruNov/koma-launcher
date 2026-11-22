@@ -261,7 +261,7 @@ data class ClockSpec(
 data class WidgetSpec(
     /** コマ割りの中で一意な id。appWidgetId との対応に使う。 */
     val id: String,
-    /** AppWidgetProviderInfo の provider（"パッケージ名/クラス名"）。 */
+    /** AppWidgetProviderInfo の provider（"パッケージ名/クラス名"）。ランチャーに内蔵のものは [BUILTIN_CLOCK] か [BUILTIN_TEXT]。 */
     val provider: String,
     /** 左上の位置。 */
     val x: Float,
@@ -271,7 +271,64 @@ data class WidgetSpec(
     val h: Float,
     /** true なら人物の前に描く。false（既定）なら人物の後ろ。 */
     val front: Boolean = false,
+    /** 内蔵のウィジェットの見た目。ほかのアプリのウィジェットでは使わない。 */
+    val style: WidgetStyle = WidgetStyle(),
+) {
+    /** ランチャーが描く内蔵のウィジェットの種類。ほかのアプリのウィジェットなら null。 */
+    val builtin: BuiltinWidget? get() = BuiltinWidget.entries.firstOrNull { it.provider == provider }
+}
+
+/**
+ * ランチャーに内蔵のウィジェット。ほかのアプリのビューではなく、重なるコマの文字の層で描く
+ * （コマの形で切り取り、人物の形で抜き、コマと一緒に動かす。以前の時計と大見出しと同じ描き方）。
+ */
+enum class BuiltinWidget(
+    val provider: String,
+) {
+    CLOCK("koma:clock"),
+    TEXT("koma:text"),
+}
+
+enum class DateFormat { LONG, SHORT, NONE }
+
+/** 文字の色。AUTO は、下のコマが白い紙なら墨、それ以外は白（以前の時計と大見出しと同じ）。 */
+enum class TextColor { AUTO, WHITE, BLACK, ACCENT }
+
+/**
+ * 内蔵のウィジェットの見た目。既定の値は、以前の時計と大見出しと同じ見た目にする。
+ * [font] は書体の id（[WidgetFonts]）。null なら種類ごとの既定（時計は Dela Gothic One、テキストは Bodoni Moda）。
+ */
+data class WidgetStyle(
+    val font: String? = null,
+    /** 太さ（100〜900）。null なら種類ごとの既定。太さが 1 種類だけの書体では使わない。 */
+    val weight: Int? = null,
+    val date: DateFormat = DateFormat.LONG,
+    val h24: Boolean = true,
+    val seconds: Boolean = false,
+    val color: TextColor = TextColor.AUTO,
+    /** 時計では影、テキストでは暗い縁と影。 */
+    val shadow: Boolean = true,
+    /** テキストの文字。 */
+    val text: String = "",
+    /** テキストを斜体にするか。null なら書体の既定（Bodoni Moda は斜体）。 */
+    val italic: Boolean? = null,
 )
+
+/** 内蔵のウィジェットで選べる書体の id。端末の書体は、端末によって形が違う。 */
+object WidgetFonts {
+    const val DELA = "dela"
+    const val BODONI = "bodoni"
+    const val SANS = "sans"
+    const val SERIF = "serif"
+    const val MONO = "mono"
+    const val CONDENSED = "condensed"
+    val ALL = listOf(DELA, BODONI, SANS, SERIF, MONO, CONDENSED)
+
+    /** 太さを選べる書体（端末の書体）。同梱の 2 つは太さが 1 種類だけ。 */
+    fun hasWeights(font: String): Boolean = font in setOf(SANS, SERIF, MONO, CONDENSED)
+
+    fun defaultFor(kind: BuiltinWidget): String = if (kind == BuiltinWidget.CLOCK) DELA else BODONI
+}
 
 /** 視差（段階 5）。端末を傾けると、絵・文字・時計を別の量で動かす。 */
 data class FxSpec(

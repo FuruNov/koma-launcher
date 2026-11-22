@@ -77,7 +77,7 @@ class WidgetMoveTest {
         val s = only(WidgetPlacement.resize(layout, "w", 2f, 0.01f))
         assertEquals(0.2f, s.x)
         assertEquals(0.8f, s.w, 1e-4f)
-        assertEquals(0.1f, s.h)
+        assertEquals(WidgetPlacement.MIN_EDIT, s.h)
     }
 
     @Test

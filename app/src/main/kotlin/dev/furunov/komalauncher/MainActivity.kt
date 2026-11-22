@@ -32,9 +32,12 @@ import dev.furunov.komalauncher.feature.widgets.WidgetChoice
 import dev.furunov.komalauncher.feature.widgets.WidgetPicker
 import dev.furunov.komalauncher.model.apps.DrawerFolders
 import dev.furunov.komalauncher.model.folders.FolderEdits
+import dev.furunov.komalauncher.model.layout.BuiltinWidget
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.PanelContent
+import dev.furunov.komalauncher.model.layout.WidgetStyle
 import dev.furunov.komalauncher.model.settings.LauncherAction
+import dev.furunov.komalauncher.model.widgets.BuiltinWidgets
 import dev.furunov.komalauncher.model.widgets.WidgetPlacement
 import dev.furunov.komalauncher.ui.apps.AppPicker
 import dev.furunov.komalauncher.ui.icons.LocalIconLoader
@@ -162,10 +165,35 @@ class MainActivity : ComponentActivity() {
                         onPick = { activity, c -> placeWidget(activity, target, c) },
                         onDismiss = { container.widgets.pickerFor.value = null },
                         title = if (target is PickTarget.Replace) "ウィジェットを変更" else "ウィジェットを選択",
+                        onPickBuiltin =
+                        if (target is PickTarget.Free) {
+                            { kind -> placeBuiltin(kind) }
+                        } else {
+                            null
+                        },
                     )
                 }
             }
         }
+    }
+
+    /**
+     * ランチャーに内蔵のウィジェット（時計・テキスト）を、画面の中央に置く。許可や設定の画面は要らない。
+     * テキストは文字を打つため、置いたらすぐスタイルのシートを開く。
+     */
+    private fun placeBuiltin(kind: BuiltinWidget) {
+        container.widgets.pickerFor.value = null
+        val m = resources.displayMetrics
+        val layout = container.layoutSource.state.value.layout
+        val id = WidgetPlacement.newId(layout)
+        val (w, h) = BuiltinWidgets.defaultSize(kind, layout, m.widthPixels.toFloat(), m.heightPixels.toFloat())
+        val wDp = m.widthPixels / m.density
+        val hDp = m.heightPixels / m.density
+        container.layoutStore.update {
+            val spec = WidgetPlacement.initial(it, id, kind.provider, w * wDp, h * hDp, wDp, hDp, min = WidgetPlacement.MIN_EDIT)
+            WidgetPlacement.add(it, if (kind == BuiltinWidget.TEXT) spec.copy(style = WidgetStyle(text = "KOMA")) else spec)
+        }
+        if (kind == BuiltinWidget.TEXT) home.onEvent(HomeEvent.OpenOverlay(Overlay.WidgetStyle(id)))
     }
 
     /** 選んだウィジェットを置く。自由に置くときは、許可と設定が済んでからコマ割りに書く。 */

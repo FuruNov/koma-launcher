@@ -38,6 +38,8 @@ import dev.furunov.komalauncher.core.ui.R
 import dev.furunov.komalauncher.model.geometry.Point
 import dev.furunov.komalauncher.model.geometry.Polygon
 import dev.furunov.komalauncher.model.geometry.Rect
+import dev.furunov.komalauncher.model.layout.BuiltinWidget
+import dev.furunov.komalauncher.model.layout.DateFormat
 import dev.furunov.komalauncher.model.layout.LabelMode
 import dev.furunov.komalauncher.model.layout.LayerKind
 import dev.furunov.komalauncher.model.layout.Layout
@@ -46,6 +48,10 @@ import dev.furunov.komalauncher.model.layout.MaskMath
 import dev.furunov.komalauncher.model.layout.PanelId
 import dev.furunov.komalauncher.model.layout.PanelText
 import dev.furunov.komalauncher.model.layout.ResolvedPanel
+import dev.furunov.komalauncher.model.layout.TextColor
+import dev.furunov.komalauncher.model.layout.WidgetFonts
+import dev.furunov.komalauncher.model.layout.WidgetStyle
+import dev.furunov.komalauncher.model.widgets.BuiltinWidgets
 import dev.furunov.komalauncher.ui.icons.SHADOW_ALPHA
 import dev.furunov.komalauncher.ui.icons.SHADOW_PAD
 import dev.furunov.komalauncher.ui.icons.SHADOW_SHIFT
@@ -139,6 +145,8 @@ data class MastheadText(
     val centerY: Float,
     val size: Float,
     val width: Float,
+    /** 内蔵のテキストのウィジェットの見た目。既定は以前の大見出しと同じ。 */
+    val style: WidgetStyle = WidgetStyle(),
 )
 
 /** ランチャーが描く時計。[k] は大きさ（モックアップの値 × 画面の幅 / 1220）。 */
@@ -149,27 +157,31 @@ data class ClockText(
     val k: Float,
     /** はみ出さずに描ける範囲。収まらなければ、中心を保ったまま縮めて描く。null なら縮めない。 */
     val limit: Rect? = null,
+    /** 内蔵の時計のウィジェットの見た目。既定は以前の時計と同じ。 */
+    val style: WidgetStyle = WidgetStyle(),
 )
 
 /** 1 つのコマに描く文字。 */
 @Immutable
 data class PanelTextSpec(
     val labels: List<LabelText> = emptyList(),
-    val masthead: MastheadText? = null,
-    val clock: ClockText? = null,
+    /** 大見出し（内蔵のテキストのウィジェットのうち、このコマにかかるもの）。 */
+    val mastheads: List<MastheadText> = emptyList(),
+    /** 時計（内蔵の時計のウィジェットのうち、このコマにかかるもの）。 */
+    val clocks: List<ClockText> = emptyList(),
     /** フォルダの先頭から順に並べるアイコンの場所。座標はコマの外接長方形の左上が原点。 */
     val icons: List<Rect> = emptyList(),
 ) {
     /** 文字が無いか（アイコンは文字の層では描かないので数えない）。 */
-    val isEmpty: Boolean get() = labels.isEmpty() && masthead == null && clock == null
+    val isEmpty: Boolean get() = labels.isEmpty() && mastheads.isEmpty() && clocks.isEmpty()
 }
 
 /** [kind] の部分だけを残した指定。重ね順どおりに 1 つずつ描くのに使う。 */
 fun PanelTextSpec.only(kind: LayerKind): PanelTextSpec = when (kind) {
     LayerKind.ICONS -> PanelTextSpec(icons = icons)
     LayerKind.LABEL -> PanelTextSpec(labels = labels)
-    LayerKind.MASTHEAD -> PanelTextSpec(masthead = masthead)
-    LayerKind.CLOCK -> PanelTextSpec(clock = clock)
+    LayerKind.MASTHEAD -> PanelTextSpec(mastheads = mastheads)
+    LayerKind.CLOCK -> PanelTextSpec(clocks = clocks)
     LayerKind.PERSON -> PanelTextSpec()
 }
 
@@ -178,8 +190,53 @@ private val layerPaint = Paint()
 
 private val WEEKDAYS = listOf("月", "火", "水", "木", "金", "土", "日")
 
-/** 時計の表示（モックアップの timeText）。 */
-fun clockStrings(now: LocalDateTime): Pair<String, String> = "${now.hour}:${now.minute.toString().padStart(2, '0')}" to "${now.monthValue}月${now.dayOfMonth}日（${WEEKDAYS[now.dayOfWeek.value - 1]}）"
+/** 時計の表示（モックアップの timeText）。既定の [style] では「9:05」と「11月22日（日）」。 */
+fun clockStrings(
+    now: LocalDateTime,
+    style: WidgetStyle = WidgetStyle(),
+): Pair<String, String> {
+    val hour = if (style.h24) now.hour else (now.hour % 12).let { if (it == 0) 12 else it }
+    val time = "$hour:${now.minute.toString().padStart(2, '0')}" + if (style.seconds) ":${now.second.toString().padStart(2, '0')}" else ""
+    val ampm = if (style.h24) {
+        ""
+    } else if (now.hour < 12) {
+        "午前"
+    } else {
+        "午後"
+    }
+    val week = WEEKDAYS[now.dayOfWeek.value - 1]
+    val date =
+        when (style.date) {
+            DateFormat.LONG -> "${now.monthValue}月${now.dayOfMonth}日（$week）"
+            DateFormat.SHORT -> "${now.monthValue}/${now.dayOfMonth} $week"
+            DateFormat.NONE -> ""
+        }
+    return time to listOf(ampm, date).filter { it.isNotEmpty() }.joinToString(" ")
+}
+
+/** 内蔵のウィジェットの書体。端末の書体は、端末によって形が違う。 */
+fun widgetFontFamily(id: String): FontFamily = when (id) {
+    WidgetFonts.BODONI -> KomaFonts.bodoniItalic
+    WidgetFonts.SANS -> FontFamily.SansSerif
+    WidgetFonts.SERIF -> FontFamily.Serif
+    WidgetFonts.MONO -> FontFamily.Monospace
+    WidgetFonts.CONDENSED -> FontFamily(android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.NORMAL))
+    else -> KomaFonts.dela
+}
+
+/** 選べる色のうちのアクセントの色（ランチャーの画面の強調の色と同じ）。 */
+private val ACCENT = Color(0xFFFFD54F)
+
+/** 文字の色。自動なら、白い紙のコマの上では墨、それ以外は白（以前の時計と大見出しと同じ）。 */
+private fun WidgetStyle.textColor(ink: Boolean): Color = when (color) {
+    TextColor.AUTO -> if (ink) BlankPage.INK else Color.White
+    TextColor.WHITE -> Color.White
+    TextColor.BLACK -> BlankPage.INK
+    TextColor.ACCENT -> ACCENT
+}
+
+/** 影を付けるか。墨の文字には付けない（以前と同じく、白い紙の上の文字には影を付けない）。 */
+private fun WidgetStyle.withShadow(ink: Boolean): Boolean = shadow && textColor(ink) != BlankPage.INK
 
 /**
  * 文字を描く。切り抜き [mask] があれば、文字だけの層を作り、人物の形を抜いた切り抜きで切ってから重ねる（人物の後ろに見える）。
@@ -240,8 +297,8 @@ fun DrawScope.drawPanelTexts(
         }
     }
     translate(textShift.x, textShift.y) { spec.labels.forEach { drawLabel(it, measurer, ink) } }
-    spec.masthead?.let { translate(mastheadShift.x, mastheadShift.y) { drawMasthead(it, measurer, ink) } }
-    spec.clock?.let { translate(clockShift.x, clockShift.y) { drawClock(it, measurer, now, ink) } }
+    spec.mastheads.forEach { translate(mastheadShift.x, mastheadShift.y) { drawMasthead(it, measurer, ink) } }
+    spec.clocks.forEach { translate(clockShift.x, clockShift.y) { drawClock(it, measurer, now, ink) } }
     if (behind) {
         translate(artShift.x, artShift.y) { drawImage(mask!!, dstOffset = maskOffset!!, dstSize = maskSize!!, blendMode = BlendMode.DstIn) }
         drawIntoCanvas { it.restore() }
@@ -262,6 +319,22 @@ private fun DrawScope.drawOutlined(
     }
     drawText(layout, color = Color.Black.copy(alpha = 0.45f), topLeft = topLeft, drawStyle = Stroke(width = maxOf(2f, size * 0.03f) * 2f), alpha = 0.88f)
     drawText(layout, color = Color.White, topLeft = topLeft, shadow = Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 4f), 10f), alpha = 0.88f)
+}
+
+/** [drawOutlined] の色を選べる形。[outline] が false なら縁と影を付けずに塗るだけ。 */
+private fun DrawScope.drawOutlined(
+    layout: TextLayoutResult,
+    topLeft: Offset,
+    size: Float,
+    color: Color,
+    outline: Boolean,
+) {
+    if (!outline) {
+        drawText(layout, color = color, topLeft = topLeft)
+        return
+    }
+    drawText(layout, color = Color.Black.copy(alpha = 0.45f), topLeft = topLeft, drawStyle = Stroke(width = maxOf(2f, size * 0.03f) * 2f), alpha = 0.88f)
+    drawText(layout, color = color, topLeft = topLeft, shadow = Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 4f), 10f), alpha = 0.88f)
 }
 
 private fun DrawScope.px(v: Float): TextUnit = v.toSp()
@@ -299,11 +372,21 @@ private fun DrawScope.drawMasthead(
     measurer: TextMeasurer,
     ink: Boolean,
 ) {
-    val m = measurer.measure(t.text, TextStyle(fontFamily = KomaFonts.bodoniItalic, fontSize = px(t.size), fontWeight = FontWeight.ExtraBold, fontStyle = FontStyle.Italic))
+    val s = t.style
+    val font = s.font ?: WidgetFonts.BODONI
+    // 既定は以前の大見出しと同じ（Bodoni Moda の斜体、太さ 800）
+    val weight = if (WidgetFonts.hasWeights(font)) FontWeight(s.weight ?: 800) else FontWeight.ExtraBold
+    val italic = s.italic ?: (font == WidgetFonts.BODONI)
+    val m = measurer.measure(t.text, TextStyle(fontFamily = widgetFontFamily(font), fontSize = px(t.size), fontWeight = weight, fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal))
     val w = m.size.width.toFloat().coerceAtLeast(1f)
-    // 書体ごとに字の幅が違うので、文字列の幅をコマの幅の 9 割に合わせる
+    // 書体ごとに字の幅が違うので、文字列の幅を枠の幅に合わせる
     scale(t.width / w, 1f, pivot = Offset(t.centerX, t.centerY)) {
-        drawOutlined(m, Offset(t.centerX - w / 2f, t.centerY - m.size.height / 2f), t.size, ink)
+        val topLeft = Offset(t.centerX - w / 2f, t.centerY - m.size.height / 2f)
+        if (s.color == TextColor.AUTO && s.shadow) {
+            drawOutlined(m, topLeft, t.size, ink)
+        } else {
+            drawOutlined(m, topLeft, t.size, color = s.textColor(ink), outline = s.withShadow(ink))
+        }
     }
 }
 
@@ -313,20 +396,26 @@ private fun DrawScope.drawClock(
     now: LocalDateTime,
     ink: Boolean,
 ) {
-    val (hm, date) = clockStrings(now)
-    // 白い紙の上では墨で描き、影を付けない
-    val color = if (ink) BlankPage.INK else Color.White
+    val st = c.style
+    val (hm, date) = clockStrings(now, st)
+    // 既定では、白い紙の上では墨で描き、影を付けない
+    val color = st.textColor(ink)
+    val shadow = st.withShadow(ink)
+    val font = st.font ?: WidgetFonts.DELA
+    val weight = if (WidgetFonts.hasWeights(font)) FontWeight(st.weight ?: 700) else null
+    // 秒を出すときは文字が増えるので、時計の幅に収まるよう小さくする
+    val timeSize = if (st.seconds) 250f else 330f
     val time =
         measurer.measure(
             hm,
-            TextStyle(fontFamily = KomaFonts.dela, fontSize = px(330f * c.k), letterSpacing = px(-6f * c.k), color = color),
+            TextStyle(fontFamily = widgetFontFamily(font), fontSize = px(timeSize * c.k), fontWeight = weight, letterSpacing = px(-6f * c.k), color = color),
         )
-    val day = measurer.measure(date, TextStyle(fontSize = px(54f * c.k), fontWeight = FontWeight.Bold, color = color))
+    val day = date.takeIf { it.isNotEmpty() }?.let { measurer.measure(it, TextStyle(fontSize = px(54f * c.k), fontWeight = FontWeight.Bold, color = color)) }
     // 範囲に収まらなければ、中心を保ったまま縮める（コマの縁にかからないように）
-    val s = c.limit?.let { fitScale(c, it, time.size.width / 2f, day.size.width / 2f, time.size.height, day.size.height) } ?: 1f
+    val s = c.limit?.let { fitScale(c, it, time.size.width / 2f, (day?.size?.width ?: 0) / 2f, time.size.height, day?.size?.height ?: 0) } ?: 1f
     scale(s, pivot = Offset(c.centerX, c.centerY)) {
-        drawText(day, topLeft = Offset(c.centerX - day.size.width / 2f, c.centerY - 210f * c.k - day.size.height / 2f), shadow = if (ink) null else Shadow(Color.Black.copy(alpha = 0.4f), Offset(0f, 3f * c.k), 6f * c.k))
-        drawText(time, topLeft = Offset(c.centerX - time.size.width / 2f, c.centerY - time.size.height / 2f), shadow = if (ink) null else Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 6f * c.k), 10f * c.k))
+        day?.let { drawText(it, topLeft = Offset(c.centerX - it.size.width / 2f, c.centerY - 210f * c.k - it.size.height / 2f), shadow = if (shadow) Shadow(Color.Black.copy(alpha = 0.4f), Offset(0f, 3f * c.k), 6f * c.k) else null) }
+        drawText(time, topLeft = Offset(c.centerX - time.size.width / 2f, c.centerY - time.size.height / 2f), shadow = if (shadow) Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 6f * c.k), 10f * c.k) else null)
     }
 }
 
@@ -383,6 +472,8 @@ fun buildPanelTexts(
     layout: Layout,
     panels: List<ResolvedPanel>,
     viewWidth: Float,
+    /** 画面の高さ。内蔵のウィジェット（時計・テキスト）の置き場所を、画面の割合から画素にするのに使う。 */
+    viewHeight: Float,
     names: Map<String, String>,
     masks: Map<String, PersonMask>,
     /** アイコンを置くコマと、置けるアイコンの数（フォルダのアプリの数。全アプリ一覧の記号は 1）。 */
@@ -390,6 +481,10 @@ fun buildPanelTexts(
 ): Map<PanelId, PanelTextSpec> {
     val tree = layout.shape as? LayoutShape.Tree ?: return emptyMap()
     val text = tree.text
+    // 内蔵のウィジェットと、画面の座標の長方形。テキストは文字が空なら描かない
+    val builtins =
+        tree.widgets.filter { it.builtin == BuiltinWidget.CLOCK || (it.builtin == BuiltinWidget.TEXT && it.style.text.isNotBlank()) }
+            .map { it to Rect(it.x * viewWidth, it.y * viewHeight, (it.x + it.w) * viewWidth, (it.y + it.h) * viewHeight) }
     val clockId = PanelText.clockPanel(panels, tree.clock)
     val mastheadId = PanelText.mastheadPanel(panels, text, tree.clock)
     val scale = viewWidth / tree.frame.refWidth
@@ -405,7 +500,8 @@ fun buildPanelTexts(
         // 斜めのコマでも文字がコマの外に出ないよう、内接する長方形を基準にし、枠と余白の分だけ内側へ寄せる
         val box by lazy { poly.largestInscribedRect(32).inset(inset) }
         val labels =
-            if (text.label == LabelMode.NONE || p.panel.id == clockId) {
+            // 時計のあるコマには名前を出さない（数字と重なるため）
+            if (text.label == LabelMode.NONE || p.panel.id == clockId || builtins.any { (spec, r) -> spec.builtin == BuiltinWidget.CLOCK && poly.contains(BuiltinWidgets.clockIn(r).first) }) {
                 emptyList()
             } else {
                 val label = PanelText.labelOf(p.panel, names[p.panel.id.value], text.english)
@@ -419,29 +515,43 @@ fun buildPanelTexts(
                     listOf(LabelText(label, pl.centerX - b.left, pl.centerY - b.top, pl.size, vertical, text.english, maxLength))
                 }
             }
-        val masthead =
-            if (p.panel.id == mastheadId) {
-                mastheadOf(p.polygon, text.masthead.trim(), text.mastheadY, inset, text.mastheadScale)
-            } else {
-                null
-            }
-        val clock = if (p.panel.id == clockId) clockOf(p.polygon, tree.clock.x, tree.clock.y, k, inset) else null
+        // 内蔵のウィジェットのうち、このコマにかかるもの。コマの文字の層で描くので、コマの形で切り取られ、コマと一緒に動く
+        val here = builtins.filter { (_, r) -> r.left < b.right && b.left < r.right && r.top < b.bottom && b.top < r.bottom }
+        val mastheads =
+            listOfNotNull(
+                // 書き換える前の大見出し（ホームで開くと内蔵のウィジェットに書き換える）
+                if (p.panel.id == mastheadId) {
+                    val (c, size, width) = BuiltinWidgets.mastheadOf(p.polygon, text.mastheadY, inset, text.mastheadScale)
+                    MastheadText(text.masthead.trim(), c.x - b.left, c.y - b.top, size, width)
+                } else {
+                    null
+                },
+            ) +
+                here.filter { it.first.builtin == BuiltinWidget.TEXT }.map { (spec, r) ->
+                    val (size, width) = BuiltinWidgets.textIn(r)
+                    MastheadText(spec.style.text.trim(), r.center.x - b.left, r.center.y - b.top, size, width, spec.style)
+                }
+        val clocks =
+            listOfNotNull(if (p.panel.id == clockId) clockOf(p.polygon, Point(b.left + tree.clock.x * b.width, b.top + tree.clock.y * b.height), k, inset) else null) +
+                here.filter { it.first.builtin == BuiltinWidget.CLOCK }.map { (spec, r) ->
+                    val (c, ck) = BuiltinWidgets.clockIn(r)
+                    // 中心があるコマでは、以前と同じくコマの縁にかからないよう縮める。ほかのコマには、はみ出した分だけを描く
+                    if (poly.contains(c)) clockOf(p.polygon, c, ck, inset, spec.style) else ClockText(c.x - b.left, c.y - b.top, ck, null, spec.style)
+                }
         val icons =
             if (text.icon && (iconPanels[p.panel.id.value] ?: 0) > 0) {
                 // 名前・大見出し・時計と重ならない、人物のいない場所を探す（座標は画面。返すときにコマの左上を原点にする）
                 val avoid =
                     labels.map { Rect(b.left + it.centerX - it.boxHalfWidth(), b.top + it.centerY - it.boxHalfHeight(), b.left + it.centerX + it.boxHalfWidth(), b.top + it.centerY + it.boxHalfHeight()) } +
-                        listOfNotNull(
-                            masthead?.let { Rect(b.left + it.centerX - it.width / 2f, b.top + it.centerY - it.size * 0.6f, b.left + it.centerX + it.width / 2f, b.top + it.centerY + it.size * 0.6f) },
-                            clock?.let { Rect(b.left + it.centerX - CLOCK_HALF_WIDTH * k, b.top + it.centerY - CLOCK_UP * k, b.left + it.centerX + CLOCK_HALF_WIDTH * k, b.top + it.centerY + CLOCK_DOWN * k) },
-                        )
+                        mastheads.map { BuiltinWidgets.textRect(Point(b.left + it.centerX, b.top + it.centerY), it.size, it.width) } +
+                        clocks.map { BuiltinWidgets.clockRect(Point(b.left + it.centerX, b.top + it.centerY), it.k) }
                 // 編集画面で位置を決めたコマは、その位置を中心に並べる
                 val fixed = p.panel.iconAt?.let { Point(b.left + it.x * b.width, b.top + it.y * b.height) }
                 iconSlots(b, box, iconPanels.getValue(p.panel.id.value), viewWidth, inset, cover, avoid, fits, fixed, p.panel.iconScale)
             } else {
                 emptyList()
             }
-        p.panel.id to PanelTextSpec(labels, masthead, clock, icons)
+        p.panel.id to PanelTextSpec(labels, mastheads, clocks, icons)
     }
 }
 
@@ -531,59 +641,18 @@ private const val ICON_GAP = 0.25f
 /** アイコンのうち人物に隠れる割合がこれを超えたら、隠れているとみなす。 */
 private const val ICON_HIDDEN = 0.5f
 
-/** 時計の中心から左右の端までのおよその距離（k = 1 のとき）。 */
-private const val CLOCK_HALF_WIDTH = 450f
-
-/**
- * 大見出しの置き場所。置く高さの帯で、コマの左右の縁の間（枠と余白 [inset] を除く）に幅を合わせる。
- * 斜めのコマでも、細くなっている側で縁からはみ出さないように、外接長方形ではなくコマの形で測る。
- * 上下も、枠と余白の内側に収まるように寄せる。座標はコマの外接長方形の左上が原点。
- */
-private fun mastheadOf(
-    polygon: Polygon,
-    text: String,
-    y: Float,
-    inset: Float,
-    /** 大きさの倍率（編集画面のピンチで決める）。幅はコマの幅を超えないので、大きくすると高さだけが伸びる。 */
-    scale: Float = 1f,
-): MastheadText {
-    val b = polygon.bounds
-    val size = PanelText.mastheadSize(b) * scale
-    val half = size * 0.6f
-    val lo = b.top + inset + half
-    val hi = b.bottom - inset - half
-    val cy = if (lo <= hi) (b.top + y * b.height).coerceIn(lo, hi) else b.center.y
-    val span = polygon.spanBetween(cy - half, cy + half)
-    val left = (span?.first ?: b.left) + inset
-    val right = (span?.second ?: b.right) - inset
-    return MastheadText(text, (left + right) / 2f - b.left, cy - b.top, size, ((right - left) * minOf(1f, scale)).coerceAtLeast(1f))
-}
-
-/** 時計の置き場所と、はみ出さずに描ける範囲（枠と余白 [inset] の内側）。座標はコマの外接長方形の左上が原点。 */
+/** 時計の置き場所と、はみ出さずに描ける範囲（枠と余白 [inset] の内側）。[center] は画面の座標、返す座標はコマの外接長方形の左上が原点。 */
 private fun clockOf(
     polygon: Polygon,
-    x: Float,
-    y: Float,
+    center: Point,
     k: Float,
     inset: Float,
+    style: WidgetStyle = WidgetStyle(),
 ): ClockText {
     val b = polygon.bounds
-    val cy = b.top + y * b.height
-    // 時刻と、その上の日付がかかる高さの帯で、左右の縁を測る
-    val span = polygon.spanBetween(cy - CLOCK_UP * k, cy + CLOCK_DOWN * k)
-    val limit =
-        Rect(
-            (span?.first ?: b.left) + inset - b.left,
-            inset,
-            (span?.second ?: b.right) - inset - b.left,
-            b.height - inset,
-        )
-    return ClockText(x * b.width, y * b.height, k, limit)
+    val l = BuiltinWidgets.clockLimit(polygon, center, k, inset)
+    return ClockText(center.x - b.left, center.y - b.top, k, Rect(l.left - b.left, l.top - b.top, l.right - b.left, l.bottom - b.top), style)
 }
-
-/** 時計の中心から、日付の上端・時刻の下端までのおよその距離（k = 1 のとき）。 */
-private const val CLOCK_UP = 260f
-private const val CLOCK_DOWN = 170f
 
 /** コマに置くアプリのアイコンの不透明度。絵の上で強く目立ちすぎないように、わずかに透かす。 */
 private const val ICON_ALPHA = 0.92f

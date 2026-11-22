@@ -164,7 +164,12 @@ object LayoutParser {
             ws.groupBy { it.id }.filterValues { it.size > 1 }.keys.firstOrNull()?.let { return "ウィジェットの id が重複しています: $it" }
             ws.forEach { w ->
                 if (!IMAGE_ID.matches(w.id)) return "widgets.id は英数字・_・- の 64 文字以内にしてください"
-                if (!PROVIDER.matches(w.provider)) return "widgets.provider は「パッケージ名/クラス名」にしてください"
+                if (!PROVIDER.matches(w.provider) && BuiltinWidget.entries.none { it.provider == w.provider }) return "widgets.provider は「パッケージ名/クラス名」か koma:clock・koma:text にしてください"
+                w.style?.let { s ->
+                    if (s.font != null && s.font !in WidgetFonts.ALL) return "widgets.style.font は ${WidgetFonts.ALL.joinToString("・")} のどれかにしてください"
+                    if (s.weight != null && s.weight !in 100..900) return "widgets.style.weight は 100〜900 にしてください"
+                    if (s.text.length > 64) return "widgets.style.text は 64 文字以内にしてください"
+                }
                 if (listOf(w.x, w.y).any { !it.isFinite() || it !in 0f..1f }) return "widgets.x・y は 0〜1 にしてください"
                 if (listOf(w.w, w.h).any { !it.isFinite() || it !in 0.02f..1f }) return "widgets.w・h は 0.02〜1 にしてください"
             }
@@ -396,11 +401,41 @@ object LayoutParser {
         val w: Float,
         val h: Float,
         val front: Boolean = false,
+        val style: StyleDto? = null,
     ) {
-        fun toModel() = WidgetSpec(id, provider, x, y, w, h, front)
+        fun toModel() = WidgetSpec(id, provider, x, y, w, h, front, (style ?: StyleDto()).toModel())
 
         companion object {
-            fun of(w: WidgetSpec) = WidgetDto(w.id, w.provider, w.x, w.y, w.w, w.h, w.front)
+            fun of(w: WidgetSpec) = WidgetDto(w.id, w.provider, w.x, w.y, w.w, w.h, w.front, StyleDto.of(w.style).takeIf { it != StyleDto() })
+        }
+    }
+
+    @Serializable
+    private data class StyleDto(
+        val font: String? = null,
+        val weight: Int? = null,
+        val date: String = "long",
+        val h24: Boolean = true,
+        val seconds: Boolean = false,
+        val color: String = "auto",
+        val shadow: Boolean = true,
+        val text: String = "",
+        val italic: Boolean? = null,
+    ) {
+        fun toModel() = WidgetStyle(
+            font = font,
+            weight = weight,
+            date = DateFormat.entries.firstOrNull { it.name.equals(date, ignoreCase = true) } ?: DateFormat.LONG,
+            h24 = h24,
+            seconds = seconds,
+            color = TextColor.entries.firstOrNull { it.name.equals(color, ignoreCase = true) } ?: TextColor.AUTO,
+            shadow = shadow,
+            text = text,
+            italic = italic,
+        )
+
+        companion object {
+            fun of(s: WidgetStyle) = StyleDto(s.font, s.weight, s.date.name.lowercase(), s.h24, s.seconds, s.color.name.lowercase(), s.shadow, s.text, s.italic)
         }
     }
 

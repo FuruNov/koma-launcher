@@ -380,6 +380,9 @@ internal fun LinkPanelSheet(
 /** 自由に置くウィジェットの長押しのメニュー。移動と大きさの変更は「配置を調整」で行う。 */
 @Composable
 internal fun WidgetMenuSheet(
+    /** 内蔵のウィジェット（時計・テキスト）なら、「変更」の代わりに「スタイル」を出す。 */
+    builtin: Boolean,
+    onStyle: () -> Unit,
     onAdjust: () -> Unit,
     onReplace: () -> Unit,
     onRemove: () -> Unit,
@@ -388,12 +391,13 @@ internal fun WidgetMenuSheet(
     BackHandler { onEvent(HomeEvent.Dismiss) }
     Sheet(onDismiss = { onEvent(HomeEvent.Dismiss) }) {
         BasicText(
-            "ウィジェット",
+            if (builtin) "内蔵のウィジェット" else "ウィジェット",
             style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold),
             modifier = Modifier.padding(16.dp),
         )
+        if (builtin) MenuRow("スタイル", onClick = onStyle)
         MenuRow("配置を調整", onClick = onAdjust)
-        MenuRow("変更", onClick = onReplace)
+        if (!builtin) MenuRow("変更", onClick = onReplace)
         MenuRow("削除", onClick = onRemove)
     }
 }

@@ -55,15 +55,17 @@ fun Modifier.homeGestures(
         val down = awaitFirstDown(requireUnconsumed = false)
         if (!enabled.value) return@awaitEachGesture
         val geo = geometry.value ?: return@awaitEachGesture
-        // ウィジェットの上のタップはウィジェットのビューが受けるので、下のコマのタップにしない
+        // ほかのアプリのウィジェットの上のタップはウィジェットのビューが受けるので、下のコマのタップにしない。
+        // 内蔵のウィジェット（時計・テキスト）はコマに描いた文字なので、以前と同じく下のコマのタップにする
         val widget = geo.widgetAt(down.position.x, down.position.y)
-        val panel = if (widget != null) null else geo.panelAt(down.position.x, down.position.y)
+        val viewWidget = widget?.takeIf { it.spec.builtin == null }
+        val panel = if (viewWidget != null) null else geo.panelAt(down.position.x, down.position.y)
         panel?.let(handler::onPanelPress)
 
         val outcome = trackGesture(down.position, viewConfiguration.touchSlop, swipeDistance, viewConfiguration.longPressTimeoutMillis, handler::onSwipeUpStart)
         when (outcome) {
             is Outcome.Tap -> {
-                if (widget != null) {
+                if (viewWidget != null) {
                     // ウィジェットのビューが受ける
                 } else if (panel != null) {
                     handler.onPanelRelease(panel, tapped = true, down.position)
@@ -82,6 +84,7 @@ fun Modifier.homeGestures(
 
             is Outcome.LongPress -> {
                 if (widget != null) {
+                    panel?.let { handler.onPanelRelease(it, tapped = false, down.position) }
                     handler.onWidgetLongPress(widget)
                 } else if (panel != null) {
                     handler.onPanelRelease(panel, tapped = false, down.position)

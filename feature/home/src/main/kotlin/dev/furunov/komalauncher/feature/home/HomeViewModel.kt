@@ -68,6 +68,11 @@ sealed interface Overlay {
         val widgetId: String,
     ) : Overlay
 
+    /** 内蔵のウィジェット（時計・テキスト）の見た目を変えるシート。 */
+    data class WidgetStyle(
+        val widgetId: String,
+    ) : Overlay
+
     /** アイコンの長押しのメニュー。[fromPanel] はフォルダから開いたときのコマ（一覧からなら null）。 */
     data class PanelMenu(
         val panelId: PanelId,

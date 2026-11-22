@@ -64,10 +64,12 @@ import dev.furunov.komalauncher.feature.home.anim.PanelMotion
 import dev.furunov.komalauncher.model.apps.AppKey
 import dev.furunov.komalauncher.model.apps.DrawerFolders
 import dev.furunov.komalauncher.model.geometry.Rect
+import dev.furunov.komalauncher.model.layout.BuiltinWidget
 import dev.furunov.komalauncher.model.layout.EditHistory
 import dev.furunov.komalauncher.model.layout.LayerKind
 import dev.furunov.komalauncher.model.layout.LayerOrder
 import dev.furunov.komalauncher.model.layout.Layout
+import dev.furunov.komalauncher.model.layout.LayoutEdits
 import dev.furunov.komalauncher.model.layout.LayoutShape
 import dev.furunov.komalauncher.model.layout.PanelContent
 import dev.furunov.komalauncher.model.layout.PanelId
@@ -79,6 +81,7 @@ import dev.furunov.komalauncher.model.layout.WidgetSpec
 import dev.furunov.komalauncher.model.ports.TiltSource
 import dev.furunov.komalauncher.model.settings.GestureKind
 import dev.furunov.komalauncher.model.settings.LauncherAction
+import dev.furunov.komalauncher.model.widgets.BuiltinWidgets
 import dev.furunov.komalauncher.model.widgets.WidgetPlacement
 import dev.furunov.komalauncher.ui.art.BlankPage
 import dev.furunov.komalauncher.ui.art.DepthArtPainter
@@ -199,7 +202,7 @@ fun HomeScreen(
         val playerPanel = state.player?.panelId
         val texts =
             remember(geometry, state.layout, folderNames, masks, playerPanel, iconPanels) {
-                val built = buildPanelTexts(state.layout, geometry.panels.map { ResolvedPanel(it.panel, it.index, it.polygon, it.art) }, wPx, folderNames, masks, iconPanels)
+                val built = buildPanelTexts(state.layout, geometry.panels.map { ResolvedPanel(it.panel, it.index, it.polygon, it.art) }, wPx, hPx, folderNames, masks, iconPanels)
                 // 再生中のコマには名前とアイコンを出さない（時計と大見出しは残す）
                 if (playerPanel == null) built else built.mapValues { (id, spec) -> if (id == playerPanel) spec.copy(labels = emptyList(), icons = emptyList()) else spec }
             }
@@ -207,7 +210,14 @@ fun HomeScreen(
         val artFade = rememberArtFade(playerArt.takeIf { playerPanel != null })
         var flash by remember { mutableStateOf<PlayerFlashEvent?>(null) }
         val measurer = rememberTextMeasurer(cacheSize = 16)
-        val now by rememberMinuteClock()
+        // 秒を出す時計があれば毎秒、無ければ毎分進める
+        val withSeconds = (state.layout.shape as? LayoutShape.Tree)?.widgets.orEmpty().any { it.builtin == BuiltinWidget.CLOCK && it.style.seconds }
+        val now by rememberMinuteClock(withSeconds)
+        // 以前の時計と大見出し（clock・text.masthead）を、同じ位置と大きさの内蔵のウィジェットに書き換える（1 度だけ）
+        LaunchedEffect(state.layout, wPx, hPx) {
+            val panels = geometry.panels.map { ResolvedPanel(it.panel, it.index, it.polygon, it.art) }
+            if (BuiltinWidgets.migrate(state.layout, panels, wPx, hPx) != null) editLayout { BuiltinWidgets.migrate(it, panels, wPx, hPx) ?: it }
+        }
         val parallax = remember(state.layout, wPx) { parallaxOf(state.layout, wPx) }
         // 一覧やフォルダなどを開いている間は、後ろのホームの視差を止める（手の揺れで描き直し続け、開く動きが重くなるため）
         // 試作の深度の層が動く最大量（画素）。刻みをこれにも合わせ、1 回の描き直しで 1 画素を超えて跳ばないようにする
@@ -389,7 +399,8 @@ fun HomeScreen(
                     }
                 }
                 // 自由に置くウィジェットは、すべてのコマの上に描く。人物の後ろのものを描き、人物を描き直し、人物の前のものを描く
-                val (frontWidgets, behindWidgets) = geometry.widgets.partition { it.spec.front }
+                // 内蔵のウィジェット（時計・テキスト）はコマの文字の層で描くので、ここではほかのアプリのウィジェットだけを描く
+                val (frontWidgets, behindWidgets) = geometry.widgets.filter { it.spec.builtin == null }.partition { it.spec.front }
                 val widgetRects = behindWidgets.map { it.bounds }
                 val widgetBox: @Composable (WidgetGeometry) -> Unit = { w ->
                     val r = w.bounds
@@ -481,6 +492,8 @@ fun HomeScreen(
 
                     is Overlay.WidgetMenu ->
                         WidgetMenuSheet(
+                            builtin = geometry.widgets.firstOrNull { it.spec.id == o.widgetId }?.spec?.builtin != null,
+                            onStyle = { onEvent(HomeEvent.OpenOverlay(Overlay.WidgetStyle(o.widgetId))) },
                             onAdjust = { onEvent(HomeEvent.Adjust(true)) },
                             onReplace = {
                                 onEvent(HomeEvent.Dismiss)
@@ -492,6 +505,11 @@ fun HomeScreen(
                             },
                             onEvent = onEvent,
                         )
+
+                    is Overlay.WidgetStyle ->
+                        geometry.widgets.firstOrNull { it.spec.id == o.widgetId }?.let { w ->
+                            WidgetStyleSheet(w.spec, onChange = { style -> editLayout { WidgetPlacement.setStyle(it, o.widgetId, style) } }, onEvent = onEvent)
+                        }
 
                     Overlay.MusicAccess -> MusicAccessSheet(onEvent)
 
@@ -538,13 +556,24 @@ fun HomeScreen(
                                 setOfNotNull(
                                     LayerKind.ICONS.takeIf { spec?.icons?.isNotEmpty() == true },
                                     LayerKind.LABEL.takeIf { spec?.labels?.isNotEmpty() == true },
-                                    LayerKind.MASTHEAD.takeIf { spec?.masthead != null },
-                                    LayerKind.CLOCK.takeIf { spec?.clock != null },
+                                    LayerKind.MASTHEAD.takeIf { spec?.mastheads?.isNotEmpty() == true },
+                                    LayerKind.CLOCK.takeIf { spec?.clocks?.isNotEmpty() == true },
                                     LayerKind.PERSON.takeIf { image != null && image in masks },
                                 )
                             }
-                            if (part is Part.Widget) {
+                            val builtin = (part as? Part.Widget)?.start?.builtin
+                            if (part is Part.Widget && builtin == null) {
                                 editLayout { WidgetPlacement.reorder(it, part.start.id, move) }
+                            } else if (part is Part.Widget && builtin != null) {
+                                // 内蔵のウィジェットはコマの文字の層で描くので、かかるコマすべての重ね順で動かす
+                                val s = part.start
+                                val layer = if (builtin == BuiltinWidget.CLOCK) LayerKind.CLOCK else LayerKind.MASTHEAD
+                                val ids =
+                                    t.panels.filter { p ->
+                                        val b = p.polygon.bounds
+                                        s.x * t.viewWidth < b.right && b.left < (s.x + s.w) * t.viewWidth && s.y * t.viewHeight < b.bottom && b.top < (s.y + s.h) * t.viewHeight
+                                    }.map { it.panel.id }
+                                editLayout { l -> ids.fold(l) { acc, id -> LayoutEdits.updatePanel(acc, id) { p -> p.copy(order = LayerOrder.move(p.order, layer, move, present(id)).takeIf { it != LayerOrder.DEFAULT }) } } }
                             } else {
                                 editLayout { PartEdits.reorder(it, t.panels, part, move, present) }
                             }
@@ -780,9 +809,9 @@ private fun TextPart(
 
         LayerKind.LABEL -> if (texts.labels.isNotEmpty()) TiltLayer(shift(parallax.text)) { drawPanelTexts(PanelTextSpec(labels = texts.labels), area, measurer, now(), null, null, null, ink = g.face.inkText) }
 
-        LayerKind.MASTHEAD -> texts.masthead?.let { m -> TiltLayer(shift(parallax.masthead)) { drawPanelTexts(PanelTextSpec(masthead = m), area, measurer, now(), null, null, null, ink = g.face.inkText) } }
+        LayerKind.MASTHEAD -> if (texts.mastheads.isNotEmpty()) TiltLayer(shift(parallax.masthead)) { drawPanelTexts(PanelTextSpec(mastheads = texts.mastheads), area, measurer, now(), null, null, null, ink = g.face.inkText) }
 
-        LayerKind.CLOCK -> texts.clock?.let { c -> TiltLayer(shift(parallax.clock)) { drawPanelTexts(PanelTextSpec(clock = c), area, measurer, now(), null, null, null, ink = g.face.inkText) } }
+        LayerKind.CLOCK -> if (texts.clocks.isNotEmpty()) TiltLayer(shift(parallax.clock)) { drawPanelTexts(PanelTextSpec(clocks = texts.clocks), area, measurer, now(), null, null, null, ink = g.face.inkText) }
 
         LayerKind.PERSON -> Unit
     }
@@ -878,15 +907,15 @@ private fun Path.addPolygonAt(
     close()
 }
 
-/** 毎分 0 秒に進む時計。ホームが見えている間だけ進める（裏では描かないので）。 */
+/** 毎分 0 秒に進む時計（[everySecond] なら毎秒）。ホームが見えている間だけ進める（裏では描かないので）。 */
 @Composable
-private fun rememberMinuteClock(): State<LocalDateTime> {
+private fun rememberMinuteClock(everySecond: Boolean = false): State<LocalDateTime> {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    return produceState(LocalDateTime.now(), lifecycle) {
+    return produceState(LocalDateTime.now(), lifecycle, everySecond) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {
                 value = LocalDateTime.now()
-                val next = value.withSecond(0).withNano(0).plusMinutes(1)
+                val next = if (everySecond) value.withNano(0).plusSeconds(1) else value.withSecond(0).withNano(0).plusMinutes(1)
                 delay(java.time.Duration.between(LocalDateTime.now(), next).toMillis().coerceAtLeast(100))
             }
         }

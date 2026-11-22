@@ -48,7 +48,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import dev.furunov.komalauncher.model.apps.AppSearch
+import dev.furunov.komalauncher.model.layout.BuiltinWidget
+import dev.furunov.komalauncher.model.layout.WidgetFonts
 import dev.furunov.komalauncher.model.widgets.WidgetCatalog
+import dev.furunov.komalauncher.ui.art.clockStrings
+import dev.furunov.komalauncher.ui.art.widgetFontFamily
 import kotlinx.coroutines.launch
 import kotlin.math.min
 
@@ -66,6 +71,8 @@ fun WidgetPicker(
     onPick: (Activity, WidgetChoice) -> Unit,
     onDismiss: () -> Unit,
     title: String = "ウィジェットを選択",
+    /** ランチャーに内蔵のウィジェット（時計・テキスト）を選んだとき。null なら内蔵のものを並べない（入れ替えのときなど）。 */
+    onPickBuiltin: ((BuiltinWidget) -> Unit)? = null,
 ) {
     BackHandler(onBack = onDismiss)
     val activity = LocalContext.current.findActivity()
@@ -101,12 +108,24 @@ fun WidgetPicker(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            val builtins = if (onPickBuiltin == null) emptyList() else BUILTINS.filter { (_, name) -> query.isBlank() || AppSearch.match(query, name) != null || AppSearch.match(query, "コマランチャー") != null }
             if (loaded == null) {
                 BasicText("読み込み中", style = TextStyle(color = Color(0xFF9A9AA2), fontSize = 14.sp), modifier = Modifier.padding(20.dp))
-            } else if (groups.isEmpty()) {
+            } else if (groups.isEmpty() && builtins.isEmpty()) {
                 BasicText("一致するウィジェットはありません", style = TextStyle(color = Color(0xFF9A9AA2), fontSize = 14.sp), modifier = Modifier.padding(20.dp))
             }
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                // ランチャーに内蔵のウィジェットを先頭に並べる
+                if (builtins.isNotEmpty()) {
+                    item(key = "builtin") {
+                        Column(Modifier.padding(top = 14.dp)) {
+                            BasicText("コマランチャー", style = TextStyle(color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 20.dp))
+                            Row(Modifier.padding(start = 16.dp, top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                builtins.forEach { (kind, name) -> BuiltinCard(kind, name) { onPickBuiltin?.invoke(kind) } }
+                            }
+                        }
+                    }
+                }
                 items(groups, key = { it.packageName }) { g ->
                     Column(Modifier.padding(top = 14.dp)) {
                         Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -230,4 +249,29 @@ private fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
+}
+
+private val BUILTINS = listOf(BuiltinWidget.CLOCK to "時計", BuiltinWidget.TEXT to "テキスト")
+
+/** 内蔵のウィジェットの見本。ホームと同じ書体で描く。 */
+@Composable
+private fun BuiltinCard(
+    kind: BuiltinWidget,
+    name: String,
+    onClick: () -> Unit,
+) {
+    Column(Modifier.width(CardWidth).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(bottom = 6.dp)) {
+        Box(Modifier.size(CardWidth, PreviewHeight).background(Color(0xFF2A2A31), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+            if (kind == BuiltinWidget.CLOCK) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    BasicText(clockStrings(java.time.LocalDateTime.now()).second, style = TextStyle(color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold))
+                    BasicText(clockStrings(java.time.LocalDateTime.now()).first, style = TextStyle(color = Color.White, fontSize = 44.sp, fontFamily = widgetFontFamily(WidgetFonts.DELA)))
+                }
+            } else {
+                BasicText("KOMA", style = TextStyle(color = Color.White, fontSize = 40.sp, fontFamily = widgetFontFamily(WidgetFonts.BODONI), fontWeight = FontWeight.ExtraBold, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic))
+            }
+        }
+        BasicText(name, style = TextStyle(color = Color.White, fontSize = 13.sp), modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 6.dp))
+        BasicText(if (kind == BuiltinWidget.CLOCK) "見た目を変えられます" else "文字と見た目を変えられます", style = TextStyle(color = Color(0xFF9A9AA2), fontSize = 12.sp), modifier = Modifier.padding(horizontal = 4.dp))
+    }
 }
